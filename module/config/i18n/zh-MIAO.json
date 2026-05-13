@@ -1705,10 +1705,10 @@
       "slot_4": "使用于4号位喵"
     },
     "SkillAutoSwitch": {
-      "name": "きりかえのうりょく",
-      "help": "つぎのまだまなびおわってないのうりょくにじどうできりかえるにゃ",
-      "True": "ONにゃ",
-      "False": "OFFにゃ"
+      "name": "自动换技能喵",
+      "help": "自动换到下一个还没学完的技能继续学喵",
+      "True": "开启喵",
+      "False": "关闭喵"
     }
   },
   "ControlExpOverflow": {
