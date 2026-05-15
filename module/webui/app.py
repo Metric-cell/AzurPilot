@@ -354,10 +354,6 @@ class AlasGUI(Frame):
         self._overview_snapshot = None
         self.load_home = False
         self.af_flag = False
-        self._last_announcement_id = None
-        self._announcement_result = None
-        self._announcement_fetching = False
-        self._announcement_force = False
         self.simulator = OSSimulator()
         self._simulator_logger_pm = None
         self._overview_log = None
@@ -4709,116 +4705,6 @@ class AlasGUI(Frame):
                 position="right",
                 onclick=_disable,
             )
-
-    def _fetch_announcement_thread(self, force=False):
-        """
-        在后台线程中获取公告数据（非阻塞）
-        """
-        try:
-            from module.base.api_client import ApiClient
-
-            data = ApiClient.get_announcement(timeout=10)
-            self._announcement_result = (data, force)
-        except Exception as e:
-            logger.error(f"Announcement fetch failed: {e}")
-            self._announcement_result = (None, force, str(e))
-        finally:
-            self._announcement_fetching = False
-
-    def _start_announcement_fetch(self, force=False):
-        """
-        启动异步公告获取。如果已在获取中则跳过。
-        """
-        if self._announcement_fetching:
-            return
-        self._announcement_fetching = True
-        self._announcement_force = force
-        self._announcement_result = None
-        threading.Thread(
-            target=self._fetch_announcement_thread, args=(force,), daemon=True
-        ).start()
-
-    def _process_announcement_result(self):
-        """
-        处理异步获取的公告结果并推送到前端。
-        在 TaskHandler 循环中调用（非阻塞）。
-        Returns:
-            True 如果结果已处理，False 如果还在等待
-        """
-        if self._announcement_fetching or self._announcement_result is None:
-            return False
-
-        result = self._announcement_result
-        self._announcement_result = None
-
-        # 解包结果
-        if len(result) == 3:
-            # 有错误
-            _, force, error = result
-            if force:
-                toast(f"Check failed: {error}", color="error")
-            return True
-
-        data, force = result
-
-        if data:
-            announcement_id = data.get("announcementId")
-
-            # If force is False, check if we need to update
-            if not force:
-                if announcement_id and announcement_id == self._last_announcement_id:
-                    return True
-
-                # Check if browser has seen it (only if not forced)
-                try:
-                    announcement_id_json = json.dumps(announcement_id)
-                    has_shown = eval_js(
-                        f"window.alasHasBeenShown({announcement_id_json})"
-                    )
-                    if has_shown:
-                        self._last_announcement_id = announcement_id
-                        return True
-                except Exception:
-                    pass
-
-            title_json = json.dumps(data.get("title", ""))
-            content_json = json.dumps(data.get("content", ""))
-            announcement_id_json = json.dumps(announcement_id)
-            url_json = json.dumps(data.get("url", ""))
-            force_json = "true" if force else "false"
-
-            logger.info(f"Pushing announcement: {data.get('title')}")
-            run_js(
-                f"window.alasShowAnnouncement({title_json}, {content_json}, {announcement_id_json}, {url_json}, {force_json});"
-            )
-
-            # Pushing to launcher
-            from module.notify.notify import notify_webui
-
-            notify_webui(
-                instance="Alas",
-                title=data.get("title", ""),
-                content=data.get("content", ""),
-                updata=False,
-            )
-
-            self._last_announcement_id = announcement_id
-
-        elif force:
-            toast("暂无公告 / No announcement", color="info")
-
-        return True
-
-    def ui_check_announcement(self, force=False) -> None:
-        """
-        Check for announcements (non-blocking).
-        Starts async fetch; result is processed in announcement_checker.
-        Args:
-            force (bool): If True, show announcement even if already shown.
-        """
-        self._start_announcement_fetch(force=force)
-        if force:
-            toast("正在获取公告... / Fetching announcement...", color="info")
 
     def run(self) -> None:
         # setup gui
