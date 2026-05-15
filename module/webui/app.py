@@ -85,7 +85,6 @@ from module.ocr.rpc import start_ocr_server_process, stop_ocr_server_process
 from module.submodule.submodule import load_config
 from module.submodule.utils import get_config_mod
 from module.webui.base import Frame
-from module.webui.discord_presence import close_discord_rpc, init_discord_rpc
 from module.webui.fastapi import asgi_app
 from module.webui.lang import _t, t
 from module.webui.patch import (
@@ -95,7 +94,6 @@ from module.webui.patch import (
 )
 from module.webui.pin import put_checkbox, put_input, put_select
 from module.webui.process_manager import ProcessManager
-from module.webui.remote_access import RemoteAccess
 from module.webui.setting import State
 from module.webui.utils import (
     Icon,
@@ -5102,10 +5100,6 @@ def startup():
         init_discord_rpc()
     if State.deploy_config.StartOcrServer and not is_demo_mode():
         start_ocr_server_process(State.deploy_config.OcrServerPort)
-    if State.deploy_config.EnableRemoteAccess and (
-        State.deploy_config.Password is not None or os.environ.get("DEMO") == "1"
-    ):
-        task_handler.add(RemoteAccess.keep_ssh_alive(), 60)
 
 
 def clearup():
@@ -5114,8 +5108,6 @@ def clearup():
     all process will NOT EXIT after close electron app.
     """
     logger.info("Start clearup")
-    RemoteAccess.kill_ssh_process()
-    close_discord_rpc()
     stop_ocr_server_process()
     for alas in ProcessManager._processes.values():
         alas.stop()
@@ -5229,8 +5221,6 @@ def app():
             return
         app_manage()
 
-    from mcp_server_sse import app as mcp_app
-
     app = asgi_app(
         applications=[index, manage],
         cdn=cdn,
@@ -5244,6 +5234,4 @@ def app():
         ],
         on_shutdown=[clearup],
     )
-    app.mount("/mcp", mcp_app)
-
     return app

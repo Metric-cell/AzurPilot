@@ -86,7 +86,7 @@ class DeployConfig(ConfigModel):
     def show_config(self):
         logger.hr("Show deploy config", 1)
         for k, v in self.config.items():
-            if k in ("Password", "SSHUser"):
+            if k in ("Password",):
                 continue
             if self.config_template.get(k) == v:
                 continue

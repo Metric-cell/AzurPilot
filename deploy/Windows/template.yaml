@@ -86,9 +86,6 @@ Deploy:
     # [Default] 03:50
     AutoRestartTime: 03:50
 
-  Misc:
-    # Enable discord rich presence
-    DiscordRichPresence: false
 
   RemoteAccess:
     # Enable remote access (using ssh reverse tunnel serve by https://github.com/wang0618/localshare)

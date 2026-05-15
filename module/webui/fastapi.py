@@ -1,6 +1,7 @@
 """
 Copy from pywebio.platform.fastapi
 """
+
 import asyncio
 import logging
 import os
@@ -100,7 +101,7 @@ def asgi_app(
     debug=False,
     allowed_origins=None,
     check_origin=None,
-    **starlette_settings
+    **starlette_settings,
 ):
     debug = Session.debug = os.environ.get("PYWEBIO_DEBUG", debug)
     cdn = cdn_validation(cdn, "warn")
@@ -125,12 +126,14 @@ def asgi_app(
             name="pywebio_static",
         )
     )
-    
+
     try:
         from module.webui.api import api_routes
+
         routes.extend(api_routes)
     except Exception as e:
         import logging
+
         logging.getLogger(__name__).error(f"Failed to load api routes: {e}")
 
     middleware = [Middleware(HeaderMiddleware)]
@@ -145,12 +148,11 @@ def start_server(
     host="",
     cdn=True,
     static_dir=None,
-    remote_access=False,
     debug=False,
     allowed_origins=None,
     check_origin=None,
     auto_open_webbrowser=False,
-    **uvicorn_settings
+    **uvicorn_settings,
 ):
 
     app = asgi_app(
@@ -172,8 +174,5 @@ def start_server(
 
     if port == 0:
         port = get_free_port()
-
-    if remote_access:
-        start_remote_access_service(local_port=port)
 
     uvicorn.run(app, host=host, port=port, **uvicorn_settings)
