@@ -97,7 +97,6 @@ from module.webui.pin import put_checkbox, put_input, put_select
 from module.webui.process_manager import ProcessManager
 from module.webui.remote_access import RemoteAccess
 from module.webui.setting import State
-from module.webui.updater import updater
 from module.webui.utils import (
     Icon,
     Switch,
@@ -359,7 +358,6 @@ class AlasGUI(Frame):
         self._announcement_result = None
         self._announcement_fetching = False
         self._announcement_force = False
-        self._update_notified = False
         self.simulator = OSSimulator()
         self._simulator_logger_pm = None
         self._overview_log = None
@@ -3666,12 +3664,6 @@ class AlasGUI(Frame):
         # ).style(f"--menu-Translate--")
 
         put_button(
-            label=t("Gui.MenuDevelop.Update"),
-            onclick=self.dev_update,
-            color="menu",
-        ).style(f"--menu-Update--")
-
-        put_button(
             label=t("Gui.MenuDevelop.Remote"),
             onclick=self.dev_remote,
             color="menu",
@@ -3704,171 +3696,7 @@ class AlasGUI(Frame):
     def dev_update(self) -> None:
         self.init_menu(name="Update")
         self.set_title(t("Gui.MenuDevelop.Update"))
-
-        if State.restart_event is None:
-            put_warning(t("Gui.Update.DisabledWarn"))
-
-        put_row(
-            content=[put_scope("updater_loading"), None, put_scope("updater_state")],
-            size="auto .25rem 1fr",
-        )
-
-        put_scope("updater_btn")
-        put_scope("updater_info")
-
-        def update_table():
-            with use_scope("updater_info", clear=True):
-                local_commit = updater.get_commit(short_sha1=True)
-                upstream_commit = updater.get_commit(
-                    f"origin/{updater.Branch}", short_sha1=True
-                )
-                put_table(
-                    [
-                        [t("Gui.Update.Local"), *local_commit],
-                        [t("Gui.Update.Upstream"), *upstream_commit],
-                    ],
-                    header=[
-                        "",
-                        "SHA1",
-                        t("Gui.Update.Author"),
-                        t("Gui.Update.Time"),
-                        t("Gui.Update.Message"),
-                    ],
-                )
-            with use_scope("updater_detail", clear=True):
-                put_text(t("Gui.Update.DetailedHistory"))
-                history = updater.get_commit(
-                    f"origin/{updater.Branch}", n=20, short_sha1=True
-                )
-                put_table(
-                    [commit for commit in history],
-                    header=[
-                        "SHA1",
-                        t("Gui.Update.Author"),
-                        t("Gui.Update.Time"),
-                        t("Gui.Update.Message"),
-                    ],
-                )
-
-        def u(state):
-            if state == -1:
-                return
-            clear("updater_loading")
-            clear("updater_state")
-            clear("updater_btn")
-            if state == 0:
-                put_loading("border", "secondary", "updater_loading").style(
-                    "--loading-border-fill--"
-                )
-                put_text(t("Gui.Update.UpToDate"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.CheckUpdate"),
-                    onclick=updater.check_update,
-                    color="info",
-                    scope="updater_btn",
-                )
-                update_table()
-            elif state == 1:
-                put_loading("grow", "success", "updater_loading").style(
-                    "--loading-grow--"
-                )
-                put_text(t("Gui.Update.HaveUpdate"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.ClickToUpdate"),
-                    onclick=updater.run_update,
-                    color="success",
-                    scope="updater_btn",
-                )
-                update_table()
-            elif state == "checking":
-                put_loading("border", "primary", "updater_loading").style(
-                    "--loading-border--"
-                )
-                put_text(t("Gui.Update.UpdateChecking"), scope="updater_state")
-            elif state == "failed":
-                put_loading("grow", "danger", "updater_loading").style(
-                    "--loading-grow--"
-                )
-                put_text(t("Gui.Update.UpdateFailed"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.RetryUpdate"),
-                    onclick=updater.run_update,
-                    color="primary",
-                    scope="updater_btn",
-                )
-            elif state == "start":
-                put_loading("border", "primary", "updater_loading").style(
-                    "--loading-border--"
-                )
-                put_text(t("Gui.Update.UpdateStart"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.CancelUpdate"),
-                    onclick=updater.cancel,
-                    color="danger",
-                    scope="updater_btn",
-                )
-            elif state == "wait":
-                put_loading("border", "primary", "updater_loading").style(
-                    "--loading-border--"
-                )
-                put_text(t("Gui.Update.UpdateWait"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.CancelUpdate"),
-                    onclick=updater.cancel,
-                    color="danger",
-                    scope="updater_btn",
-                )
-            elif state == "run update":
-                put_loading("border", "primary", "updater_loading").style(
-                    "--loading-border--"
-                )
-                put_text(t("Gui.Update.UpdateRun"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.CancelUpdate"),
-                    onclick=updater.cancel,
-                    color="danger",
-                    scope="updater_btn",
-                    disabled=True,
-                )
-            elif state == "reload":
-                put_loading("grow", "success", "updater_loading").style(
-                    "--loading-grow--"
-                )
-                put_text(t("Gui.Update.UpdateSuccess"), scope="updater_state")
-                update_table()
-            elif state == "finish":
-                put_loading("grow", "success", "updater_loading").style(
-                    "--loading-grow--"
-                )
-                put_text(t("Gui.Update.UpdateFinish"), scope="updater_state")
-                update_table()
-            elif state == "cancel":
-                put_loading("border", "danger", "updater_loading").style(
-                    "--loading-border--"
-                )
-                put_text(t("Gui.Update.UpdateCancel"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.CancelUpdate"),
-                    onclick=updater.cancel,
-                    color="danger",
-                    scope="updater_btn",
-                    disabled=True,
-                )
-            else:
-                put_text(
-                    "Something went wrong, please contact develops",
-                    scope="updater_state",
-                )
-                put_text(f"state: {state}", scope="updater_state")
-
-        updater_switch = Switch(
-            status=u, get_state=lambda: updater.state, name="updater"
-        )
-
-        update_table()
-        self.task_handler.add(updater_switch.g(), delay=0.5, pending_delete=True)
-
-        updater.check_update()
+        put_text("自动更新功能已移除")
 
     def _render_startup_run_setting(self) -> None:
         instance = self.alas_name or DEFAULT_CONFIG_NAME
@@ -5525,7 +5353,7 @@ def app():
         on_startup=[
             startup,
             lambda: ProcessManager.restart_processes(
-                instances=instances, ev=updater.event
+                instances=instances
             ),
         ],
         on_shutdown=[clearup],

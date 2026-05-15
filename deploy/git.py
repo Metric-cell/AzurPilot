@@ -1,12 +1,6 @@
-import requests
-
 from deploy.config import DeployConfig, ExecutionError
-from deploy.git_over_cdn.client import GitOverCdnClient
 from deploy.logger import logger
 from deploy.utils import *
-
-
-CLOUD_UPDATE_CONTROL_URL = 'https://alas-apiv2.nanoda.work/api/updata'
 
 
 class GitManager(DeployConfig):
@@ -125,17 +119,6 @@ class GitManager(DeployConfig):
     def git_install(self):
         logger.hr('Update AzurPilot', 0)
 
-        cloud_update = self.cloud_auto_update_enabled()
-        if cloud_update is None:
-            self.cloud_update_access_failed()
-        if not cloud_update:
-            logger.info('Cloud update control disabled, skip')
-            return
-
-        if self.GitOverCdn:
-            if self.goc_client.update():
-                return
-
         self.git_repository_init(
             repo=self.Repository,
             source='origin',
@@ -143,8 +126,3 @@ class GitManager(DeployConfig):
             proxy=self.GitProxy,
             ssl_verify=self.SSLVerify,
         )
-
-
-if __name__ == '__main__':
-    self = GitManager()
-    self.goc_client.get_status()

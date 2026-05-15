@@ -8,10 +8,6 @@ from deploy.Windows.logger import logger
 from deploy.Windows.utils import DEPLOY_CONFIG, DEPLOY_TEMPLATE, cached_property, poor_yaml_read, poor_yaml_write
 
 
-GIT_OVER_CDN_REPOSITORY = 'git://git.pull/AzurPilot'
-GIT_OVER_CDN_FALLBACK_REPOSITORY = 'https://gitcode.com/ddl2/AzurLaneAutoScript'
-
-
 class ExecutionError(Exception):
     pass
 
@@ -23,7 +19,6 @@ class ConfigModel:
     GitExecutable: str = "./.venv/Scripts/git/cmd/git.exe"
     GitProxy: Optional[str] = None
     SSLVerify: bool = False
-    AutoUpdate: bool = True
 
     # Python 配置
     PythonExecutable: str = "./.venv/Scripts/python.exe"
@@ -44,8 +39,6 @@ class ConfigModel:
 
     # 更新配置
     EnableReload: bool = True
-    CheckUpdateInterval: int = 5
-    AutoRestartTime: str = "03:50"
 
     # 杂项
     DiscordRichPresence: bool = False
@@ -129,8 +122,8 @@ class DeployConfig(ConfigModel):
         super().__setattr__('GitOverCdn', self.Repository in ['cn', GIT_OVER_CDN_REPOSITORY])
         if self.Repository in ['global']:
             super().__setattr__('Repository', 'https://github.com/wess09/AzurPilot')
-        if self.Repository in ['cn', GIT_OVER_CDN_REPOSITORY]:
-            super().__setattr__('Repository', GIT_OVER_CDN_FALLBACK_REPOSITORY)
+        if self.Repository in ['cn']:
+            super().__setattr__('Repository', 'https://github.com/wess09/AzurPilot')
 
     def filepath(self, path):
         """获取绝对文件路径。
