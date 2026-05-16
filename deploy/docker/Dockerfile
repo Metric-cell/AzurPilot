@@ -63,8 +63,9 @@ RUN pip install --upgrade pip
 # Install Cython (required for some packages)
 RUN pip install Cython==0.29.37
 
-# Install av with no build isolation
-RUN pip install av==10.0.0 --no-build-isolation
+# Install av (remove version constraint and --no-build-isolation flag)
+# av 10.0.0 may have compatibility issues with Python 3.13
+RUN pip install av
 
 # Install remaining requirements
 RUN pip install -r /tmp/requirements.txt && \
