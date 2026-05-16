@@ -381,7 +381,8 @@
           "MuMuPlayer12",
           "MEmuPlayer",
           "BlueStacksAir",
-          "MuMuPro"
+          "MuMuPro",
+          "SSH"
         ]
       },
       "name": {
@@ -391,6 +392,38 @@
       "path": {
         "type": "textarea",
         "value": null
+      },
+      "EnableRemoteSSH": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "RemoteSSHHost": {
+        "type": "input",
+        "value": null
+      },
+      "RemoteSSHPort": {
+        "type": "input",
+        "value": 22
+      },
+      "RemoteSSHUser": {
+        "type": "input",
+        "value": "root"
+      },
+      "RemoteSSHPublicKey": {
+        "type": "textarea",
+        "value": null
+      },
+      "RemoteStartCommand": {
+        "type": "textarea",
+        "value": ""
+      },
+      "RemoteStopCommand": {
+        "type": "textarea",
+        "value": ""
       }
     },
     "Error": {
@@ -13473,7 +13506,11 @@
         "type": "textarea",
         "value": ""
       },
-      "RemoteCommand": {
+      "RemoteStartCommand": {
+        "type": "input",
+        "value": ""
+      },
+      "RemoteStopCommand": {
         "type": "input",
         "value": ""
       }

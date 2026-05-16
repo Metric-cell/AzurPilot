@@ -532,7 +532,8 @@
       "MuMuPlayer12": "MuMuエミュレータ12",
       "MEmuPlayer": "MEmuエミュレータ",
       "BlueStacksAir": "BlueStacks Air",
-      "MuMuPro": "MuMu Pro"
+      "MuMuPro": "MuMu Pro",
+      "SSH": "SSH"
     },
     "name": {
       "name": "エミュレータインスタンス名",
@@ -541,6 +542,36 @@
     "path": {
       "name": "エミュレータインストールパス",
       "help": ""
+    },
+    "EnableRemoteSSH": {
+      "name": "リモートSSH管理を有効にする",
+      "help": "エミュレータを再起動する前に、SSH経由でリモートサーバー上で特定のコマンド（Dockerコンテナの再起動など）を実行します。",
+      "True": "有効",
+      "False": "無効"
+    },
+    "RemoteSSHHost": {
+      "name": "リモートサーバーアドレス",
+      "help": "リモートサーバーのIPアドレスまたはドメイン名。例: 192.168.1.100"
+    },
+    "RemoteSSHPort": {
+      "name": "ポート番号",
+      "help": "SSHサービスのポート。デフォルトは22です。"
+    },
+    "RemoteSSHUser": {
+      "name": "SSHユーザー名",
+      "help": "SSHログイン用のユーザー名。例: root"
+    },
+    "RemoteSSHPublicKey": {
+      "name": "SSH秘密鍵",
+      "help": "SSHログインに必要な秘密鍵の内容（必要な場合）。"
+    },
+    "RemoteStartCommand": {
+      "name": "リモート起動コマンド",
+      "help": "エミュレータ再起動時に実行されるSSH起動コマンド（Dockerコンテナの起動など）。"
+    },
+    "RemoteStopCommand": {
+      "name": "リモート停止コマンド",
+      "help": "エミュレータ再起動時に実行されるSSH停止コマンド（Dockerコンテナの停止など）。"
     }
   },
   "Error": {
@@ -3874,9 +3905,13 @@
       "name": "EmulatorManager.RemoteSSHPublicKey.name",
       "help": "EmulatorManager.RemoteSSHPublicKey.help"
     },
-    "RemoteCommand": {
-      "name": "EmulatorManager.RemoteCommand.name",
-      "help": "EmulatorManager.RemoteCommand.help"
+    "RemoteStartCommand": {
+      "name": "EmulatorManager.RemoteStartCommand.name",
+      "help": "EmulatorManager.RemoteStartCommand.help"
+    },
+    "RemoteStopCommand": {
+      "name": "EmulatorManager.RemoteStopCommand.name",
+      "help": "EmulatorManager.RemoteStopCommand.help"
     }
   },
   "OpsiSimulatorParameters": {

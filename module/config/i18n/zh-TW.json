@@ -532,7 +532,8 @@
       "MuMuPlayer12": "MuMu模擬器12",
       "MEmuPlayer": "逍遙模擬器",
       "BlueStacksAir": "BlueStacksAir",
-      "MuMuPro": "MuMuPro"
+      "MuMuPro": "MuMuPro",
+      "SSH": "SSH"
     },
     "name": {
       "name": "模擬器例項名稱",
@@ -541,6 +542,36 @@
     "path": {
       "name": "模擬器安裝路徑",
       "help": ""
+    },
+    "EnableRemoteSSH": {
+      "name": "啟用遠端 SSH 管理",
+      "help": "在重啟模擬器之前，透過 SSH 在遠端伺服器上執行特定指令（如重啟 Docker 容器）。",
+      "True": "True",
+      "False": "False"
+    },
+    "RemoteSSHHost": {
+      "name": "遠端伺服器地址",
+      "help": "遠端伺服器的 IP 地址或域名，例如: 192.168.1.100"
+    },
+    "RemoteSSHPort": {
+      "name": "埠號",
+      "help": "SSH 服務埠，預設 22"
+    },
+    "RemoteSSHUser": {
+      "name": "SSH 用戶名",
+      "help": "登入 SSH 的用戶名，例如: root"
+    },
+    "RemoteSSHPublicKey": {
+      "name": "SSH 私鑰",
+      "help": "SSH 登入所需的私鑰內容（如果需要）"
+    },
+    "RemoteStartCommand": {
+      "name": "遠端啟動指令",
+      "help": "在重啟模擬器時執行的啟動 SSH 指令（如啟動 Docker 容器）"
+    },
+    "RemoteStopCommand": {
+      "name": "遠端停止指令",
+      "help": "在重啟模擬器時執行的停止 SSH 指令（如停止 Docker 容器）"
     }
   },
   "Error": {
@@ -3874,9 +3905,13 @@
       "name": "存取公鑰",
       "help": "SSH 登入所需的公鑰內容（如果需要）"
     },
-    "RemoteCommand": {
-      "name": "遠端執行指令",
-      "help": "連接成功後在遠端伺服器執行的指令，例如: docker restart alas"
+    "RemoteStartCommand": {
+      "name": "EmulatorManager.RemoteStartCommand.name",
+      "help": "EmulatorManager.RemoteStartCommand.help"
+    },
+    "RemoteStopCommand": {
+      "name": "EmulatorManager.RemoteStopCommand.name",
+      "help": "EmulatorManager.RemoteStopCommand.help"
     }
   },
   "OpsiSimulatorParameters": {

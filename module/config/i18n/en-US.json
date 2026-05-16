@@ -532,7 +532,8 @@
       "MuMuPlayer12": "MuMu Emulator 12",
       "MEmuPlayer": "MEmu emulator",
       "BlueStacksAir": "BlueStacksAir",
-      "MuMuPro": "MuMuPro"
+      "MuMuPro": "MuMuPro",
+      "SSH": "SSH"
     },
     "name": {
       "name": "Simulator instance name",
@@ -541,6 +542,36 @@
     "path": {
       "name": "Simulator installation path",
       "help": ""
+    },
+    "EnableRemoteSSH": {
+      "name": "Enable Remote SSH Management",
+      "help": "Execute specific commands (e.g., restart Docker containers) on a remote server via SSH before restarting the emulator.",
+      "True": "True",
+      "False": "False"
+    },
+    "RemoteSSHHost": {
+      "name": "Remote Server Address",
+      "help": "IP address or domain of the remote server, e.g., 192.168.1.100"
+    },
+    "RemoteSSHPort": {
+      "name": "Port Number",
+      "help": "SSH service port, default 22"
+    },
+    "RemoteSSHUser": {
+      "name": "SSH Username",
+      "help": "Username to login via SSH, e.g., root"
+    },
+    "RemoteSSHPublicKey": {
+      "name": "SSH Private Key",
+      "help": "The private key content for SSH authentication (if needed)"
+    },
+    "RemoteStartCommand": {
+      "name": "Remote Start Command",
+      "help": "SSH command to start the emulator/service (e.g., docker start)"
+    },
+    "RemoteStopCommand": {
+      "name": "Remote Stop Command",
+      "help": "SSH command to stop the emulator/service (e.g., docker stop)"
     }
   },
   "Error": {
@@ -3874,9 +3905,13 @@
       "name": "Public Key",
       "help": "Public key content for SSH login (if needed)"
     },
-    "RemoteCommand": {
-      "name": "Remote Command",
-      "help": "Command to execute on remote server after connection, e.g.: docker restart alas"
+    "RemoteStartCommand": {
+      "name": "EmulatorManager.RemoteStartCommand.name",
+      "help": "EmulatorManager.RemoteStartCommand.help"
+    },
+    "RemoteStopCommand": {
+      "name": "EmulatorManager.RemoteStopCommand.name",
+      "help": "EmulatorManager.RemoteStopCommand.help"
     }
   },
   "OpsiSimulatorParameters": {

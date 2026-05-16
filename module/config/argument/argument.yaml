@@ -125,6 +125,7 @@ EmulatorInfo:
         MEmuPlayer,
         BlueStacksAir,
         MuMuPro,
+        SSH,
       ]
   name:
     value: null
@@ -132,6 +133,25 @@ EmulatorInfo:
   path:
     value: null
     type: textarea
+  EnableRemoteSSH:
+    type: checkbox
+    value: false
+    option: [true, false]
+  RemoteSSHHost:
+    value: 
+  RemoteSSHPort:
+    value: 22
+  RemoteSSHUser:
+    value: root
+  RemoteSSHPublicKey:
+    type: textarea
+    value: null
+  RemoteStartCommand:
+    type: textarea
+    value: ""
+  RemoteStopCommand:
+    type: textarea
+    value: ""
 Error:
   HandleError: true
   SaveError: true
@@ -1287,7 +1307,9 @@ EmulatorManager:
   RemoteSSHPublicKey:
     type: textarea
     value: ""
-  RemoteCommand:
+  RemoteStartCommand:
+    value: ""
+  RemoteStopCommand:
     value: ""
 OpsiSimulatorParameters:
   Samples: 100000

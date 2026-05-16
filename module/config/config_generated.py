@@ -92,9 +92,16 @@ class GeneratedConfig:
     Emulator_AdbRestart = False
 
     # Group `EmulatorInfo`
-    EmulatorInfo_Emulator = 'auto'  # auto, NoxPlayer, NoxPlayer64, BlueStacks4, BlueStacks5, BlueStacks4HyperV, BlueStacks5HyperV, LDPlayer3, LDPlayer4, LDPlayer9, LDPlayer14, MuMuPlayer, MuMuPlayerX, MuMuPlayer12, MEmuPlayer, BlueStacksAir, MuMuPro
+    EmulatorInfo_Emulator = 'auto'  # auto, NoxPlayer, NoxPlayer64, BlueStacks4, BlueStacks5, BlueStacks4HyperV, BlueStacks5HyperV, LDPlayer3, LDPlayer4, LDPlayer9, LDPlayer14, MuMuPlayer, MuMuPlayerX, MuMuPlayer12, MEmuPlayer, BlueStacksAir, MuMuPro, SSH
     EmulatorInfo_name = None
     EmulatorInfo_path = None
+    EmulatorInfo_EnableRemoteSSH = False  # True, False
+    EmulatorInfo_RemoteSSHHost = None
+    EmulatorInfo_RemoteSSHPort = 22
+    EmulatorInfo_RemoteSSHUser = 'root'
+    EmulatorInfo_RemoteSSHPublicKey = None
+    EmulatorInfo_RemoteStartCommand = None
+    EmulatorInfo_RemoteStopCommand = None
 
     # Group `Error`
     Error_HandleError = True
@@ -809,7 +816,8 @@ class GeneratedConfig:
     EmulatorManager_RemoteSSHPort = 22
     EmulatorManager_RemoteSSHUser = None
     EmulatorManager_RemoteSSHPublicKey = None
-    EmulatorManager_RemoteCommand = None
+    EmulatorManager_RemoteStartCommand = None
+    EmulatorManager_RemoteStopCommand = None
 
     # Group `OpsiSimulatorParameters`
     OpsiSimulatorParameters_Samples = 100000

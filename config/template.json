@@ -80,7 +80,14 @@
     "EmulatorInfo": {
       "Emulator": "auto",
       "name": null,
-      "path": null
+      "path": null,
+      "EnableRemoteSSH": false,
+      "RemoteSSHHost": null,
+      "RemoteSSHPort": 22,
+      "RemoteSSHUser": "root",
+      "RemoteSSHPublicKey": null,
+      "RemoteStartCommand": null,
+      "RemoteStopCommand": null
     },
     "Error": {
       "HandleError": true,
@@ -2814,7 +2821,8 @@
       "RemoteSSHPort": 22,
       "RemoteSSHUser": null,
       "RemoteSSHPublicKey": null,
-      "RemoteCommand": null
+      "RemoteStartCommand": null,
+      "RemoteStopCommand": null
     },
     "Storage": {
       "Storage": {}
