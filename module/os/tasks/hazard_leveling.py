@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 from calendar import monthrange
 
+from module.base.timer import Timer
 from module.equipment.assets import EQUIPMENT_OPEN
 from module.exception import MapDetectionError, ScriptError
 from module.logger import logger
@@ -11,6 +12,8 @@ from module.os.ship_exp_data import LIST_SHIP_EXP
 from module.os.tasks.smart_scheduling_utils import is_smart_scheduling_enabled
 from module.os.tasks.scheduling import CoinTaskMixin
 from module.statistics.opsi_runtime import record_cl1_akashi_encounter
+from module.os.sea_miles_ocr import OCR_SEA_MILES_DIGIT
+from module.os_handler.assets import MISSION_ENTER, MISSION_CHECK, MISSION_QUIT
 
 
 class OpsiHazard1Leveling(CoinTaskMixin, OSMap):
@@ -504,6 +507,17 @@ class OpsiHazard1Leveling(CoinTaskMixin, OSMap):
             content=f"<{self.config.config_name}>\n\n{report}",
         )
 
+        if hasattr(self.config, 'OpsiSeaMiles_Enable') and self.config.OpsiSeaMiles_Enable:
+            logger.info("启用海里数检测")
+            try:
+                sea_miles = self.detect_and_record_sea_miles()
+                if sea_miles is not None:
+                    logger.info(f"海里数检测完成: {sea_miles}")
+                else:
+                    logger.warning("海里数检测失败，但不影响后续流程")
+            except Exception as e:
+                logger.error(f"海里数检测异常: {e}，但不影响后续流程")
+
         if enable_custom_check and custom_positions:
             self._check_custom_positions_full_exp(
                 ships, target_level, custom_positions
@@ -938,3 +952,79 @@ class OpsiHazard1Leveling(CoinTaskMixin, OSMap):
                 logger.info("自定义舰位满经验后延迟任务")
                 self.config.task_delay(server_update=True)
                 self.config.task_stop()
+
+    def detect_and_record_sea_miles(self):
+        """
+        检测并记录海里数
+        
+        Returns:
+            int: 海里数，失败时返回None
+        """
+        logger.info("开始海里数检测")
+        
+        try:
+            logger.info("确保在大世界地图上")
+            if not self.is_in_map():
+                logger.info("当前不在大世界地图，返回大世界地图")
+                self.ui_back(check_button=self.is_in_map)
+            
+            logger.info("进入情报页面")
+            skip_first_screenshot = True
+            confirm_timer = Timer(3, count=6).start()
+            while 1:
+                if skip_first_screenshot:
+                    skip_first_screenshot = False
+                else:
+                    self.device.screenshot()
+                
+                if self.appear(MISSION_CHECK, offset=(20, 20)):
+                    break
+                
+                if confirm_timer.reached():
+                    logger.warning("进入情报页面超时")
+                    return None
+                
+                if self.appear_then_click(MISSION_ENTER, offset=(200, 5), interval=3):
+                    continue
+            
+            logger.info("识别海里数")
+            self.device.screenshot()
+            sea_miles = OCR_SEA_MILES_DIGIT.ocr(self.device.image)
+            
+            if sea_miles <= 0:
+                logger.warning(f"海里数识别异常: {sea_miles}")
+                return None
+            
+            logger.info(f"海里数识别成功: {sea_miles}")
+            
+            from module.statistics.opsi_runtime import record_ap_snapshot
+            record_ap_snapshot(
+                config=self.config,
+                ap_current=0,
+                source='sea_miles',
+                distance=sea_miles
+            )
+            
+            logger.info("退出情报页面")
+            self.ui_click(
+                MISSION_QUIT, 
+                check_button=self.is_in_map,
+                offset=(20, 20),
+                skip_first_screenshot=True
+            )
+            
+            return sea_miles
+            
+        except Exception as e:
+            logger.error(f"海里数检测失败: {e}")
+            try:
+                if self.appear(MISSION_CHECK, offset=(20, 20)):
+                    self.ui_click(
+                        MISSION_QUIT, 
+                        check_button=self.is_in_map,
+                        offset=(20, 20),
+                        skip_first_screenshot=True
+                    )
+            except Exception:
+                pass
+            return None
