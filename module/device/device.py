@@ -80,7 +80,7 @@ class Device(Screenshot, Control, AppControl, Input):
     stuck_long_wait_list = ['BATTLE_STATUS_S', 'PAUSE', 'LOGIN_CHECK', 'TEMPLATE_MANJUU']
     _prev_fingerprint = None
     _consecutive_identical_screenshots = 0
-    IMAGE_STUCK_THRESHOLD = 25
+    IMAGE_STUCK_THRESHOLD = 86
 
     def __init__(self, *args, **kwargs):
         # Initialize platform attribute for emulator control
