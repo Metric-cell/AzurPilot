@@ -4,6 +4,7 @@ import collections
 import sys
 from datetime import datetime
 
+import cv2
 from lxml import etree
 
 from module.device.env import IS_WINDOWS, IS_MACINTOSH
@@ -77,6 +78,9 @@ class Device(Screenshot, Control, AppControl, Input):
     stuck_timer = Timer(60, count=60).start()
     stuck_timer_long = Timer(195, count=195).start()
     stuck_long_wait_list = ['BATTLE_STATUS_S', 'PAUSE', 'LOGIN_CHECK', 'TEMPLATE_MANJUU']
+    _prev_fingerprint = None
+    _consecutive_identical_screenshots = 0
+    IMAGE_STUCK_THRESHOLD = 25
 
     def __init__(self, *args, **kwargs):
         # Initialize platform attribute for emulator control
@@ -286,6 +290,7 @@ class Device(Screenshot, Control, AppControl, Input):
         if self.handle_night_commission():
             super().screenshot()
 
+        self._check_image_stuck()
         return self.image
 
     def dump_hierarchy(self) -> etree._Element:
@@ -317,6 +322,29 @@ class Device(Screenshot, Control, AppControl, Input):
         self.detect_record = set()
         self.stuck_timer.reset()
         self.stuck_timer_long.reset()
+        self._consecutive_identical_screenshots = 0
+
+    def _check_image_stuck(self):
+        if self.image is None:
+            return
+
+        small = cv2.resize(self.image, (16, 16))
+        fp = hash(small.tobytes())
+
+        if self._prev_fingerprint is not None and fp == self._prev_fingerprint:
+            self._consecutive_identical_screenshots += 1
+        else:
+            self._consecutive_identical_screenshots = 0
+            self._prev_fingerprint = fp
+
+        if self._consecutive_identical_screenshots >= self.IMAGE_STUCK_THRESHOLD:
+            show_function_call()
+            logger.warning(f'Screenshot unchanged for {self._consecutive_identical_screenshots} frames')
+            self.stuck_record_clear()
+            if self.app_is_running():
+                raise GameStuckError('Screenshot not changing')
+            else:
+                raise GameNotRunningError('Game died')
 
     def stuck_record_check(self):
         """

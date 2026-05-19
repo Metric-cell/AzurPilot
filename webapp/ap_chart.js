@@ -410,34 +410,12 @@
 
                 var xScale = gW / Math.max(visibleNn - 1, 1);
 
-                // 时间感知的鼠标索引定位
-                var idx = 0;
-                if (apTs && apTs.length === nn && visibleEnd > visibleStart) {
-                    var ratio = (mx_ - pad.l) / gW;
-                    var minT = apTs[visibleStart];
-                    var maxT = apTs[Math.max(0, visibleEnd - 1)];
-                    var targetTs = minT + ratio * (maxT - minT);
-                    var closestDist = Infinity;
-                    idx = visibleStart;
-                    for (var i = visibleStart; i < visibleEnd; i++) {
-                        var dist = Math.abs(apTs[i] - targetTs);
-                        if (dist < closestDist) { closestDist = dist; idx = i; }
-                    }
-                } else {
-                    idx = Math.round(visibleStart + (mx_ - pad.l) / xScale);
-                }
+                // 等距索引定位（与 xOfLine 视觉渲染一致）
+                var idx = Math.round(visibleStart + (mx_ - pad.l) / gW * (visibleNn - 1));
                 idx = Math.max(0, Math.min(nn - 1, idx));
 
-                // 时间感知的十字线 x 位置
-                var px;
-                if (apTs && apTs.length === nn && visibleEnd > visibleStart) {
-                    var minT = apTs[visibleStart];
-                    var maxT = apTs[Math.max(0, visibleEnd - 1)];
-                    var tr = maxT - minT || 1;
-                    px = pad.l + ((apTs[idx] - minT) / tr) * gW;
-                } else {
-                    px = pad.l + (idx - visibleStart) * xScale;
-                }
+                // 等距索引的十字线 x 位置
+                var px = pad.l + ((idx - visibleStart) / Math.max(visibleNn - 1, 1)) * gW;
                 if (seriesVisible[0]) {
                 var py = yScale(ap[idx], dMin, dMax);
 
