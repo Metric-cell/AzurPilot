@@ -12,6 +12,7 @@ from module.handler.assets import GET_MISSION, MISSION_POPUP_ACK, MISSION_POPUP_
 from module.logger import logger
 from module.map.map_grids import SelectedGrids
 from module.ocr.ocr import DigitCounter, Duration, Ocr
+from module.ocr.al_ocr import AlOcr
 from module.retire.assets import DOCK_CHECK, DOCK_EMPTY, SHIP_CONFIRM
 from module.retire.dock import CARD_GRIDS, CARD_LEVEL_GRIDS, Dock
 from module.tactical.assets import *
@@ -199,6 +200,28 @@ class RewardTacticalClass(Dock):
     books: SelectedGrids
     tactical_finish = []
     dock_select_index = 0
+    _rapid_training_slot_triggered = None
+
+    def _read_skill_exp(self, image, retry=True):
+        from module.base.utils import crop
+        area = OCR_SKILL_EXP.button
+        cropped = crop(image, area, copy=False)
+        ocr = AlOcr(name='zhcn' if server.server == 'cn' else 'en')
+        text = ocr.ocr(cropped)
+
+        match = re.search(r'(\d+)\s*/\s*(\d+)', text)
+        if match:
+            current, total = int(match.group(1)), int(match.group(2))
+            if current > total and retry:
+                logger.warning(f'Skill exp OCR mismatch: {current}>{total}, retrying')
+                self.device.screenshot()
+                return self._read_skill_exp(self.device.image, retry=False)
+            current = min(current, total)
+            logger.info(f'[_read_skill_exp] {text} -> {current}/{total}')
+            return current, total - current, total
+
+        logger.warning(f'Skill exp OCR failed: {text}')
+        return 0, 0, 0
 
     def _tactical_books_get(self, skip_first_screenshot=True):
         """
@@ -276,7 +299,7 @@ class RewardTacticalClass(Dock):
         """
         # Read 'current' and 'remain' will be inaccurate
         # since first exp_value is factored into it
-        current, remain, total = SKILL_EXP.ocr(self.device.image)
+        current, remain, total = self._read_skill_exp(self.device.image)
 
         # Max level in progress; so selective books
         # should be removed to prevent waste
@@ -316,7 +339,7 @@ class RewardTacticalClass(Dock):
         if not skip_first_screenshot:
             self.device.screenshot()
         try:
-            current, _, total = SKILL_EXP.ocr(self.device.image)
+            current, _, total = self._read_skill_exp(self.device.image)
             if total > 0 and current >= total:
                 logger.info(f'Current skill is max level: {current}/{total}')
                 return True
@@ -390,6 +413,10 @@ class RewardTacticalClass(Dock):
             out: Unknown, may TACTICAL_CLASS_START, page_tactical, or _tactical_animation_running
         """
         logger.hr('Tactical books choose', level=2)
+        _skip_slots_raw = self.config.Tactical_RapidTrainingSkipFilter or ''
+        _skip_slots = [f'slot_{s.strip()}' for s in _skip_slots_raw.split(',') if s.strip().isdigit()]
+        _skip_filter = bool(_skip_slots) and (self._rapid_training_slot_triggered is None or self._rapid_training_slot_triggered in _skip_slots)
+        self._rapid_training_slot_triggered = None
         MAX_SWITCH_RETRIES = 3
         for retry in range(MAX_SWITCH_RETRIES + 1):
             if not self._tactical_books_get():
@@ -406,21 +433,23 @@ class RewardTacticalClass(Dock):
 
             # Apply configuration filter, does not modify self.books
             tactical_filter = self.config.Tactical_TacticalFilter
-            if self.config.Tactical_RedToBlue:
+            if self.config.Tactical_RedToBlue and not _skip_filter:
                 logger.info('Replacing Red with Blue in tactical filter')
                 tactical_filter = tactical_filter.replace('Red', 'Blue')
             BOOK_FILTER.load(tactical_filter)
             books = BOOK_FILTER.apply(self.books.grids)
-            if self.config.Tactical_RedToBlue:
+            if self.config.Tactical_RedToBlue and not _skip_filter:
                 before = len(books)
                 books = [b for b in books if not hasattr(b, 'genre_str') or b.genre_str != 'Red']
                 if len(books) < before:
                     logger.info(f'Removed {before - len(books)} Red book(s) from selection')
-            if self.config.Tactical_NoT4:
+            if self.config.Tactical_NoT4 and not _skip_filter:
                 before = len(books)
                 books = [b for b in books if not hasattr(b, 'tier_str') or b.tier_str != 'T4']
                 if len(books) < before:
                     logger.info(f'Removed {before - len(books)} T4 book(s) from selection')
+            if _skip_filter:
+                logger.info(f'Skip RedToBlue and NoT4 for rapid training')
             logger.attr('Book_sort', ' > '.join([str(book) for book in books]))
 
             # Choose applicable book if any
@@ -472,9 +501,11 @@ class RewardTacticalClass(Dock):
             # do_not_use
             return False
 
+        slot_name = ['slot_1', 'slot_2', 'slot_3', 'slot_4'][slot]
         offset = (slot * 220 - 20, -20, slot * 220 + 20, 20)
         if self.appear(RAPID_TRAINING, offset=offset, interval=1):
             self.device.click(RAPID_TRAINING)
+            self._rapid_training_slot_triggered = slot_name
             # Clear interval to enter _tactical_books_choose fast
             self.interval_clear(TACTICAL_CLASS_START, interval=2)
             return True
@@ -534,10 +565,22 @@ class RewardTacticalClass(Dock):
 
             # Learn new skills
             if not study_finished and self.appear(TACTICAL_CHECK, offset=(20, 20)):
-                # Tactical page, has empty position
-                if self.appear_then_click(ADD_NEW_STUDENT, offset=(800, 20), interval=1):
-                    self.interval_reset([TACTICAL_CHECK, RAPID_TRAINING])
-                    self.interval_clear([POPUP_CONFIRM, POPUP_CANCEL, GET_MISSION, DOCK_CHECK, SKILL_CONFIRM])
+                # Tactical page, has empty position — check each slot individually
+                _add_grid = ButtonGrid(
+                    origin=(417, 375), delta=(223, 0),
+                    button_shape=(21, 23), grid_shape=(4, 1), name='ADD_NEW_STUDENT'
+                )
+                _handled = False
+                for _slot_idx, _btn in enumerate(_add_grid.buttons):
+                    # ButtonGrid buttons have color=() — copy from ADD_NEW_STUDENT
+                    _btn.__dict__['color'] = ADD_NEW_STUDENT.color
+                    if self.appear_then_click(_btn, interval=1):
+                        self._rapid_training_slot_triggered = f'slot_{_slot_idx + 1}'
+                        self.interval_reset([TACTICAL_CHECK, RAPID_TRAINING])
+                        self.interval_clear([POPUP_CONFIRM, POPUP_CANCEL, GET_MISSION, DOCK_CHECK, SKILL_CONFIRM])
+                        _handled = True
+                        break
+                if _handled:
                     continue
             if self.handle_rapid_training():
                 self.interval_reset(TACTICAL_CHECK)
