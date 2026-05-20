@@ -9605,6 +9605,10 @@
           true,
           false
         ]
+      },
+      "RapidTrainingSkipFilter": {
+        "type": "textarea",
+        "value": ""
       }
     },
     "ControlExpOverflow": {
