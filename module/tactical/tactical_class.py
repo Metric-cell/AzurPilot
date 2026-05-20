@@ -416,7 +416,7 @@ class RewardTacticalClass(Dock):
             out: Unknown, may TACTICAL_CLASS_START, page_tactical, or _tactical_animation_running
         """
         logger.hr('Tactical books choose', level=2)
-        _skip_slots_raw = self.config.Tactical_RapidTrainingSkipFilter or ''
+        _skip_slots_raw = str(self.config.Tactical_RapidTrainingSkipFilter or '')
         _skip_slots = [f'slot_{s.strip()}' for s in _skip_slots_raw.split(',') if s.strip().isdigit()]
         _skip_filter = self._rapid_training_slot_triggered in _skip_slots
         self._rapid_training_slot_triggered = None
@@ -574,15 +574,19 @@ class RewardTacticalClass(Dock):
 
             # Learn new skills
             if not study_finished and self.appear(TACTICAL_CHECK, offset=(20, 20)):
-                # Tactical page, has empty position — check each slot individually
+                # Tactical page, has empty position — use original detection (reliable)
                 _handled = False
-                for _slot_idx, _btn in enumerate(_add_grid.buttons):
-                    if self.appear_then_click(_btn, interval=1):
-                        self._rapid_training_slot_triggered = f'slot_{_slot_idx + 1}'
-                        self.interval_reset([TACTICAL_CHECK, RAPID_TRAINING])
-                        self.interval_clear([POPUP_CONFIRM, POPUP_CANCEL, GET_MISSION, DOCK_CHECK, SKILL_CONFIRM])
-                        _handled = True
-                        break
+                if self.appear_then_click(ADD_NEW_STUDENT, offset=(800, 20), interval=1):
+                    # Track which slot triggered the click
+                    for _slot_idx, _btn in enumerate(_add_grid.buttons):
+                        if _btn.appear_on(self.device.image, threshold=10):
+                            self._rapid_training_slot_triggered = f'slot_{_slot_idx + 1}'
+                            break
+                    else:
+                        self._rapid_training_slot_triggered = 'slot_1'
+                    self.interval_reset([TACTICAL_CHECK, RAPID_TRAINING])
+                    self.interval_clear([POPUP_CONFIRM, POPUP_CANCEL, GET_MISSION, DOCK_CHECK, SKILL_CONFIRM])
+                    _handled = True
                 if _handled:
                     continue
             if self.handle_rapid_training():
