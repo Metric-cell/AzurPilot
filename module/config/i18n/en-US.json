@@ -1745,22 +1745,6 @@
       "help": "Automatically switch to the next unlearned skill for training",
       "True": "On",
       "False": "Off"
-    },
-    "RedToBlue": {
-      "name": "Replace Red with Blue",
-      "help": "Replace Red books with Blue books in the tactical filter",
-      "True": "On",
-      "False": "Off"
-    },
-    "NoT4": {
-      "name": "Do not use T4 books",
-      "help": "Remove T4 rainbow books from selection",
-      "True": "On",
-      "False": "Off"
-    },
-    "RapidTrainingSkipFilter": {
-      "name": "Specify learning slots to skip",
-      "help": "Slots to skip 'Replace Red with Blue' and 'No T4' filters. Separate multiple with commas, e.g. 1,3. Leave empty for no skip"
     }
   },
   "ControlExpOverflow": {
@@ -4304,10 +4288,7 @@
       "CommissionIncomeRecentTitle": "Recent Commissions"
     },
     "Tactical": {
-      "SkillAutoSwitch": "Gui.Tactical.SkillAutoSwitch",
-      "RedToBlue": "Gui.Tactical.RedToBlue",
-      "NoT4": "Gui.Tactical.NoT4",
-      "RapidTrainingSkipFilter": "Gui.Tactical.RapidTrainingSkipFilter"
+      "SkillAutoSwitch": "Gui.Tactical.SkillAutoSwitch"
     },
     "OpsiScheduling": {
       "UseSmartSchedulingOperationCoinsPreserve": "Gui.OpsiScheduling.UseSmartSchedulingOperationCoinsPreserve",
