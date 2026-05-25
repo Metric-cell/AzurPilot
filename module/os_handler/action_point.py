@@ -106,7 +106,23 @@ ACTION_POINT_BOX = {
 
 
 class ActionPointLimit(Exception):
-    pass
+    def __init__(self, current=None, total=None, cost=None, preserve=None):
+        super().__init__()
+        self.current = current
+        self.total = total
+        self.cost = cost
+        self.preserve = preserve
+
+    @property
+    def delay_minutes(self):
+        if self.cost is None or self.current is None:
+            return None
+
+        missing = self.cost - self.current
+        if missing <= 0:
+            return None
+
+        return missing * 10
 
 
 class ActionPointHandler(UI, MapEventHandler):
@@ -412,7 +428,11 @@ class ActionPointHandler(UI, MapEventHandler):
             if self._action_point_total <= self.config.OS_ACTION_POINT_PRESERVE:
                 logger.info(f'Reach the limit of action points, preserve={self.config.OS_ACTION_POINT_PRESERVE}')
                 self.action_point_quit()
-                raise ActionPointLimit
+                raise ActionPointLimit(
+                    current=self._action_point_current,
+                    total=self._action_point_total,
+                    preserve=self.config.OS_ACTION_POINT_PRESERVE,
+                )
 
         for _ in range(12):
             # Having enough action points
@@ -434,7 +454,11 @@ class ActionPointHandler(UI, MapEventHandler):
             if self._action_point_total < cost:
                 logger.info('Not having enough action points')
                 self.action_point_quit()
-                raise ActionPointLimit
+                raise ActionPointLimit(
+                    current=self._action_point_current,
+                    total=self._action_point_total,
+                    cost=cost,
+                )
 
             # Sort action point boxes
             box = []
@@ -454,11 +478,19 @@ class ActionPointHandler(UI, MapEventHandler):
                 else:
                     logger.info(f'Reach the limit of action points, preserve={self.config.OS_ACTION_POINT_PRESERVE}')
                     self.action_point_quit()
-                    raise ActionPointLimit
+                    raise ActionPointLimit(
+                        current=self._action_point_current,
+                        total=self._action_point_total,
+                        preserve=self.config.OS_ACTION_POINT_PRESERVE,
+                    )
             else:
                 logger.info('No more action point boxes')
                 self.action_point_quit()
-                raise ActionPointLimit
+                raise ActionPointLimit(
+                    current=self._action_point_current,
+                    total=self._action_point_total,
+                    cost=cost,
+                )
 
         logger.warning('Failed to get action points after 12 trial')
         return False
