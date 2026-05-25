@@ -127,12 +127,14 @@ def get_resource_timeline(
                 '''
                 SELECT * FROM resource_snapshots
                 WHERE instance = ?
-                ORDER BY id ASC
+                ORDER BY id DESC
                 LIMIT ?
                 ''',
                 (instance, limit),
             ).fetchall()
-            return [dict(row) for row in rows]
+            result = [dict(row) for row in rows]
+            result.reverse()
+            return result
     except Exception as e:
         logger.warning(f'Failed to get resource timeline: {e}')
         return []
