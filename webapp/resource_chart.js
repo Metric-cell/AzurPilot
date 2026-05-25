@@ -61,6 +61,44 @@
 
     var dpr = window.devicePixelRatio || 1;
     var W, H, pad, gW, gH;
+    var chartState = null;
+    var cleanupHandlers = [];
+
+    window.__resourceChartCleanups = window.__resourceChartCleanups || {};
+    if (window.__resourceChartCleanups[chartId]) {
+        window.__resourceChartCleanups[chartId]();
+    }
+    window.__resourceChartCleanups[chartId] = function () {
+        cleanupHandlers.forEach(function (item) {
+            item.target.removeEventListener(item.type, item.handler, item.options);
+        });
+        cleanupHandlers = [];
+    };
+
+    function addListener(target, type, handler, options) {
+        if (!target) return;
+        target.addEventListener(type, handler, options);
+        cleanupHandlers.push({ target: target, type: type, handler: handler, options: options });
+    }
+
+    function setCanvasTransform(ctx) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function clearOverlay() {
+        var oc = ovCv.getContext("2d");
+        oc.setTransform(1, 0, 0, 1, 0, 0);
+        oc.clearRect(0, 0, ovCv.width, ovCv.height);
+        setCanvasTransform(oc);
+        return oc;
+    }
+
+    function clampPanForZoom() {
+        var visibleCount = Math.ceil(nn / zoomLevel);
+        var maxPan = Math.max(0, nn - visibleCount);
+        panOffset = Math.max(0, Math.min(maxPan, panOffset));
+        return visibleCount;
+    }
 
     // Resource display configs
     var resourceMeta = [];
@@ -105,7 +143,7 @@
         ovCv.style.width = W + "px"; ovCv.style.height = H + "px";
 
         var ctx = cv.getContext("2d");
-        ctx.scale(dpr, dpr);
+        setCanvasTransform(ctx);
         var oc = ovCv.getContext("2d");
 
         pad = { t: 20, r: 110, b: 52, l: 56 };
@@ -163,6 +201,15 @@
         function xOf(i) {
             return pad.l + (i / Math.max(nn - 1, 1)) * gW;
         }
+
+        chartState = {
+            visibleStart: 0,
+            visibleEnd: nn,
+            visibleNn: nn,
+            visibleIndices: visibleIndices,
+            xOf: xOf,
+            yOfForMeta: yOfForMeta
+        };
 
         // ---- Draw background and grid ----
         ctx.fillStyle = "#1a1a2e";
@@ -237,26 +284,24 @@
         }
 
         // ---- Mouse interaction ----
-        cv.addEventListener("mousemove", function (e) {
+        addListener(cv, "mousemove", function (e) {
             if (_isSelecting) return;
             var rect = cv.getBoundingClientRect();
             var mx_ = e.clientX - rect.left;
             var my_ = e.clientY - rect.top;
 
-            oc.setTransform(1, 0, 0, 1, 0, 0);
-            oc.clearRect(0, 0, ovCv.width, ovCv.height);
+            oc = clearOverlay();
 
             if (mx_ < pad.l || mx_ > W - pad.r || my_ < pad.t || my_ > pad.t + gH) {
                 tipEl.style.display = "none";
                 return;
             }
 
-            oc.scale(dpr, dpr);
+            var state = chartState;
+            var idx = Math.round(state.visibleStart + (mx_ - pad.l) / gW * Math.max(state.visibleNn - 1, 1));
+            idx = Math.max(state.visibleStart, Math.min(state.visibleEnd - 1, idx));
 
-            var idx = Math.round(panOffset + (mx_ - pad.l) / gW * Math.max(Math.ceil(nn / zoomLevel) - 1, 1));
-            idx = Math.max(0, Math.min(nn - 1, idx));
-
-            var px = xOf(idx);
+            var px = state.xOf(idx);
 
             // Crosshair
             oc.strokeStyle = "rgba(255,255,255,0.18)";
@@ -270,8 +315,8 @@
                 { style: { color: "#888", marginBottom: "4px", fontWeight: "600" }, parts: [{ type: 'text', value: labels[idx] }] },
             ];
 
-            for (var ci = 0; ci < visibleIndices.length; ci++) {
-                var si = visibleIndices[ci];
+            for (var ci = 0; ci < state.visibleIndices.length; ci++) {
+                var si = state.visibleIndices[ci];
                 if (!seriesVisible[si]) continue;
                 var meta = resourceMeta[si];
                 var val = meta.data[idx];
@@ -284,7 +329,7 @@
                 });
 
                 // Draw bead
-                var by = yOfForMeta(meta, val);
+                var by = state.yOfForMeta(meta, val);
                 oc.beginPath(); oc.arc(px, by, 4, 0, Math.PI * 2);
                 oc.fillStyle = meta.color;
                 oc.fill();
@@ -303,10 +348,9 @@
             tipEl.style.top = ty + "px";
         });
 
-        cv.addEventListener("mouseleave", function () {
+        addListener(cv, "mouseleave", function () {
             tipEl.style.display = "none";
-            oc.setTransform(1, 0, 0, 1, 0, 0);
-            oc.clearRect(0, 0, ovCv.width, ovCv.height);
+            clearOverlay();
         });
 
         // ---- Legend toggle ----
@@ -335,7 +379,7 @@
                 });
                 renderZoomed();
             };
-            legendEl.addEventListener("click", legendEl._legendHandler);
+            addListener(legendEl, "click", legendEl._legendHandler);
             legendEl.querySelectorAll(".rc-legend-item").forEach(function (li, i) {
                 var si = parseInt(li.getAttribute("data-series"), 10);
                 li.style.opacity = seriesVisible[si] ? "1" : "0.35";
@@ -350,8 +394,8 @@
 
     function renderZoomed() {
         // Redraw with zoom
+        var visibleCount = clampPanForZoom();
         var visibleStart = Math.max(0, Math.floor(panOffset));
-        var visibleCount = Math.ceil(nn / zoomLevel);
         var visibleEnd = Math.min(nn, visibleStart + visibleCount);
         var visibleNn = visibleEnd - visibleStart;
 
@@ -398,7 +442,7 @@
         gridMin = Math.max(0, gridMin);
 
         var ctx = cv.getContext("2d");
-        ctx.scale(dpr, dpr);
+        setCanvasTransform(ctx);
 
         function yOfGrid(v) { return pad.t + gH - (v - gridMin) / (gridMax - gridMin) * gH; }
         function yOfForMeta(meta, v) {
@@ -406,6 +450,15 @@
             return fn ? fn(v) : pad.t;
         }
         function xOf(i) { return pad.l + ((i - visibleStart) / Math.max(visibleNn - 1, 1)) * gW; }
+
+        chartState = {
+            visibleStart: visibleStart,
+            visibleEnd: visibleEnd,
+            visibleNn: visibleNn,
+            visibleIndices: visibleIndices,
+            xOf: xOf,
+            yOfForMeta: yOfForMeta
+        };
 
         // Clear
         ctx.fillStyle = "#1a1a2e";
@@ -484,7 +537,7 @@
         var dragStartPan = 0;
         var selStartX = 0;
 
-        cv.addEventListener("mousedown", function (e) {
+        addListener(cv, "mousedown", function (e) {
             if (e.button !== 0) return;
             var rect = cv.getBoundingClientRect();
             var my = e.clientY - rect.top;
@@ -503,7 +556,7 @@
             }
         });
 
-        document.addEventListener("mousemove", function (e) {
+        addListener(document, "mousemove", function (e) {
             if (!isDragging) return;
             if (_isSelecting) {
                 // 选区矩形占满图表高度
@@ -511,9 +564,7 @@
                 var mx = e.clientX - rect.left;
                 var sx = selStartX - rect.left;
 
-                oc.setTransform(1, 0, 0, 1, 0, 0);
-                oc.clearRect(0, 0, ovCv.width, ovCv.height);
-                oc.scale(dpr, dpr);
+                oc = clearOverlay();
 
                 var rx = Math.min(sx, mx);
                 var rw = Math.abs(mx - sx);
@@ -536,7 +587,7 @@
             }
         });
 
-        document.addEventListener("mouseup", function (e) {
+        addListener(document, "mouseup", function (e) {
             if (!isDragging) return;
             isDragging = false;
 
@@ -559,19 +610,18 @@
 
                     if (endIdx > startIdx) {
                         panOffset = startIdx;
-                        zoomLevel = nn / (endIdx - startIdx);
+                        zoomLevel = Math.min(maxZoom, nn / (endIdx - startIdx));
                         renderZoomed();
                     }
                 }
 
-                oc.setTransform(1, 0, 0, 1, 0, 0);
-                oc.clearRect(0, 0, ovCv.width, ovCv.height);
+                clearOverlay();
             }
 
             cv.style.cursor = "crosshair";
         });
 
-        cv.addEventListener("wheel", function (e) {
+        addListener(cv, "wheel", function (e) {
             e.preventDefault();
             var rect = cv.getBoundingClientRect();
             var mx = e.clientX - rect.left;
@@ -591,7 +641,7 @@
             }
         }, { passive: false });
 
-        cv.addEventListener("dblclick", function () {
+        addListener(cv, "dblclick", function () {
             zoomLevel = 1.0;
             panOffset = 0;
             renderZoomed();
@@ -602,7 +652,7 @@
         var zoomResetBtn = document.getElementById(chartId + "_reset");
 
         if (zoomInBtn) {
-            zoomInBtn.addEventListener("click", function () {
+            addListener(zoomInBtn, "click", function () {
                 zoomLevel = Math.min(maxZoom, zoomLevel * 1.5);
                 var visibleCount = Math.ceil(nn / zoomLevel);
                 var maxPan = Math.max(0, nn - visibleCount);
@@ -611,16 +661,16 @@
             });
         }
         if (zoomOutBtn) {
-            zoomOutBtn.addEventListener("click", function () {
+            addListener(zoomOutBtn, "click", function () {
                 zoomLevel = Math.max(minZoom, zoomLevel / 1.5);
                 renderZoomed();
             });
         }
         if (zoomResetBtn) {
-            zoomResetBtn.addEventListener("click", function () {
+            addListener(zoomResetBtn, "click", function () {
                 zoomLevel = 1.0;
                 panOffset = 0;
-                initChart();
+                renderZoomed();
             });
         }
     }
