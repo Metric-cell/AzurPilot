@@ -1,3 +1,8 @@
+---
+description:
+alwaysApply: true
+---
+
 # AGENTS.md
 
 > **重要：必须使用中文交流。** 所有回复、注释、文档、提交信息均使用简体中文。代码中的变量名、函数名使用英文。
@@ -491,6 +496,54 @@ server.server = 'en'
 | `webapp/` | Electron + Vue 3 桌面应用 |
 | `dev_tools/` | 开发工具 |
 | `bin/` | 二进制工具和 OCR 模型 |
+
+---
+
+## 代码分析文档
+
+`.agent/` 目录包含项目的深度代码分析文档，**在开始任何开发工作前应先阅读相关文档**。
+
+### 项目级文档
+
+| 文档 | 说明 |
+|------|------|
+| `.agent/README.md` | 快速上手指南、核心概念、模块索引 |
+| `.agent/ARCHITECTURE.md` | 项目整体架构、分层图、依赖关系图 |
+| `.agent/CONVENTIONS.md` | 编码规范、命名规则、状态循环模式 |
+| `.agent/ISSUES.md` | 已知问题清单、优化路线图 |
+| `.agent/MODULE-MAP.md` | 模块映射表、目录结构说明 |
+
+### 核心模块文档
+
+| 文档 | 说明 |
+|------|------|
+| `.agent/ENTRY-ALAS.md` | alas.py 核心调度器分析 |
+| `.agent/ENTRY-GUI.md` | gui.py WebUI 启动器分析 |
+| `.agent/ENTRY-MCP-SERVER.md` | mcp_server_sse.py MCP 服务器分析 |
+| `.agent/BASE.md` | 基础工具类（ModuleBase、Button、Template） |
+| `.agent/CONFIG.md` | 配置系统（AzurLaneConfig、YAML 管道） |
+| `.agent/DEVICE.md` | 设备层（ADB、截图、输入模拟） |
+| `.agent/UI.md` | UI 导航（Page、A* 路由） |
+| `.agent/OCR.md` | OCR 系统（RapidOCR、ONNX、NCNN） |
+| `.agent/HANDLER.md` | 处理器层（登录、弹窗、自动搜索） |
+
+### 战斗系统文档
+
+| 文档 | 说明 |
+|------|------|
+| `.agent/COMBAT.md` | 战斗逻辑（自动/手动战斗、情绪、血量） |
+| `.agent/COMBAT-UI.md` | 战斗 UI 资源 |
+| `.agent/MAP.md` | 地图处理（摄像机、舰队、网格） |
+| `.agent/MAP-DETECTION.md` | 地图检测（透视、单应性、网格识别） |
+| `.agent/CAMPAIGN.md` | 战役执行（关卡选择、战斗编排） |
+
+### 游戏功能文档
+
+| 文档 | 说明 |
+|------|------|
+| `.agent/GAME-FUNCTIONS.md` | 28 个游戏功能模块综合分析 |
+| `.agent/OS-SYSTEM.md` | 大世界系统（6 个子模块） |
+| `.agent/INFRASTRUCTURE.md` | 基础设施层（统计、通知、守护、WebUI） |
 
 ---
 

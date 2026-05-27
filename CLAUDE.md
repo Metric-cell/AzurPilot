@@ -1,3 +1,8 @@
+---
+description:
+alwaysApply: true
+---
+
 # CLAUDE.md
 
 本文件为 Claude Code (claude.ai/code) 在本仓库中工作时提供指导。
@@ -564,3 +569,50 @@ GitHub Actions 使用 `uv sync --frozen` 和 `uv run`。运行：ruff lint、`bu
 - `sync2.yml` — 推送到 master/dev 时同步到 GitCode 镜像
 - `ai-issue-labeler.yml` — 基于 AI 的 issue 标签
 - `git-over-cdn-*.yml` — 面向中国用户的 Git over CDN
+
+## 代码分析文档
+
+`.agent/` 目录包含项目的深度代码分析文档，**在开始任何开发工作前应先阅读相关文档**。
+
+### 快速入口
+
+| 场景 | 推荐阅读 |
+|------|---------|
+| **首次了解项目** | `.agent/README.md` → `.agent/ARCHITECTURE.md` |
+| **理解任务调度** | `.agent/ENTRY-ALAS.md` |
+| **修改配置系统** | `.agent/CONFIG.md` |
+| **添加新功能模块** | `.agent/GAME-FUNCTIONS.md` → `.agent/BASE.md` |
+| **修改战斗逻辑** | `.agent/COMBAT.md` → `.agent/MAP.md` → `.agent/CAMPAIGN.md` |
+| **修改 UI 导航** | `.agent/UI.md` |
+| **修改 OCR 识别** | `.agent/OCR.md` |
+| **修改设备连接** | `.agent/DEVICE.md` |
+| **了解大世界系统** | `.agent/OS-SYSTEM.md` |
+| **了解编码规范** | `.agent/CONVENTIONS.md` |
+| **查看已知问题** | `.agent/ISSUES.md` |
+
+### 文档索引
+
+| 文档 | 说明 |
+|------|------|
+| `.agent/README.md` | 快速上手指南、核心概念、模块索引 |
+| `.agent/ARCHITECTURE.md` | 项目整体架构、分层图、依赖关系图 |
+| `.agent/CONVENTIONS.md` | 编码规范、命名规则、状态循环模式 |
+| `.agent/ISSUES.md` | 已知问题清单、优化路线图 |
+| `.agent/MODULE-MAP.md` | 模块映射表、目录结构说明 |
+| `.agent/ENTRY-ALAS.md` | alas.py 核心调度器分析 |
+| `.agent/ENTRY-GUI.md` | gui.py WebUI 启动器分析 |
+| `.agent/ENTRY-MCP-SERVER.md` | mcp_server_sse.py MCP 服务器分析 |
+| `.agent/BASE.md` | 基础工具类（ModuleBase、Button、Template） |
+| `.agent/CONFIG.md` | 配置系统（AzurLaneConfig、YAML 管道） |
+| `.agent/DEVICE.md` | 设备层（ADB、截图、输入模拟） |
+| `.agent/UI.md` | UI 导航（Page、A* 路由） |
+| `.agent/OCR.md` | OCR 系统（RapidOCR、ONNX、NCNN） |
+| `.agent/HANDLER.md` | 处理器层（登录、弹窗、自动搜索） |
+| `.agent/COMBAT.md` | 战斗逻辑（自动/手动战斗、情绪、血量） |
+| `.agent/COMBAT-UI.md` | 战斗 UI 资源 |
+| `.agent/MAP.md` | 地图处理（摄像机、舰队、网格） |
+| `.agent/MAP-DETECTION.md` | 地图检测（透视、单应性、网格识别） |
+| `.agent/CAMPAIGN.md` | 战役执行（关卡选择、战斗编排） |
+| `.agent/GAME-FUNCTIONS.md` | 28 个游戏功能模块综合分析 |
+| `.agent/OS-SYSTEM.md` | 大世界系统（6 个子模块） |
+| `.agent/INFRASTRUCTURE.md` | 基础设施层（统计、通知、守护、WebUI） |
