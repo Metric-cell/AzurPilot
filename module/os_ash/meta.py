@@ -120,6 +120,11 @@ class OpsiAshBeacon(Meta):
                     # Normal finish
                     break
             if MetaState.ATTACKING == state:
+                # Exit beacon pages when in dossier-only mode
+                if self.config.OpsiAshBeacon_AttackMode == 'current_dossier_only' \
+                        and self.appear(BEACON_LIST, offset=(20, 20)):
+                    self.appear_then_click(ASH_QUIT, offset=(10, 10), interval=2)
+                    continue
                 if not self._pre_attack():
                     continue
                 if self._satisfy_attack_condition():
