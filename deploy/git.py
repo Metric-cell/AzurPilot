@@ -58,7 +58,7 @@ class GitManager(DeployConfig):
         self.execute(f'"{self.git}" fetch {source} {branch}')
 
         logger.hr('Pull Repository Branch', 1)
-        # Remove git lock
+        # 移除 git 锁文件
         for lock_file in [
             './.git/index.lock',
             './.git/HEAD.lock',
