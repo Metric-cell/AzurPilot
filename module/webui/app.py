@@ -3737,24 +3737,6 @@ class AlasGUI(Frame):
         if State.restart_event is None:
             put_warning(t("Gui.Update.DisabledWarn"))
 
-        # ---- 自动更新开关 ----
-        auto_update_val = State.deploy_config.AutoUpdate
-        put_row(
-            content=[
-                put_text(t("Gui.Update.AutoUpdate")),
-                None,
-                put_checkbox(
-                    "auto_update_toggle",
-                    options=[{"label": "", "value": "on"}],
-                    value=["on"] if auto_update_val else [],
-                ),
-            ],
-            size="auto 1fr auto",
-        )
-        pin_on_change("auto_update_toggle", onchange=lambda v: setattr(
-            State.deploy_config, "AutoUpdate", bool(v)
-        ))
-
         put_row(
             content=[put_scope("updater_loading"), None, put_scope("updater_state")],
             size="auto .25rem 1fr",
