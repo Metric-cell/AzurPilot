@@ -58,7 +58,7 @@ class GitManager(DeployConfig):
         self.execute(f'"{self.git}" fetch {source} {branch}')
 
         logger.hr('Pull Repository Branch', 1)
-        # Remove git lock
+        # 移除 git 锁文件
         for lock_file in [
             './.git/index.lock',
             './.git/HEAD.lock',
@@ -92,7 +92,7 @@ class GitManager(DeployConfig):
     def cloud_auto_update_enabled():
         logger.info(f'Check cloud update control: {CLOUD_UPDATE_CONTROL_URL}')
         try:
-            resp = requests.get(CLOUD_UPDATE_CONTROL_URL, timeout=5)
+            resp = requests.get(CLOUD_UPDATE_CONTROL_URL, timeout=5, headers={'User-Agent': 'alas AzurPilot'})
             resp.raise_for_status()
         except Exception as e:
             logger.warning(f'Failed to check cloud update control: {e}')
