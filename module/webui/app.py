@@ -1,4 +1,4 @@
-# 此文件是 Alas WebUI 的核心逻辑入口类文件。
+﻿# 此文件是 Alas WebUI 的核心逻辑入口类文件。
 # 基于 PyWebIO 框架构建了整个可视化控制台，包括任务配置渲染、仪表盘展示、多实例切换及实时日志流转发等前端功能。
 import os
 import re
@@ -4388,25 +4388,16 @@ class AlasGUI(Frame):
             # show something
             put_markdown(
                 """
-            Alas 是一款免费开源软件，如果你在任何渠道付费购买了 Alas，那你一定是个被骗了的超级大杂鱼呢❤
-            Alas is free and open-source software. If you paid for Alas through any channel, please request a refund.
-            Alasは無料のオープンソースソフトウェアです。Alasをいずれかのチャネルから購入された場合は、返金をリクエストしてください。
-            Alas는 무료 오픈 소스 소프트웨어입니다. 어떤 경로로든 Alas를 유료로 구매하셨다면 환불을 요청해 주세요.
-            Alas 是一款免費開源軟體，如果您透過任何管道付費購買了 Alas，請申請退款。
+            AzurPilot 是基于上游项目 Alas (AzurLaneAutoScript) 的修改版本，采用 GPL-3.0 许可证，免费开源。如果你在任何渠道付费购买，那你一定是个大傻逼，请申请退款。
+            AzurPilot is a modified version based on the upstream project Alas (AzurLaneAutoScript), licensed under GPL-3.0, free and open-source. If you paid through any channel, please request a refund.
+            AzurPilotは上流プロジェクトAlas (AzurLaneAutoScript) の改変版で、GPL-3.0ライセンスの無料オープンソースです。購入された場合は、返金をリクエストしてください。
+            AzurPilot는 상류 프로젝트 Alas(AzurLaneAutoScript)의 수정 버전이며, GPL-3.0 라이선스의 무료 오픈 소스입니다. 구매하셨다면 환불을 요청해 주세요.
+            AzurPilot 是基於上游專案 Alas (AzurLaneAutoScript) 的修改版本，採用 GPL-3.0 許可證，免費開源。如果您透過任何管道付費購買，請申請退款。
 
-            官方项目地址 / Official project address / 公式プロジェクトアドレス / 공식 프로젝트 주소 / 官方專案位址：`https://github.com/LmeSzinc/AzurLaneAutoScript`
+            上游项目 / Upstream / 上流プロジェクト / 상류 프로젝트 / 上游專案：`https://github.com/LmeSzinc/AzurLaneAutoScript`
+            本项目 / This project / 本プロジェクト / 본 프로젝트 / 本專案：`https://github.com/wess09/AzurPilot`
 
-            您当前使用的不是官方版本 / You are not currently using the official version / 現在、公式バージョンをご利用ではありません。 / 현재 공식 버전을 사용하고 있지 않습니다. / 您目前使用的不是官方版本。
-
-            您使用的是修改版，请联系修改版的作者获取支持。 / You are using a modified version. Please contact the author of the modified version for support. / 改変版をご利用中です。サポートが必要な場合は、改変版の作者にお問い合わせください。 / 수정된 버전을 사용 중입니다. 지원이 필요하면 수정 버전의 작성자에게 문의해 주세요. / 您使用的是修改版，請聯繫修改版作者取得支援。
-
-            修改版项目地址 / Modified project address /変更後のプロジェクトアドレス / 수정된 프로젝트 주소 / 修改版專案位址：`https://github.com/wess09/AzurLaneAutoScript`
-
-            修改版问题请联系：
-            For issues related to the revised version, please contact:
-            改訂版に関する問題については、こちらへお問い合わせください。
-            수정 버전 관련 문의는 아래로 연락해 주세요.
-            修改版問題請聯絡：`https://addgroup.nanoda.work/`
+            如需支持，请联系 / For support, please contact / サポートについてはこちらへ / 지원이 필요하면 아래로 / 如需支援請聯繫：`https://addgroup.nanoda.work/`
             """
             ).style("text-align: center")
 
@@ -5039,3 +5030,6 @@ def app():
     app.mount("/mcp", mcp_app)
 
     return app
+
+
+
