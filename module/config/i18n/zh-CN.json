@@ -371,6 +371,12 @@
     "ServerUpdate": {
       "name": "服务器刷新时间",
       "help": "一些任务运行成功后，将推迟下一次运行至服务器刷新时间\n自动换算时区，一般不需要修改"
+    },
+    "Sensitive": {
+      "name": "敏感任务",
+      "help": "出错时禁止重启游戏，直接停止 AzurPilot 运行。适用于跨月每日、隐秘海域、深渊海域等关键时刻任务。",
+      "True": "True",
+      "False": "False"
     }
   },
   "Emulator": {

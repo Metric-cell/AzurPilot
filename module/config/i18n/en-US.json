@@ -371,6 +371,12 @@
     "ServerUpdate": {
       "name": "Server refresh time",
       "help": "After some tasks run successfully, the next run will be postponed until the server refresh time\nAutomatically converts time zones, generally no modification is required"
+    },
+    "Sensitive": {
+      "name": "Sensitive task",
+      "help": "When an error occurs, prohibit restarting the game and stop AzurPilot immediately. Suitable for critical tasks like cross-month daily, obscure sea areas, and abyssal sea areas.",
+      "True": "True",
+      "False": "False"
     }
   },
   "Emulator": {
