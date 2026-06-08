@@ -686,16 +686,20 @@ class GeneratedConfig:
     IslandFishery_RancherFilter = 'WorkerJuu'
 
     # 配置组 `IslandMine`
-    IslandMine_Mining1 = 'Silver'  # None, Copper, Aluminium, Iron, Sulphur, Silver
-    IslandMine_Mining2 = 'Silver'  # None, Copper, Aluminium, Iron, Sulphur, Silver
-    IslandMine_Mining3 = 'Silver'  # None, Copper, Aluminium, Iron, Sulphur, Silver
-    IslandMine_Mining4 = 'Silver'  # None, Copper, Aluminium, Iron, Sulphur, Silver
+    IslandMine_Positions = 1  # 1, 2, 3, 4
+    IslandMine_MineSilver = 1  # 0, 1, 2, 3, 4
+    IslandMine_MinCopper = 50
+    IslandMine_MinAluminium = 50
+    IslandMine_MinIron = 50
+    IslandMine_MinSulphur = 50
+    IslandMine_MinSilver = 50
 
     # 配置组 `IslandForest`
-    IslandForest_Felling1 = 'Elegant'  # None, Practical, Selected, Elegant
-    IslandForest_Felling2 = 'Elegant'  # None, Practical, Selected, Elegant
-    IslandForest_Felling3 = 'Elegant'  # None, Practical, Selected, Elegant
-    IslandForest_Felling4 = 'Elegant'  # None, Practical, Selected, Elegant
+    IslandForest_Positions = 1  # 1, 2, 3, 4
+    IslandForest_CutElegant = 1  # 0, 1, 2, 3, 4
+    IslandForest_MinElegant = 50
+    IslandForest_MinPractical = 50
+    IslandForest_MinSelected = 50
 
     # 配置组 `IslandRestaurant`
     IslandRestaurant_PostNumber = 2  # 1, 2

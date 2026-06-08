@@ -3490,45 +3490,42 @@
       "name": "IslandMine._info.name",
       "help": "IslandMine._info.help"
     },
-    "Mining1": {
-      "name": "IslandMine.Mining1.name",
-      "help": "IslandMine.Mining1.help",
-      "None": "None",
-      "Copper": "Copper",
-      "Aluminium": "Aluminium",
-      "Iron": "Iron",
-      "Sulphur": "Sulphur",
-      "Silver": "Silver"
+    "Positions": {
+      "name": "IslandMine.Positions.name",
+      "help": "IslandMine.Positions.help",
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4"
     },
-    "Mining2": {
-      "name": "IslandMine.Mining2.name",
-      "help": "IslandMine.Mining2.help",
-      "None": "None",
-      "Copper": "Copper",
-      "Aluminium": "Aluminium",
-      "Iron": "Iron",
-      "Sulphur": "Sulphur",
-      "Silver": "Silver"
+    "MineSilver": {
+      "name": "Silver Mining Slots",
+      "help": "Number of idle mine posts to produce Silver; remaining stay idle",
+      "0": "0",
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4"
     },
-    "Mining3": {
-      "name": "IslandMine.Mining3.name",
-      "help": "IslandMine.Mining3.help",
-      "None": "None",
-      "Copper": "Copper",
-      "Aluminium": "Aluminium",
-      "Iron": "Iron",
-      "Sulphur": "Sulphur",
-      "Silver": "Silver"
+    "MinCopper": {
+      "name": "Min Copper",
+      "help": "Minimum copper inventory threshold"
     },
-    "Mining4": {
-      "name": "IslandMine.Mining4.name",
-      "help": "IslandMine.Mining4.help",
-      "None": "None",
-      "Copper": "Copper",
-      "Aluminium": "Aluminium",
-      "Iron": "Iron",
-      "Sulphur": "Sulphur",
-      "Silver": "Silver"
+    "MinAluminium": {
+      "name": "Min Aluminium",
+      "help": "Minimum aluminium inventory threshold"
+    },
+    "MinIron": {
+      "name": "Min Iron",
+      "help": "Minimum iron inventory threshold"
+    },
+    "MinSulphur": {
+      "name": "Min Sulphur",
+      "help": "Minimum sulphur inventory threshold"
+    },
+    "MinSilver": {
+      "name": "Min Silver",
+      "help": "Minimum silver inventory threshold"
     }
   },
   "IslandForest": {
@@ -3536,37 +3533,34 @@
       "name": "IslandForest._info.name",
       "help": "IslandForest._info.help"
     },
-    "Felling1": {
-      "name": "IslandForest.Felling1.name",
-      "help": "IslandForest.Felling1.help",
-      "None": "None",
-      "Practical": "Practical",
-      "Selected": "Selected",
-      "Elegant": "Elegant"
+    "Positions": {
+      "name": "IslandForest.Positions.name",
+      "help": "IslandForest.Positions.help",
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4"
     },
-    "Felling2": {
-      "name": "IslandForest.Felling2.name",
-      "help": "IslandForest.Felling2.help",
-      "None": "None",
-      "Practical": "Practical",
-      "Selected": "Selected",
-      "Elegant": "Elegant"
+    "CutElegant": {
+      "name": "Elegant Wood Slots",
+      "help": "Number of idle forest posts to produce Elegant wood; remaining stay idle",
+      "0": "0",
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4"
     },
-    "Felling3": {
-      "name": "IslandForest.Felling3.name",
-      "help": "IslandForest.Felling3.help",
-      "None": "None",
-      "Practical": "Practical",
-      "Selected": "Selected",
-      "Elegant": "Elegant"
+    "MinElegant": {
+      "name": "Min Elegant Wood",
+      "help": "Minimum elegant wood inventory threshold"
     },
-    "Felling4": {
-      "name": "IslandForest.Felling4.name",
-      "help": "IslandForest.Felling4.help",
-      "None": "None",
-      "Practical": "Practical",
-      "Selected": "Selected",
-      "Elegant": "Elegant"
+    "MinPractical": {
+      "name": "Min Practical Wood",
+      "help": "Minimum practical wood inventory threshold"
+    },
+    "MinSelected": {
+      "name": "Min Selected Wood",
+      "help": "Minimum selected wood inventory threshold"
     }
   },
   "IslandRestaurant": {

@@ -3488,85 +3488,79 @@
   "IslandMine": {
     "_info": {
       "name": "矿山",
-      "help": "未解锁岗位或者空闲请选none"
+      "help": ""
     },
-    "Mining1": {
-      "name": "采矿1",
+    "Positions": {
+      "name": "岗位数量",
       "help": "",
-      "None": "None",
-      "Copper": "铜矿",
-      "Aluminium": "铝矿",
-      "Iron": "铁矿",
-      "Sulphur": "硫矿",
-      "Silver": "银矿"
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4"
     },
-    "Mining2": {
-      "name": "采矿2",
-      "help": "",
-      "None": "None",
-      "Copper": "铜矿",
-      "Aluminium": "铝矿",
-      "Iron": "铁矿",
-      "Sulphur": "硫矿",
-      "Silver": "银矿"
+    "MineSilver": {
+      "name": "采银矿岗位数",
+      "help": "几个空闲矿山岗位用于生产银矿，其余空着不动",
+      "0": "0",
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4"
     },
-    "Mining3": {
-      "name": "采矿3",
-      "help": "",
-      "None": "None",
-      "Copper": "铜矿",
-      "Aluminium": "铝矿",
-      "Iron": "铁矿",
-      "Sulphur": "硫矿",
-      "Silver": "银矿"
+    "MinCopper": {
+      "name": "铜矿最低库存",
+      "help": "仓库中铜矿数量低于此值时，矿山岗位才会生产"
     },
-    "Mining4": {
-      "name": "采矿4",
-      "help": "",
-      "None": "None",
-      "Copper": "铜矿",
-      "Aluminium": "铝矿",
-      "Iron": "铁矿",
-      "Sulphur": "硫矿",
-      "Silver": "银矿"
+    "MinAluminium": {
+      "name": "铝矿最低库存",
+      "help": "仓库中铝矿数量低于此值时，矿山岗位才会生产"
+    },
+    "MinIron": {
+      "name": "铁矿最低库存",
+      "help": "仓库中铁矿数量低于此值时，矿山岗位才会生产"
+    },
+    "MinSulphur": {
+      "name": "硫磺最低库存",
+      "help": "仓库中硫磺数量低于此值时，矿山岗位才会生产"
+    },
+    "MinSilver": {
+      "name": "银矿最低库存",
+      "help": "仓库中银矿数量低于此值时，矿山岗位才会生产"
     }
   },
   "IslandForest": {
     "_info": {
       "name": "林场",
-      "help": "未解锁岗位或者空闲请选none"
+      "help": ""
     },
-    "Felling1": {
-      "name": "伐木1",
+    "Positions": {
+      "name": "岗位数量",
       "help": "",
-      "None": "None",
-      "Practical": "实用之木",
-      "Selected": "精选之木",
-      "Elegant": "典雅之木"
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4"
     },
-    "Felling2": {
-      "name": "伐木2",
-      "help": "",
-      "None": "None",
-      "Practical": "实用之木",
-      "Selected": "精选之木",
-      "Elegant": "典雅之木"
+    "CutElegant": {
+      "name": "伐典雅之木岗位数",
+      "help": "几个空闲林场岗位用于生产典雅之木，其余空着不动",
+      "0": "0",
+      "1": "1",
+      "2": "2",
+      "3": "3",
+      "4": "4"
     },
-    "Felling3": {
-      "name": "伐木3",
-      "help": "",
-      "None": "None",
-      "Practical": "实用之木",
-      "Selected": "精选之木",
-      "Elegant": "典雅之木"
+    "MinElegant": {
+      "name": "优雅木材最低库存",
+      "help": "仓库中优雅木材数量低于此值时，林场岗位才会生产"
     },
-    "Felling4": {
-      "name": "伐木4",
-      "help": "",
-      "None": "None",
-      "Practical": "实用之木",
-      "Selected": "精选之木",
-      "Elegant": "典雅之木"
+    "MinPractical": {
+      "name": "实用木材最低库存",
+      "help": "仓库中实用木材数量低于此值时，林场岗位才会生产"
+    },
+    "MinSelected": {
+      "name": "精选木材最低库存",
+      "help": "仓库中精选木材数量低于此值时，林场岗位才会生产"
     }
   },
   "IslandRestaurant": {

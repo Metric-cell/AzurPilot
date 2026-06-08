@@ -1167,31 +1167,35 @@ IslandFishery:
   RancherFilter: |-
     WorkerJuu
 IslandMine:
-  Mining1:
-    value: Silver
-    option: [ None, Copper, Aluminium, Iron, Sulphur, Silver ]
-  Mining2:
-    value: Silver
-    option: [ None, Copper, Aluminium, Iron, Sulphur, Silver ]
-  Mining3:
-    value: Silver
-    option: [ None, Copper, Aluminium, Iron, Sulphur, Silver ]
-  Mining4:
-    value: Silver
-    option: [ None, Copper, Aluminium, Iron, Sulphur, Silver ]
+  Positions:
+    value: 1
+    option: [ 1, 2, 3, 4 ]
+  MineSilver:
+    value: 1
+    option: [ 0, 1, 2, 3, 4 ]
+  MinCopper:
+    value: 50
+  MinAluminium:
+    value: 50
+  MinIron:
+    value: 50
+  MinSulphur:
+    value: 50
+  MinSilver:
+    value: 50
 IslandForest:
-  Felling1:
-    value: Elegant
-    option: [ None, Practical, Selected, Elegant ]
-  Felling2:
-    value: Elegant
-    option: [ None, Practical, Selected, Elegant ]
-  Felling3:
-    value: Elegant
-    option: [ None, Practical, Selected, Elegant ]
-  Felling4:
-    value: Elegant
-    option: [ None, Practical, Selected, Elegant ]
+  Positions:
+    value: 1
+    option: [ 1, 2, 3, 4 ]
+  CutElegant:
+    value: 1
+    option: [ 0, 1, 2, 3, 4 ]
+  MinElegant:
+    value: 50
+  MinPractical:
+    value: 50
+  MinSelected:
+    value: 50
 IslandRestaurant:
   PostNumber:
     value: 2

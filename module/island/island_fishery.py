@@ -222,6 +222,9 @@ class IslandFishery(Island, WarehouseOCR, LoginHandler):
             if post_info['button'] == post_button:
                 post_info['crop'] = product
                 break
+
+        # 关闭详情弹窗，防止后续操作被弹窗遮挡
+        self.post_close()
         return True
 
     def goto_fishery_gear_shop(self):
