@@ -19,6 +19,8 @@ SELECT_PRODUCT_INERTIA_STOP = Button(
 
 # select_product 中滑动操作的点击记录名称，提取为常量避免硬编码多处不一致
 SELECTION_UP_SWIPE_NAME = "SelectionUpSwipe"
+# select_product 最大滑动尝试次数，覆盖列表底部产品（海参等位于列表末尾）
+_SELECT_PRODUCT_MAX_SWIPES = 8
 
 class Island(SelectCharacter):
     def __init__(self, *args, **kwargs):
@@ -244,12 +246,11 @@ class Island(SelectCharacter):
             self.device.sleep(0.3)
 
     def select_product(self, product_selection, product_selection_check):
-        max_attempts = 8  # 最大尝试次数，需覆盖列表底部产品（海参等位于列表末尾）
         # 清理之前可能残留的滑动记录，避免多次调用累积触发单按钮死循环检测
-        # （click_record maxlen=15，两次调用各8条=16条>12阈值）
+        # （click_record maxlen=15，两次调用各 _SELECT_PRODUCT_MAX_SWIPES 条 >12 阈值）
         self.device.click_record_remove(SELECTION_UP_SWIPE_NAME)
 
-        for _ in range(max_attempts):
+        for _ in range(_SELECT_PRODUCT_MAX_SWIPES):
             self.device.screenshot()
 
             # 使用形状+颜色双重验证来识别 product_selection_check
