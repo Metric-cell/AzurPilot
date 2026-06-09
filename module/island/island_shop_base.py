@@ -644,12 +644,12 @@ class IslandShopBase(Island, WarehouseOCR):
                 if quantity_per == 0:
                     continue
                 max_by_material = material_stock // quantity_per
-                max_producible = min(max_producible, max_by_material)
                 if max_by_material <= 0:
-                    logger.info(f"  {product} 缺少原材料: {material} (库存: {material_stock})")
-                    return 0
-                else:
-                    logger.info(f"  {product} 原材料 {material}: 库存 {material_stock}，每个需要 {quantity_per}，最大生产 {max_by_material}")
+                    # 该原料仓库库存为 0，但本店可生产，不阻断套餐
+                    logger.info(f"  {product} 原材料 {material} 库存不足（库存: {material_stock}），跳过此原料限制")
+                    continue
+                max_producible = min(max_producible, max_by_material)
+                logger.info(f"  {product} 原材料 {material}: 库存 {material_stock}，每个需要 {quantity_per}，最大生产 {max_by_material}")
 
         # 2. 检查岗位数量限制（每个岗位最多6个）
         max_producible = min(max_producible, 6)
