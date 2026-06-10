@@ -345,19 +345,38 @@ class IslandRestaurant(IslandShopBase):
                 self.to_post_products = temp_products
                 logger.info(f"剩余基础需求生产计划: {self.to_post_products}")
 
-            # ============ 安排基础需求生产（带停滞重试） ============
+            # ============ 安排基础需求生产（循环直到无空岗或无缺口） ============
+            _produced_pass = {}  # 本轮已生产的累计
+
             if self.to_post_products:
-                stalled_before = set(self._stalled)
+                to_post_snapshot = dict(self.to_post_products)
                 self.schedule_production()
-                # 有新产品被标记停滞且仍有空闲岗位 → 恢复库存后重跑需求
-                if set(self._stalled) - stalled_before and self.get_idle_posts():
-                    self.current_totals = _orig_totals
-                    self._compute_base_demands()
-                    if self.to_post_products:
-                        self.to_post_products = self.process_meal_requirements(self.to_post_products)
-                        self.schedule_production()
-            else:
-                logger.info("基础需求已满足")
+                for name in to_post_snapshot:
+                    remaining = self.to_post_products.get(name, 0)
+                    produced = to_post_snapshot[name] - remaining
+                    if produced > 0:
+                        _produced_pass[name] = _produced_pass.get(name, 0) + produced
+
+            while self.get_idle_posts():
+                self.current_totals = dict(_orig_totals)
+                for name, qty in _produced_pass.items():
+                    self.current_totals[name] = self.current_totals.get(name, 0) + qty
+
+                self._compute_base_demands()
+                if not self.to_post_products:
+                    logger.info("所有槽位需求已满足")
+                    break
+
+                self.to_post_products = self.process_meal_requirements(self.to_post_products)
+                logger.info(f"基础需求生产计划: {self.to_post_products}")
+
+                to_post_snapshot = dict(self.to_post_products)
+                self.schedule_production()
+                for name in to_post_snapshot:
+                    remaining = self.to_post_products.get(name, 0)
+                    produced = to_post_snapshot[name] - remaining
+                    if produced > 0:
+                        _produced_pass[name] = _produced_pass.get(name, 0) + produced
 
             # ============ 检查是否还有空闲岗位，安排常驻餐品 ============
             idle_posts_after_basic = self.get_idle_posts()
