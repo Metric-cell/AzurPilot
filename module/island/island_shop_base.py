@@ -414,10 +414,16 @@ class IslandShopBase(Island, WarehouseOCR):
             # ============ 安排基础需求生产（循环直到无空岗或无缺口） ============
             _produced_pass = {}  # 本次 run() 调用中已生产的累计
             _force_skip_run = set()  # 排产多次无法生产的缺口（非原料原因），本轮强制跳过
+            _loop_count = 0
+            _MAX_LOOP = 10
 
             self._schedule_and_track(_produced_pass)
 
             while self.get_idle_posts():
+                _loop_count += 1
+                if _loop_count > _MAX_LOOP:
+                    logger.warning(f"[循环] 已达最大迭代次数 {_MAX_LOOP}，强制退出")
+                    break
                 self.current_totals = dict(_orig_totals)
                 for name, qty in _produced_pass.items():
                     self.current_totals[name] = self.current_totals.get(name, 0) + qty
