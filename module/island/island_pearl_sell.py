@@ -32,9 +32,12 @@ class IslandPearlSell(Island):
     WEEKLY_TRADE_WEEKDAY = 1
     WEEKLY_TRADE_HOUR = 1
     WEEKLY_TRADE_MINUTE = 0
+    DAILY_REFRESH_HOUR = 3
+    DAILY_REFRESH_MINUTE = 0
     PRICE_RETRY = 3
     TRADE_COUNT_RETRY = 4
     TRADE_COUNT_MAX_CLICKS = 25
+    BUY_MAX_ATTEMPTS = 2
     RANK_FIXED_SWIPE_COUNT = 10
     RANK_FIXED_SWIPE_DISTANCE = 450
     RANK_FIXED_SWIPE_AREA = (785, 210, 918, 529)
@@ -52,87 +55,152 @@ class IslandPearlSell(Island):
         logger.hr('Island Pearl Sell Run', level=1)
         now = datetime.now().replace(microsecond=0)
 
-        if not self._schedule_due(now=now):
-            target = self._nearest_future_schedule(now=now)
-            logger.info(f'未到珍珠周循环触发时间，下次运行: {target}')
+        pearl_trade_time = self._get_next_pearl_trade_time(now=now)
+
+        # 判断当前触发类型
+        trade_due = self._trade_due(now=now, next_time=pearl_trade_time)
+        refresh_due = False if trade_due else self._refresh_due(now=now)
+        logger.attr('SchedulerNextRun', self.config.Scheduler_NextRun)
+        logger.attr('PearlTradeTime', pearl_trade_time)
+        logger.attr('PearlTradeDue', trade_due)
+        logger.attr('PearlRefreshDue', refresh_due)
+
+        if not trade_due and not refresh_due:
+            target = self._next_run(now=now)
+            logger.info(f'未到珍珠任务触发时间，下次运行: {target}')
             self.config.task_delay(target=target)
+            self.config.save()
             return
 
-        buy_status = self.run_buy_phase()
-        if buy_status == self.PHASE_DELAYED:
+        # 采购售卖时间已到，执行完整周循环
+        if trade_due:
+            buy_status = self.run_buy_phase()
+            if buy_status == self.PHASE_DONE:
+                logger.info('采购流程完成，继续执行本周珍珠售卖')
+            else:
+                logger.info('采购流程跳过或延迟，继续执行本周珍珠售卖')
+
+            sell_status = self.run_sell_phase()
+            if sell_status == self.PHASE_DELAYED:
+                self.config.save()
+                return
+
+            next_trade = self._next_trade_run(
+                now=now,
+                base=self._nearest_future_schedule(now=now)
+            )
+            next_run = self._delay_to_next_trade(next_trade, now=now)
+            if sell_status == self.PHASE_DONE:
+                logger.info(f'售卖完成，下次珍珠任务时间: {next_run}')
+            else:
+                logger.info(f'当前无可售珍珠，下次珍珠任务时间: {next_run}')
+            self.config.save()
             return
 
-        if buy_status == self.PHASE_DONE:
-            logger.info('采购流程完成，继续执行本周珍珠售卖')
-        else:
-            logger.info('采购流程跳过，继续执行本周珍珠售卖')
-
-        sell_status = self.run_sell_phase()
-        if sell_status == self.PHASE_DELAYED:
+        # 每日价格刷新
+        if refresh_due:
+            self.run_price_refresh()
+            next_run = self._next_run(now=now)
+            self.config.task_delay(target=next_run)
+            logger.info(f'珍珠价格刷新完成，下次任务时间: {next_run}')
+            self.config.save()
             return
-
-        next_trade = self._nearest_future_schedule()
-        self.config.task_delay(target=next_trade)
-        if sell_status == self.PHASE_DONE:
-            logger.info(f'售卖完成，下次珍珠周循环时间: {next_trade}')
-        else:
-            logger.info(f'当前无可售珍珠，下次珍珠周循环时间: {next_trade}')
 
     # ==================== 采购 / 售卖阶段 ====================
 
     def run_buy_phase(self):
         """执行采购阶段。"""
         logger.hr('Pearl buy phase', level=2)
+        self._purchase_quota_exhausted = False
+
+        # 检查购买延时——如果还没到购买时间则跳过采购，让售卖正常执行
+        if not self._buy_next_run_due():
+            logger.info('采购延时未到，跳过采购')
+            return self.PHASE_SKIPPED
+
+        for attempt in range(1, self.BUY_MAX_ATTEMPTS + 1):
+            status, retry_reason = self.run_buy_phase_once()
+            if retry_reason and attempt < self.BUY_MAX_ATTEMPTS:
+                logger.warning(
+                    f'{retry_reason}，重新执行采购流程 '
+                    f'({attempt + 1}/{self.BUY_MAX_ATTEMPTS})'
+                )
+                continue
+            if retry_reason:
+                self._delay_buy_to_next_day_1am(retry_reason)
+            return status
+        return self.PHASE_SKIPPED
+
+    def run_buy_phase_once(self):
+        """执行一次采购流程，返回阶段状态和是否需要重试。"""
         buy_price_limit = int(self.config.IslandPearlSell_BuyPrice)
 
         if not self._enter_home_pearl_shop('assembly'):
-            return self.PHASE_DELAYED
+            return self.PHASE_SKIPPED, '未进入本岛珍珠商店'
         home_price = self.ocr_pearl_price(kind='sell')
         if home_price is None:
-            self._delay_to_next_day_1am('本岛珍珠价格 OCR 失败')
-            return self.PHASE_DELAYED
+            self._delay_buy_to_next_day_1am('本岛珍珠价格 OCR 失败')
+            self.back_to_pearl_shop_or_map()
+            return self.PHASE_SKIPPED, None
 
         in_friend_island = False
         if home_price != buy_price_limit:
             logger.info(f'本岛价格 {home_price} 不等于采购价 {buy_price_limit}，查找好友低价')
+            self._rank_visit_target_selected = False
             if not self.visit_friend_by_rank(mode='buy', threshold=buy_price_limit):
-                self._delay_to_next_day_1am('好友排名未找到低于采购价的目标')
-                return self.PHASE_DELAYED
+                self.back_to_pearl_shop_or_map()
+                if self._rank_visit_target_selected:
+                    return self.PHASE_SKIPPED, '未进入好友岛'
+                self._delay_buy_to_next_day_1am('好友排名未找到低于采购价的目标')
+                return self.PHASE_SKIPPED, None
             in_friend_island = True
         else:
             logger.info(f'本岛价格命中采购价 {home_price}')
 
         if not self._goto_pearl_shop_at('port'):
-            return self.PHASE_DELAYED
+            if in_friend_island:
+                self.exit_friend_island()
+            return self.PHASE_SKIPPED, '未进入港口珍珠采购页面'
         raw_price = self.ocr_pearl_price(kind='buy')
         if raw_price is None:
-            self._delay_to_next_day_1am('港口采购价格 OCR 失败')
-            return self.PHASE_DELAYED
+            self._delay_buy_to_next_day_1am('港口采购价格 OCR 失败')
+            self.back_to_pearl_shop_or_map()
+            if in_friend_island:
+                self.exit_friend_island()
+            return self.PHASE_SKIPPED, None
 
         buy_price = raw_price / self.PEARL_BUY_PRICE_RATE
         logger.info(f'港口采购侧价格: {raw_price}，折算售卖价: {buy_price:.1f}')
         if buy_price > buy_price_limit:
-            self._delay_to_next_day_1am(f'港口采购价格 {buy_price:.1f} 高于配置 {buy_price_limit}')
-            return self.PHASE_DELAYED
+            self._delay_buy_to_next_day_1am(f'港口采购价格 {buy_price:.1f} 高于配置 {buy_price_limit}')
+            self.back_to_pearl_shop_or_map()
+            if in_friend_island:
+                self.exit_friend_island()
+            return self.PHASE_SKIPPED, None
 
         purchasable = self.ocr_weekly_purchase_count()
         if purchasable <= 0:
             logger.info(f'本周可采购数量为 {purchasable}，跳过采购')
+            self._purchase_quota_exhausted = True
+            self.config.IslandPearlSell_BuyNextRun = self._nearest_future_schedule()
             self.back_to_pearl_shop_or_map()
             if in_friend_island:
                 self.exit_friend_island()
-            return self.PHASE_SKIPPED
+            return self.PHASE_SKIPPED, None
 
         if not self.trade_pearl(action='buy', count=purchasable):
             if in_friend_island:
                 self.exit_friend_island()
-            self._delay_to_next_day_1am('珍珠采购未完成')
-            return self.PHASE_DELAYED
+            else:
+                self.back_to_pearl_shop_or_map()
+            self._delay_buy_to_next_day_1am('珍珠采购未完成')
+            return self.PHASE_SKIPPED, None
         self.back_to_pearl_shop_or_map()
         if in_friend_island:
             self.exit_friend_island()
+        self.config.IslandPearlSell_BuyNextRun = self._nearest_future_schedule()
         logger.info('采购完成')
-        return self.PHASE_DONE
+        return self.PHASE_DONE, None
 
     def run_sell_phase(self):
         """执行售卖阶段。"""
@@ -140,12 +208,17 @@ class IslandPearlSell(Island):
         sell_price_limit = int(self.config.IslandPearlSell_SellPrice)
 
         if not self._enter_home_pearl_shop('assembly'):
+            self._delay_to_next_day_1am('进入本岛珍珠商店失败')
             return self.PHASE_DELAYED
         current_pearl = self.ocr_current_pearl_count()
         if current_pearl <= 0:
             logger.info(f'当前珍珠数量为 {current_pearl}，跳过售卖')
             self.back_to_pearl_shop_or_map()
-            return self.PHASE_SKIPPED
+            if self._purchase_quota_exhausted:
+                logger.info('本周采购配额已用尽且无珍珠可售，直接等待下周')
+                return self.PHASE_SKIPPED
+            self._delay_to_next_day_1am('当前珍珠数量为 0')
+            return self.PHASE_DELAYED
 
         sell_price = self.ocr_pearl_price(kind='sell')
         if sell_price is None:
@@ -160,12 +233,17 @@ class IslandPearlSell(Island):
                 return self.PHASE_DELAYED
             in_friend_island = True
             if not self._goto_pearl_shop_at('assembly', use_map=False):
+                self._delay_to_next_day_1am('进入好友岛珍珠商店失败')
                 return self.PHASE_DELAYED
             current_pearl = self.ocr_current_pearl_count()
             if current_pearl <= 0:
                 logger.info(f'好友岛当前珍珠数量为 {current_pearl}，跳过售卖')
                 self.exit_friend_island()
-                return self.PHASE_SKIPPED
+                if self._purchase_quota_exhausted:
+                    logger.info('本周采购配额已用尽且无珍珠可售，直接等待下周')
+                    return self.PHASE_SKIPPED
+                self._delay_to_next_day_1am('好友岛珍珠数量为 0')
+                return self.PHASE_DELAYED
         else:
             logger.info(f'本岛价格满足售卖要求: {sell_price}')
 
@@ -198,13 +276,12 @@ class IslandPearlSell(Island):
             raise ValueError(f'未知珍珠商店地点: {destination}')
         enter_button = self.pearl_shop_enter_button(destination)
         if not self.enter_pearl_shop(enter_button):
-            self._delay_to_next_day_1am('进入珍珠商店失败')
             return False
         return True
 
     def move_to_assembly_role_a(self):
         self.island_up(2500)
-        self.island_right(1500)
+        self.island_right(1700)
         self.island_down(1700)
         self.island_right(500)
 
@@ -282,6 +359,7 @@ class IslandPearlSell(Island):
         if target is None:
             return False
 
+        self._rank_visit_target_selected = True
         logger.info(f'选择好友珍珠价格 {target["price"]}')
         return self.click_rank_visit(target['visit_button'])
 
@@ -538,12 +616,73 @@ class IslandPearlSell(Island):
     def _action_name(action):
         return '采购' if action == 'buy' else '售卖'
 
+    # ==================== 价格刷新 ====================
+
+    def run_price_refresh(self):
+        """每日 03:00 进入珍珠售卖商店后立即退出，刷新价格显示。"""
+        logger.hr('Pearl price refresh', level=2)
+        if not self._enter_home_pearl_shop('assembly'):
+            logger.warning('价格刷新：进入珍珠商店失败')
+            return False
+        logger.info('价格刷新：已进入珍珠商店')
+        self.back_to_pearl_shop_or_map()
+        logger.info('价格刷新完成')
+        return True
+
     # ==================== 时间与延时 ====================
 
-    def _schedule_due(self, now=None):
+    def _trade_due(self, now=None, next_time=None):
+        """检查是否到了每周采购售卖的执行时间。"""
         now = now or datetime.now().replace(microsecond=0)
-        scheduled = self._this_week_schedule(now=now)
-        return now >= scheduled
+        next_time = next_time or self._get_next_pearl_trade_time(now=now)
+        if now >= next_time:
+            return True
+        return False
+
+    @staticmethod
+    def _is_default_datetime(value):
+        return value == datetime(2020, 1, 1, 0, 0)
+
+    def _refresh_due(self, now=None):
+        """检查是否到了每日价格刷新时间。"""
+        if not self.config.IslandPearlSell_DailyPriceRefresh:
+            return False
+        now = now or datetime.now().replace(microsecond=0)
+        today_refresh = now.replace(
+            hour=self.DAILY_REFRESH_HOUR,
+            minute=self.DAILY_REFRESH_MINUTE,
+            second=0, microsecond=0
+        )
+        if now < today_refresh:
+            return False
+        # 仅在未到周循环时间时才做价格刷新
+        next_trade = self._get_next_pearl_trade_time(now=now)
+        return now < next_trade
+
+    def _get_next_pearl_trade_time(self, now=None):
+        """获取配置的下次采购售卖执行时间，清空则本次立即执行。"""
+        now = now or datetime.now().replace(microsecond=0)
+        value = self.config.IslandPearlSell_NextPearlTradeTime
+        if value in [None, '']:
+            return now
+        return value
+
+    def _get_buy_next_run(self):
+        value = self.config.IslandPearlSell_BuyNextRun
+        if value in [None, ''] or self._is_default_datetime(value):
+            return None
+        return value
+
+    def _next_trade_run(self, now=None, base=None):
+        """计算下一次真正采购售卖时间，不包含每日价格刷新。"""
+        now = now or datetime.now().replace(microsecond=0)
+        candidates = [base or self._get_next_pearl_trade_time(now=now)]
+
+        buy_next_run = self._get_buy_next_run()
+        if buy_next_run and buy_next_run > now:
+            candidates.append(buy_next_run)
+
+        return min(candidates)
 
     def _this_week_schedule(self, now=None):
         now = now or datetime.now().replace(microsecond=0)
@@ -563,6 +702,36 @@ class IslandPearlSell(Island):
             target += timedelta(days=7)
         return target
 
+    def _next_daily_refresh(self, now=None):
+        """计算下一次每日价格刷新时间（今天的 03:00 或明天的 03:00）。"""
+        now = now or datetime.now().replace(microsecond=0)
+        today_refresh = now.replace(
+            hour=self.DAILY_REFRESH_HOUR,
+            minute=self.DAILY_REFRESH_MINUTE,
+            second=0, microsecond=0
+        )
+        if now < today_refresh:
+            return today_refresh
+        return today_refresh + timedelta(days=1)
+
+    def _next_run(self, now=None):
+        """计算珍珠任务下一次运行时间。综合周循环、采购延时和每日刷新。"""
+        now = now or datetime.now().replace(microsecond=0)
+        candidates = [self._next_trade_run(now=now)]
+
+        # 每日价格刷新
+        if self.config.IslandPearlSell_DailyPriceRefresh:
+            candidates.append(self._next_daily_refresh(now=now))
+
+        return min(candidates)
+
+    def _delay_to_next_trade(self, target, now=None):
+        """同步真正采购售卖时间，并按每日刷新设置计算任务调度时间。"""
+        self.config.IslandPearlSell_NextPearlTradeTime = target
+        next_run = self._next_run(now=now)
+        self.config.task_delay(target=next_run)
+        return next_run
+
     @staticmethod
     def next_day_1am(now=None):
         now = now or datetime.now().replace(microsecond=0)
@@ -571,7 +740,23 @@ class IslandPearlSell(Island):
     def _delay_to_next_day_1am(self, reason):
         target = self.next_day_1am()
         logger.info(f'{reason}，延迟到 {target}')
-        self.config.task_delay(target=target)
+        self._delay_to_next_trade(target)
+
+    def _delay_buy_to_next_day_1am(self, reason):
+        """设置采购延时到次日凌晨 1 点，仅影响采购不干扰售卖。"""
+        target = self.next_day_1am()
+        logger.info(f'{reason}，采购延迟到 {target}')
+        self.config.IslandPearlSell_BuyNextRun = target
+        if target < self._get_next_pearl_trade_time():
+            self.config.IslandPearlSell_NextPearlTradeTime = target
+
+    def _buy_next_run_due(self):
+        """检查是否到了允许采购的时间。"""
+        value = self.config.IslandPearlSell_BuyNextRun
+        if value in [None, '']:
+            return True
+        now = datetime.now().replace(microsecond=0)
+        return now >= value
 
     @staticmethod
     def _area_button(area, name):

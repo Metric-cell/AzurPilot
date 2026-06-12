@@ -9,7 +9,7 @@
 - [x] **功能1**: 矿山/森林按库存阈值执行 — 检测仓库数量，低于阈值才安排生产
 - [x] **功能2**: 每日订单功能 — 自动检测订单类型（紧急/挑战/轻松），根据物品条件交付或驳回
 - [x] **功能3**: 货运委托功能 — 重写货运委托系统，五种颜色状态检测+对应处理逻辑
-- [ ] **功能4**: 每周珍珠采购与售卖 — 按配置日低价采购珍珠并在满足价格时售卖
+- [x] **功能4**: 每周珍珠采购与售卖 — 按配置日低价采购珍珠并在满足价格时售卖
 - [ ] **功能5**: 经营模块智能分波 — 季节限定数量检测替换 + 加成商品检测替换
 - [ ] **功能6**: 自动采集角色体力检测 — 体力 < 100 自动换人
 - [ ] **功能7**: 摸猫/JUU速运任务 — 每日互动任务
@@ -629,16 +629,18 @@ IslandBusinessTransport:
 
 ### 目标
 
-按独立配置的采购日/售卖日执行珍珠低价采购与高价售卖：
+每周二 01:00 固定执行珍珠低价采购与高价售卖，顺序固定为先采购、后售卖。用户只需要配置最高采购价格和最低售卖价格，采购重试时间由内部字段记录。
 
-1. 采购触发时，前往地图中的集会岛，移动到角色 A 身旁进入珍珠商店，OCR 当前珍珠价格。
-2. 如果当前价格不是配置的采购价，则进入好友排名页签，从榜单底部寻找低于采购价的好友并拜访。
-3. 在目标岛屿前往港口，移动到角色 B 身旁进入珍珠商店，按本周可采购数量买光珍珠。
-4. 采购完成后退出好友岛屿并延迟到最近的售卖配置时间；例如周一买满 200 个珍珠后，周二只执行售卖阶段。
-5. 售卖触发时，前往集会岛角色 A 身旁进入珍珠商店，若本岛价格满足最低售卖价则直接售卖，否则从好友排名中寻找高于最低售卖价的好友并拜访售卖。
-6. 售卖完成后退出当前界面；若没有可采购/可售卖目标，则延迟到当天或次日 2:00 重试；本周珍珠清空后延迟到下一次采购。
+1. 到达每周二 01:00 后先执行采购阶段，即使采购跳过或延迟，也继续执行售卖阶段。
+2. 采购阶段前往集会岛角色 A 身旁进入珍珠售卖商店，OCR 当前珍珠价格。
+3. 如果本岛价格不是配置的采购价，则进入好友排名页签，从榜单底部寻找低于采购价的好友并拜访。
+4. 在本岛或目标好友岛前往港口，移动到角色 B 身旁进入珍珠购买商店，按本周可采购数量买光珍珠。
+5. 售卖阶段前往集会岛角色 A 身旁进入珍珠售卖商店，若本岛价格满足最低售卖价则直接售卖，否则从好友排名中寻找高于最低售卖价的好友并拜访售卖。
+6. 采购失败只记录 `BuyNextRun`（采购下次运行时间），不阻断本轮售卖；售卖失败才直接把任务延迟到次日 01:00。
+7. `BuyNextRun` 在采购成功或采购配额用尽时设置为下周二 01:00，在其他采购失败场景设置为次日 01:00。
+8. 售卖正常结束后，任务下次运行时间取 `BuyNextRun` 和下一个周二 01:00 中更早的时间。
 
-> 任务 help 必须提示：金币一定要够购买200x220个这是最低要求能一次买光本周珍珠, 否则可能会报错.
+> 任务 help 必须提示：仅支持minitouch。金币一定要够购买200x220个这是最低要求能一次买光本周珍珠, 否则可能会报错.
 
 ### 设计方案
 
@@ -653,24 +655,26 @@ class IslandPearlSell(Island):
     WEEKLY_TRADE_WEEKDAY = 1
     WEEKLY_TRADE_HOUR = 1
     WEEKLY_TRADE_MINUTE = 0
+    BUY_MAX_ATTEMPTS = 2
     
     def run(self):
         """
         流程：
         1. 检查是否到达每周二 01:00 固定触发点
-        2. 先执行采购阶段，未失败时继续执行售卖阶段
-        3. 售卖流程正常结束后延迟到下一个周二 01:00
-        4. 其他未完成流程延迟到次日 01:00
+        2. 先执行采购阶段，无论采购是否延迟都继续执行售卖阶段
+        3. 采购页面进入失败时最多重试一次采购流程
+        4. 售卖流程正常结束后，延迟到采购重试时间或下一个周二 01:00 中更早的时间
+        5. 售卖失败流程延迟到次日 01:00
         """
 ```
 
 #### 现有代码参考
 
 - 地图入口：[`Island.goto_island_map()`](module/island/island.py:181) 已能进入岛屿地图。
-- 地图导航：[`Island.island_map_goto()`](module/island/island.py:190) 目前只支持 `mine_forest`、`farm`、`nursery`，需要新增 `assembly`（集会岛）和 `port`（港口）两个目的地。
+- 地图导航：[`Island.island_map_goto()`](module/island/island.py:190) 已扩展 `assembly`（集会岛）和 `port`（港口）两个目的地。
 - 地图移动：[`Island.island_up()` / `island_down()` / `island_left()` / `island_right()`](module/island/island.py:412) 提供按住摇杆移动能力。
 - 好友拜访与列表滑动：[`IslandAirDrop.find_air_drop()`](module/island/island_air_drop.py:83)、[`check_visit()`](module/island/island_air_drop.py:175)、[`visit_swipe()`](module/island/island_air_drop.py:207) 可作为好友排名滑动、按行计算拜访按钮、进入好友岛屿的参考。
-- 好友岛内移动：[`IslandAirDrop.run_and_get()`](module/island/island_air_drop.py:239) 可作为移动到固定 NPC 附近的参考，但珍珠角色 A/B 路径不同，需要单独记录。
+- 好友岛内移动：珍珠角色 A/B 路线已分别封装到 `move_to_assembly_role_a()` 和 `move_to_port_role_b()`，仅支持 minitouch。
 - 数量弹窗：[`Island.set_buy_number()`](module/island/island.py:428) 可作为种子购买数量弹窗的参考；珍珠数量只需要猛点 `+10`，并以 OCR 中间数量达到目标为退出条件。
 
 #### 主流程详解
@@ -680,18 +684,25 @@ run()
   ├── if 未到每周二 01:00:
   │     └── task_delay(target=nearest_future_schedule())
   ├── buy_status = run_buy_phase()
-  ├── if buy_status == delayed: return
+  ├── # 不因采购跳过或延迟而中断
   ├── sell_status = run_sell_phase()
   ├── if sell_status == delayed: return
-  └── task_delay(target=nearest_future_schedule())
+  └── task_delay(target=_next_task_run())
 ```
 
 每周二 01:00 固定按先采购、后售卖的顺序执行。
+`_next_task_run()` 会在 `BuyNextRun` 和下一个周二 01:00 中选择更早的未来时间。
 
 ##### 采购阶段
 
 ```
 run_buy_phase()
+  ├── if BuyNextRun 未到:
+  │     └── return skipped
+  ├── 最多执行 2 次 run_buy_phase_once()
+  └── 如果第二次仍未进入采购相关页面，则 BuyNextRun = next_day_1am()
+
+run_buy_phase_once()
   ├── goto_island_map()
   ├── island_map_goto('assembly')             # 新增集会岛地图目的地
   ├── move_to_assembly_role_a()               # 参考每日补给移动代码，路径单独适配
@@ -704,17 +715,20 @@ run_buy_phase()
   │     ├── swipe_friend_rank_to_bottom()     # 固定滑动 10 次，每次约 450px
   │     ├── target = find_best_rank_price(< BuyPrice)
   │     ├── if target is None:
-  │     │     └── task_delay(target=next_day_1am())
+  │     │     └── BuyNextRun = next_day_1am()
   │     └── click_rank_visit(target)          # 进入好友岛屿
+  │           └── 如果已选中拜访目标但未进入好友岛，则重试采购流程
   │
   ├── goto_island_map()
   ├── island_map_goto('port')                 # 新增港口地图目的地
   ├── move_to_port_role_b()                   # 与角色 A 不同路径
   ├── enter_pearl_shop(ISLAND_PEARL_SHOP_BUY_ENTER)
+  ├── if 未进入港口珍珠采购页面:
+  │     └── 重试采购流程
   ├── buy_price_raw = ocr_pearl_price()
   ├── buy_price = buy_price_raw / 1.1         # 好友港口购买价为售卖价的 1.1 倍
   ├── if buy_price > BuyPrice:
-  │     └── task_delay(target=next_day_1am())
+  │     └── BuyNextRun = next_day_1am()
   ├── purchasable = ocr_weekly_purchase_count()
   ├── if purchasable == 0:
   │     └── return skipped
@@ -727,6 +741,14 @@ run_buy_phase()
   └── return done
 ```
 
+采购流程只在以下页面进入失败场景中重试一次：
+
+1. 未进入本岛珍珠商店。
+2. 已选中好友拜访目标，但未成功进入好友岛。
+3. 未进入港口珍珠采购页面。
+
+价格不满足、价格 OCR 失败、交易失败、好友排名没有满足价格目标、本周可采购数量为 0 时不重试采购流程，只按延时或跳过规则处理。
+
 ##### 售卖阶段
 
 ```
@@ -737,7 +759,8 @@ run_sell_phase()
   ├── enter_pearl_shop(ISLAND_PEARL_SHOP_SELL_ENTER)
   ├── current_pearl = ocr_current_pearl_count()
   ├── if current_pearl == 0:
-  │     └── return skipped
+  │     ├── if 本周采购配额已用尽: return skipped
+  │     └── task_delay(target=next_day_1am())
   ├── sell_price = ocr_pearl_price()
   ├── if sell_price < config.SellPrice:
   │     ├── switch_to_friend_rank_tab()
@@ -748,7 +771,9 @@ run_sell_phase()
   │     ├── move_to_assembly_role_a()
   │     ├── enter_pearl_shop(ISLAND_PEARL_SHOP_SELL_ENTER)
   │     ├── current_pearl = ocr_current_pearl_count()
-  │     └── if current_pearl == 0: return skipped
+  │     └── if current_pearl == 0:
+  │           ├── if 本周采购配额已用尽: return skipped
+  │           └── task_delay(target=next_day_1am())
   ├── click_pearl_trade()
   ├── add_ten_until_trade_count(current_pearl)
   ├── confirm_trade()
@@ -784,7 +809,10 @@ button_map = {
 
 ##### 2. 进入珍珠商店
 
-角色 A 和角色 B 身旁使用相同入口按钮：
+角色 A 和角色 B 身旁入口按钮文字和位置不同，分别使用：
+
+- `ISLAND_PEARL_SHOP_SELL_ENTER`：集会岛角色 A 身旁进入珍珠售卖商店。
+- `ISLAND_PEARL_SHOP_BUY_ENTER`：港口角色 B 身旁进入珍珠购买商店。
 
 ```
 enter_pearl_shop(enter_button)
@@ -805,19 +833,21 @@ enter_pearl_shop(enter_button)
 采购阶段：
 
 1. 切换到好友排名页签。
-2. 向下固定滑动 10 次，每次约 450px，移动到榜单底部附近。
-3. 在固定区域内使用 `TEMPLATE_ISLAND_PEARL_RANK_VISIT` 模板匹配所有拜访按钮。
-4. 按每个拜访按钮的固定偏移区域 OCR 对应珍珠价格。
+2. 等待至少 3 秒，让网络拉取好友排名数据完成。
+3. 在滑动区域 `(785, 210, 918, 529)` 向下固定滑动 10 次，每次约 450px，移动到榜单底部附近。
+4. 在固定区域 `(1030, 204, 1105, 534)` 内使用 `TEMPLATE_ISLAND_PEARL_RANK_VISIT` 模板匹配所有拜访按钮。
+5. 按每个拜访按钮的固定偏移 `(-192, 4, -220, -2)` 计算价格 OCR 区域。
 5. 从候选按钮中寻找 `price < BuyPrice` 的行。
 6. 同屏存在多个满足行时，选择最优采购价（最低价格）对应的拜访按钮。
 7. 点击该拜访按钮进入好友岛屿。
-8. 全部不满足则 `task_delay(target=next_day_1am())`。
+8. 全部不满足则 `BuyNextRun = next_day_1am()`。
 
 售卖阶段：
 
 1. 切换到好友排名页签。
-2. 不再向下滑动，直接在固定区域内模板匹配所有拜访按钮。
-3. 按每个拜访按钮的固定偏移区域 OCR 对应珍珠价格。
+2. 等待至少 3 秒，让网络拉取好友排名数据完成。
+3. 不再向下滑动，直接在固定区域 `(1030, 204, 1105, 534)` 内模板匹配所有拜访按钮。
+4. 按每个拜访按钮的固定偏移 `(-192, 4, -220, -2)` 计算价格 OCR 区域。
 4. 从候选按钮中寻找 `price > SellPrice` 的行。
 5. 同屏存在多个满足行时，选择最优售卖价（最高价格）对应的拜访按钮。
 6. 点击该拜访按钮进入好友岛屿。
@@ -840,7 +870,7 @@ enter_pearl_shop(enter_button)
 集会岛角色 A 的珍珠商店中：
 
 1. OCR `OCR_ISLAND_PEARL_CURRENT_COUNT` 读取右上角当前珍珠数量。
-2. `current_pearl == 0` 时跳过售卖，任务延迟到下一个周二 01:00。
+2. `current_pearl == 0` 且本周采购配额已用尽时跳过售卖并等待下周；否则延迟到次日 01:00。
 3. 点击 `ISLAND_PEARL_TRADE` 打开数量弹窗。
 4. 只点击 `ADD_TEN_A/B/C` 对应的 `+10` 区域，不使用 `+1`。
 5. 循环 OCR `OCR_ISLAND_PEARL_TRADE_COUNT`，直到中间数量等于 `current_pearl`。
@@ -848,32 +878,34 @@ enter_pearl_shop(enter_button)
 
 #### 延时规则
 
-##### 延迟到次日 01:00
+##### `BuyNextRun` 设置规则（仅影响采购，不阻断售卖）
+
+| 场景 | `BuyNextRun` 设置值 |
+|------|-------------------|
+| 采购成功 | `_nearest_future_schedule()`（下周二 01:00） |
+| 本周可采购数量为 0 | `_nearest_future_schedule()`（下周二 01:00） |
+| 采购价格/OCR/进店失败 | `next_day_1am()`（次日 01:00） |
+| 采购交易未完成 | `next_day_1am()`（次日 01:00） |
+
+##### 任务 `NextRun` 设置规则
 
 ```python
-def next_day_1am(now):
-    return (now + timedelta(days=1)).replace(hour=1, minute=0, second=0, microsecond=0)
+def _next_task_run(self):
+    """计算珍珠任务下一次运行时间。"""
+    next_trade = self._nearest_future_schedule()   # 下周二 01:00
+    buy_next_run = self.config.IslandPearlSell_BuyNextRun
+    if buy_next_run and buy_next_run > now:
+        return min(buy_next_run, next_trade)  # 取更早的
+    return next_trade
 ```
 
-满足以下任一情况时，任务延迟到 `next_day_1am()`：
-
-1. 采购阶段好友排名固定滑动后，没有找到低于 `BuyPrice` 的好友价格。
-2. 售卖阶段好友排名当前区域内，没有找到高于 `SellPrice` 的好友价格。
-3. 港口角色 B 处实际采购价 `buy_price_raw / 1.1 > BuyPrice`。
-4. 集会岛/售卖侧价格 OCR 多次失败，或识别值不在 200~1000。
-5. 港口角色 B 采购侧价格 OCR 多次失败，或识别值不在 220~1100。
-
-##### 延迟到下一个周二 01:00
-
-满足以下任一情况时，任务延迟到下一个周二 01:00：
-
-1. 当前时间未到每周二 01:00 固定触发点。
-2. 售卖流程完成。
-3. 售卖阶段 OCR 到当前珍珠数量为 0。
-
-##### 延迟到最近触发时间
-
-当前时间未到珍珠周循环触发时间时，任务延迟到最近的每周二 01:00。
+| 场景 | 任务 `NextRun` |
+|------|---------------|
+| 售卖完成 | `_next_task_run()` — `BuyNextRun` 和下周二的更早者 |
+| 当前无珍珠可售 + 采购配额已用尽 | `_nearest_future_schedule()`（下周二 01:00） |
+| 售卖失败（OCR/价格/进店/交易） | `next_day_1am()`（次日 01:00） |
+| 当前珍珠为 0 + 采购配额未用尽 | `next_day_1am()`（次日 01:00） |
+| 未到每周二 01:00 | `_nearest_future_schedule()`（下周二 01:00） |
 
 #### 需要新增/确认的 Button 与 OCR 区域
 
@@ -885,20 +917,35 @@ def next_day_1am(now):
 | `ISLAND_MAP_ASSEMBLY_CHECK` | 岛屿地图中确认已选中集会岛 | `assets/cn/island` |
 | `ISLAND_MAP_PORT` | 岛屿地图中点击港口 | `assets/cn/island` |
 | `ISLAND_MAP_PORT_CHECK` | 岛屿地图中确认已选中港口 | `assets/cn/island` |
-| `ISLAND_PEARL_SHOP_BUY_ENTER` | 港口角色 B 身旁进入珍珠购买商店的入口按钮 | `assets/cn/island_pearl_sell` |
-| `ISLAND_PEARL_SHOP_SELL_ENTER` | 集会岛角色 A 身旁进入珍珠售卖商店的入口按钮 | `assets/cn/island_pearl_sell` |
-| `ISLAND_PEARL_SHOP_CHECK` | 判断已进入珍珠商店 | `assets/cn/island_pearl_sell` |
-| `OCR_ISLAND_PEARL_PRICE` | 珍珠商店固定价格 OCR 区域 | `assets/cn/island_pearl_sell` |
 | `ISLAND_PEARL_FRIEND_RANK_TAB` | 切换到好友排名页签 | `assets/cn/island_pearl_sell` |
-| `TEMPLATE_ISLAND_PEARL_RANK_VISIT` | 好友排名中拜访按钮模板，用于匹配所有可见拜访按钮 | `assets/cn/island_pearl_sell` |
-| `OCR_ISLAND_PEARL_WEEKLY_PURCHASE` | 本周可采购数量 OCR 区域，解析 `xxx/200` | `assets/cn/island_pearl_sell` |
+| `ISLAND_PEARL_SHOP_BUY_ENTER` | 港口角色 B 身旁进入珍珠购买商店的入口按钮 | `assets/cn/island_pearl_sell` |
+| `ISLAND_PEARL_SHOP_CHECK` | 判断已进入珍珠商店 | `assets/cn/island_pearl_sell` |
+| `ISLAND_PEARL_SHOP_SELL_ENTER` | 集会岛角色 A 身旁进入珍珠售卖商店的入口按钮 | `assets/cn/island_pearl_sell` |
 | `ISLAND_PEARL_TRADE` | 珍珠购买/售卖按钮，购买与售卖页面区域相同且长相相同 | `assets/cn/island_pearl_sell` |
 | `OCR_ISLAND_PEARL_CURRENT_COUNT` | 右上角当前珍珠数量 OCR 区域 | `assets/cn/island_pearl_sell` |
+| `OCR_ISLAND_PEARL_PRICE` | 珍珠商店固定价格 OCR 区域 | `assets/cn/island_pearl_sell` |
 | `OCR_ISLAND_PEARL_TRADE_COUNT` | 购买/售卖弹窗中间数量 OCR 区域 | `assets/cn/island_pearl_sell` |
+| `OCR_ISLAND_PEARL_WEEKLY_PURCHASE` | 本周可采购数量 OCR 区域，解析 `本周可采购数量xxx/200` 中的 `xxx` | `assets/cn/island_pearl_sell` |
+| `TEMPLATE_ISLAND_PEARL_RANK_VISIT` | 好友排名中拜访按钮模板，用于匹配所有可见拜访按钮 | `assets/cn/island_pearl_sell` |
+
+需要确认的固定区域和参数：
+
+| 名称 | 当前值 | 用途 |
+|------|--------|------|
+| `BUY_MAX_ATTEMPTS` | `2` | 采购页面进入失败时最多尝试次数 |
+| `RANK_FIXED_SWIPE_AREA` | `(785, 210, 918, 529)` | 采购阶段好友排名固定滑动区域 |
+| `RANK_FIXED_SWIPE_COUNT` | `10` | 采购阶段固定滑动次数 |
+| `RANK_FIXED_SWIPE_DISTANCE` | `450` | 采购阶段单次滑动距离 |
+| `RANK_TAB_WAIT` | `3` | 切换好友排名页签后等待网络数据加载秒数 |
+| `RANK_VISIT_MATCH_THRESHOLD` | `5` | 拜访按钮多目标匹配阈值 |
+| `RANK_VISIT_PRICE_OFFSET` | `(-192, 4, -220, -2)` | 由拜访按钮区域计算对应价格 OCR 区域的四边偏移 |
+| `RANK_VISIT_SEARCH_AREA` | `(1030, 204, 1105, 534)` | 拜访按钮模板匹配搜索区域 |
+| `RANK_VISIT_SIMILARITY` | `0.85` | 拜访按钮模板匹配相似度 |
 
 可复用已有资源：
 
 - `ISLAND_BACK`：退出珍珠商店页面。
+- `ISLAND_JUMP`：港口路线中使用的跳跃按钮。
 - `AIR_DROP_RUN_AWAY`：退出好友岛屿，沿用每日补给退出好友按钮。
 - `ISLAND_SHOP_CONFIRM`：若购买/售卖确认按钮与种子购买一致则复用。
 - `ADD_TEN_A` / `ADD_TEN_B` / `ADD_TEN_C`：购买/售卖数量弹窗中的 `+10` 点击点，若珍珠弹窗位置一致则复用。
@@ -909,6 +956,7 @@ def next_day_1am(now):
 IslandPearlSell:
   BuyPrice: 200                      # 最高采购价格，范围 200~1000
   SellPrice: 1000                    # 最低售卖价格，范围 200~1000
+  BuyNextRun: 2020-01-01 00:00:00    # 采购下次运行时间，内部记录，可手动清空或提前
 ```
 
 #### i18n / help
@@ -918,8 +966,9 @@ IslandPearlSell:
 ```json
 {
   "IslandPearlSell.name": "每周珍珠采购与售卖",
-  "IslandPearlSell.help": "每周二 01:00 自动处理珍珠：先采购本周珍珠，再售卖已有珍珠。金币一定要够购买200x220个这是最低要求能一次买光本周珍珠, 否则可能会报错.",
+  "IslandPearlSell.help": "每周二 01:00 自动处理珍珠：先采购本周珍珠，再售卖已有珍珠。仅支持minitouch。金币一定要够购买200x220个这是最低要求能一次买光本周珍珠, 否则可能会报错.",
   "Island.IslandPearlSell.BuyPrice": "最高采购价格",
+  "Island.IslandPearlSell.BuyNextRun": "采购下次运行时间",
   "Island.IslandPearlSell.SellPrice": "最低售卖价格"
 }
 ```

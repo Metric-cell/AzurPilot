@@ -1481,6 +1481,12 @@ IslandPearlSell:
     value: 200
   SellPrice:
     value: 1000
+  BuyNextRun:
+    value: 2020-01-01 00:00:00
+  DailyPriceRefresh:
+    value: false
+  NextPearlTradeTime:
+    value: 2020-01-01 00:00:00
 
 IslandCargoPreparation:
   Blacklist:

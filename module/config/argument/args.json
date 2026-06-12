@@ -16469,6 +16469,20 @@
       "SellPrice": {
         "type": "input",
         "value": 1000
+      },
+      "BuyNextRun": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime"
+      },
+      "DailyPriceRefresh": {
+        "type": "checkbox",
+        "value": false
+      },
+      "NextPearlTradeTime": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime"
       }
     },
     "Storage": {

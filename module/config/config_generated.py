@@ -842,6 +842,9 @@ class GeneratedConfig:
     # 配置组 `IslandPearlSell`
     IslandPearlSell_BuyPrice = 200
     IslandPearlSell_SellPrice = 1000
+    IslandPearlSell_BuyNextRun = datetime.datetime(2020, 1, 1, 0, 0)
+    IslandPearlSell_DailyPriceRefresh = False
+    IslandPearlSell_NextPearlTradeTime = datetime.datetime(2020, 1, 1, 0, 0)
 
     # 配置组 `IslandCargoPreparation`
     IslandCargoPreparation_Blacklist = 'Milk'

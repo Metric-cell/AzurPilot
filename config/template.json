@@ -3168,7 +3168,10 @@
     },
     "IslandPearlSell": {
       "BuyPrice": 200,
-      "SellPrice": 1000
+      "SellPrice": 1000,
+      "BuyNextRun": "2020-01-01 00:00:00",
+      "DailyPriceRefresh": false,
+      "NextPearlTradeTime": "2020-01-01 00:00:00"
     },
     "Storage": {
       "Storage": {}

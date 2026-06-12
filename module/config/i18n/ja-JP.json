@@ -4606,6 +4606,18 @@
     "SellPrice": {
       "name": "IslandPearlSell.SellPrice.name",
       "help": "IslandPearlSell.SellPrice.help"
+    },
+    "BuyNextRun": {
+      "name": "IslandPearlSell.BuyNextRun.name",
+      "help": "IslandPearlSell.BuyNextRun.help"
+    },
+    "DailyPriceRefresh": {
+      "name": "IslandPearlSell.DailyPriceRefresh.name",
+      "help": "IslandPearlSell.DailyPriceRefresh.help"
+    },
+    "NextPearlTradeTime": {
+      "name": "IslandPearlSell.NextPearlTradeTime.name",
+      "help": "IslandPearlSell.NextPearlTradeTime.help"
     }
   },
   "IslandCargoPreparation": {

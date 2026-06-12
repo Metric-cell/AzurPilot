@@ -4606,6 +4606,18 @@
     "SellPrice": {
       "name": "最低售卖价格",
       "help": "珍珠售卖阶段要求的最低价格，范围 200~1000。"
+    },
+    "BuyNextRun": {
+      "name": "采购下次运行时间",
+      "help": ""
+    },
+    "DailyPriceRefresh": {
+      "name": "每日03:00刷新价格",
+      "help": "开启后每天03:00进入珍珠商店刷新价格显示，不执行采购或售卖操作。勾选后整体任务调度逻辑会变化。"
+    },
+    "NextPearlTradeTime": {
+      "name": "下次采购售卖时间",
+      "help": "记录下次执行采购售卖的时间。到达此时间前仅做价格刷新（如启用）。"
     }
   },
   "IslandCargoPreparation": {
