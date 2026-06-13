@@ -1466,6 +1466,7 @@ Handmade:
     option: [ 0, 1, 2 ]
 IslandAirDrop:
   LastSteal: 2020-01-01 00:00:00
+  VisitOtherIsland: true
 
 IslandDailyOrder:
   RejectCount:

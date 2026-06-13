@@ -16336,6 +16336,10 @@
         "type": "datetime",
         "value": "2020-01-01 00:00:00",
         "validate": "datetime"
+      },
+      "VisitOtherIsland": {
+        "type": "checkbox",
+        "value": true
       }
     },
     "Storage": {

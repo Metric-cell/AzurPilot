@@ -4570,6 +4570,10 @@
     "LastSteal": {
       "name": "上次運行時間",
       "help": ""
+    },
+    "VisitOtherIsland": {
+      "name": "拜訪其他玩家島嶼",
+      "help": "關閉後只收取自己島嶼的空中補給，不再前往其他玩家島嶼。"
     }
   },
   "IslandDailyOrder": {

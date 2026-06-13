@@ -4570,6 +4570,10 @@
     "LastSteal": {
       "name": "前回実行時間",
       "help": ""
+    },
+    "VisitOtherIsland": {
+      "name": "他プレイヤーの島を訪問",
+      "help": "オフにすると、自分の島の空中補給のみを回収し、他プレイヤーの島へは移動しません。"
     }
   },
   "IslandDailyOrder": {

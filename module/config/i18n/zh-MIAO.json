@@ -4570,6 +4570,10 @@
     "LastSteal": {
       "name": "上次运行时间",
       "help": ""
+    },
+    "VisitOtherIsland": {
+      "name": "去别人家拿补给喵",
+      "help": "关掉的话就只收自己岛上的空投，不去别人家串门蹭吃蹭喝啦 (｀・ω・´)"
     }
   },
   "IslandDailyOrder": {

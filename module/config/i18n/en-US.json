@@ -4570,6 +4570,10 @@
     "LastSteal": {
       "name": "Last Run Time",
       "help": ""
+    },
+    "VisitOtherIsland": {
+      "name": "Visit other players' islands",
+      "help": "When disabled, only collect air drops on your own island and no longer visit other players' islands."
     }
   },
   "IslandDailyOrder": {

@@ -832,6 +832,7 @@ class GeneratedConfig:
 
     # 配置组 `IslandAirDrop`
     IslandAirDrop_LastSteal = datetime.datetime(2020, 1, 1, 0, 0)
+    IslandAirDrop_VisitOtherIsland = True
 
     # 配置组 `IslandDailyOrder`
     IslandDailyOrder_RejectCount = 0
