@@ -1007,9 +1007,11 @@ class IslandBusiness(Island):
     # ===================================================================
 
     # 商店列表中的行常量
-    # 商店标签区域：x=(548, 668)，各行Y不同
-    # 按钮与标签的偏移：从标签左上角到按钮左上角
-    _SHOP_LABEL_TO_BUTTON_OFFSET = (472, 89)
+    # 列表页店名标签模板位于左侧，右侧经营按钮的 X 位置固定。
+    # Y 位置跟随店名标签所在行偏移，用于检测/点击蓝色、黄色、深蓝按钮。
+    _SHOP_BUTTON_X_RANGE = (1020, 1154)
+    _SHOP_LABEL_TO_BUTTON_OFFSET_Y = 88
+    _SHOP_BUTTON_HEIGHT = 27
     # 经营商店列表的可视区域
     _BUSINESS_LIST_SEARCH_AREA = (50, 80, 1200, 640)
     # 商店行高（经验值，适用于各行）
@@ -1046,9 +1048,12 @@ class IslandBusiness(Island):
             ly2 = btn.area[3] + sy1
             label_rect = (lx1, ly1, lx2, ly2)
 
-            # 计算按钮区域
-            dx, dy = self._SHOP_LABEL_TO_BUTTON_OFFSET
-            button_rect = (lx1 + dx, ly1 + dy, lx2 + dx, ly2 + dy)
+            # 计算右侧经营按钮区域。按钮宽度不能沿用店名标签宽度偏移，
+            # 否则会落到中间餐品图标上，导致黄色结算按钮被误判为 gray。
+            bx1, bx2 = self._SHOP_BUTTON_X_RANGE
+            by1 = ly1 + self._SHOP_LABEL_TO_BUTTON_OFFSET_Y
+            by2 = by1 + self._SHOP_BUTTON_HEIGHT
+            button_rect = (bx1, by1, bx2, by2)
 
             return {
                 'label_rect': label_rect,
