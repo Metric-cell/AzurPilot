@@ -35,11 +35,7 @@ class UI(InfoHandler):
             interval: 检测间隔。
         """
         if page == page_main:
-            if self.appear(page_main_white.check_button, offset=offset, interval=interval):
-                return True
-            if self.appear(page_main.check_button, offset=(5, 5), interval=interval):
-                return True
-            return False
+            return self.appear(page_main.check_button, offset=(5, 5), interval=interval)
         if page == page_island_shop:
             return self.appear(page.check_button, interval=interval)
         if page == page_shop:
@@ -53,7 +49,8 @@ class UI(InfoHandler):
         return self.appear(page.check_button, offset=offset, interval=interval)
 
     def is_in_main(self, offset=(30, 30), interval=0):
-        return self.ui_page_appear(page_main, offset=offset, interval=interval)
+        return (self.ui_page_appear(page_main, offset=offset, interval=interval)
+                or self.ui_page_appear(page_main_white, offset=offset, interval=interval))
 
     def ui_main_appear_then_click(self, page, offset=(30, 30), interval=3):
         """
