@@ -1,5 +1,6 @@
 from module.island_select_character.assets import *
 from module.base.button import *
+from module.base.utils import color_similar, color_similarity_2d, crop, get_color
 import numpy as np
 from module.ocr.ocr import DigitCounter
 from module.ui.ui import UI

@@ -1246,6 +1246,7 @@ class IslandBusiness(Island):
 
         scroll_attempt = 0
         while scroll_attempt < max_scrolls:
+            self.device.screenshot()
             visible_shops = self._scan_visible_batch_shops(batch_shops)
 
             if not visible_shops:
@@ -1421,6 +1422,7 @@ class IslandBusiness(Island):
         seen_shop_names = set()
         max_scrolls = 8
         for scroll_attempt in range(max_scrolls):
+            self.device.screenshot()
             visible = self._scan_visible_batch_shops(batch_shops)
             for shop_info in visible:
                 seen_shop_names.add(shop_info['shop']['name'])

@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 from module.island.island import Island
 from module.island.assets import *
+from module.base.utils import crop
 from module.logger import logger
 from module.ui.assets import ISLAND_PHONE_CHECK
 from module.ui.page import page_island, page_island_map, page_island_phone
@@ -392,7 +393,7 @@ class IslandDailyInteract(Island):
 
     def _match_development_plan_task_template(self, task_template):
         """在开发计划任务列表区域内匹配任务图标模板。"""
-        region = self.image_crop(DEVELOPMENT_PLAN_TASK_LIST_AREA, copy=False)
+        region = crop(self.device.image, DEVELOPMENT_PLAN_TASK_LIST_AREA, copy=False)
         matches = task_template.match_multi(
             region,
             similarity=0.85,
