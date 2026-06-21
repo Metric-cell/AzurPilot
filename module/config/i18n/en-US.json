@@ -1210,6 +1210,28 @@
       "help": "Any ship below level X will stop after reaching level X\n0 means no level restriction"
     }
   },
+  "WarArchives": {
+    "_info": {
+      "name": "War Archives",
+      "help": ""
+    },
+    "DailyRunCount": {
+      "name": "Daily Sortie Count",
+      "help": "Maximum War Archives runs per day.\n0 means no limit.\nAfter reaching the limit, the task is delayed until the next server reset instead of being disabled."
+    },
+    "DailyRunCountRemain": {
+      "name": "Daily Sorties Remaining",
+      "help": "Today's remaining quota, maintained automatically by the script."
+    },
+    "DailyRunCountRecord": {
+      "name": "Daily Sortie Count Record Time",
+      "help": "Quota record time maintained automatically by the script, used to reset after server refresh."
+    },
+    "DailyRunCountLimit": {
+      "name": "Previous Daily Sortie Count",
+      "help": "Previous daily count setting maintained automatically by the script, used when adjusting the quota."
+    }
+  },
   "Fleet": {
     "_info": {
       "name": "Sortie Fleet",

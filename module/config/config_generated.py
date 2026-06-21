@@ -199,6 +199,12 @@ class GeneratedConfig:
     StopCondition_GetNewShip = False
     StopCondition_ReachLevel = 0
 
+    # 配置组 `WarArchives`
+    WarArchives_DailyRunCount = 0
+    WarArchives_DailyRunCountRemain = 0
+    WarArchives_DailyRunCountRecord = datetime.datetime(2020, 1, 1, 0, 0)
+    WarArchives_DailyRunCountLimit = 0
+
     # 配置组 `Fleet`
     Fleet_Fleet1 = 1  # 1, 2, 3, 4, 5, 6
     Fleet_Fleet1Formation = 'double_line'  # line_ahead, double_line, diamond

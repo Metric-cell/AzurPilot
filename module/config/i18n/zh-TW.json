@@ -1210,6 +1210,28 @@
       "help": "任意等級低於 X 的艦船升級至 X 級後停止\n0 表示不限制等級"
     }
   },
+  "WarArchives": {
+    "_info": {
+      "name": "作戰檔案",
+      "help": ""
+    },
+    "DailyRunCount": {
+      "name": "每日出擊次數",
+      "help": "每天最多執行作戰檔案多少次。\n0 表示不限制。\n達到次數後會延遲到下一次伺服器刷新，不會關閉任務。"
+    },
+    "DailyRunCountRemain": {
+      "name": "今日剩餘出擊次數",
+      "help": "腳本自動維護的今日剩餘額度。"
+    },
+    "DailyRunCountRecord": {
+      "name": "每日出擊次數記錄時間",
+      "help": "腳本自動維護的額度記錄時間，用於伺服器刷新後重置。"
+    },
+    "DailyRunCountLimit": {
+      "name": "上次每日出擊次數",
+      "help": "腳本自動維護的上次每日次數設定，用於調整額度。"
+    }
+  },
   "Fleet": {
     "_info": {
       "name": "出擊艦隊",

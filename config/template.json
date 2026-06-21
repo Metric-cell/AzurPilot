@@ -1243,6 +1243,12 @@
       "GetNewShip": false,
       "ReachLevel": 0
     },
+    "WarArchives": {
+      "DailyRunCount": 0,
+      "DailyRunCountRemain": 0,
+      "DailyRunCountRecord": "2020-01-01 00:00:00",
+      "DailyRunCountLimit": 0
+    },
     "Fleet": {
       "Fleet1": 1,
       "Fleet1Formation": "double_line",
