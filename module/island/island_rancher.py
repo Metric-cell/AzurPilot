@@ -286,7 +286,8 @@ class IslandRancher(Island, WarehouseOCR, LoginHandler):
             if self.appear_then_click(POST_ADD):
                 add_opened = True
                 continue
-            if add_opened and self.appear_then_click(ISLAND_POST_SELECT, offset=1):
+            in_vacant_post = self.appear(ISLAND_POST_VACANT_CHECK, offset=1)
+            if (add_opened or in_vacant_post) and self.appear_then_click(ISLAND_POST_SELECT, offset=1):
                 self.device.sleep(0.5)
                 continue
             if (
@@ -333,7 +334,10 @@ class IslandRancher(Island, WarehouseOCR, LoginHandler):
             if self.appear_then_click(POST_ADD):
                 add_opened = True
                 continue
-            if add_opened and self.appear_then_click(ISLAND_POST_SELECT, offset=1):
+            in_vacant_post = self.appear(ISLAND_POST_VACANT_CHECK, offset=1)
+            if (add_opened or in_vacant_post) and self.appear_then_click(ISLAND_POST_SELECT, offset=1):
+                if in_vacant_post and not add_opened:
+                    logger.info(f"牧场岗位{post_id}为空闲岗位，直接进入派遣")
                 self.device.sleep(0.5)
                 continue
             if self.appear(ISLAND_SELECT_CHARACTER_CHECK, offset=1):
@@ -376,6 +380,7 @@ class IslandRancher(Island, WarehouseOCR, LoginHandler):
             if (
                     self.appear(ISLAND_POSTMANAGE_CHECK, offset=1)
                     and not self.appear(ISLAND_POST_CHECK)
+                    and not self.appear(ISLAND_POST_VACANT_CHECK, offset=1)
             ):
                 return True
         logger.warning(f"牧场岗位{post_id}收取并追加派遣超时")

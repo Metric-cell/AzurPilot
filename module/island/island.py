@@ -588,6 +588,8 @@ class Island(SelectCharacter):
                     return False
             if self.appear(ISLAND_POST_CHECK) or self.appear(ISLAND_POST_VACANT_CHECK):
                 return True
+            if self.appear(ISLAND_POST_SELECT, offset=1):
+                return True
             if post_appear:
                 self.device.sleep(0.1)
                 self.device.click(post)
@@ -678,19 +680,20 @@ class Island(SelectCharacter):
         for index in range(add_one_clicks):
             self.device.click(add_one_buttons[index % len(add_one_buttons)])
 
-    def switch_shop_tab(self, tab_check, tab_button, verify_button=None):
+    def switch_shop_tab(self, tab_check, tab_button):
         """切换岛屿商店内的页签。"""
         click_count = 0
         self.interval_clear([tab_button])
         for _ in self.loop(timeout=8, skip_first=False):
-            if self.appear(tab_check):
-                return True
-            if verify_button is not None and self.appear(verify_button, threshold=30):
+            if self.appear(tab_check, offset=1, threshold=30):
+                if click_count:
+                    logger.info(f"商店页签检测成功: {tab_check}，点击 {click_count} 次")
                 return True
             if self.appear(tab_button, threshold=30):
                 click_count += 1
+                logger.info(f"商店页签检测失败，点击页签: {tab_button} -> {tab_check}，第 {click_count} 次")
                 self.device.click(tab_button)
-                self.device.sleep(2)
+                self.device.sleep(1)
                 continue
 
         logger.warning(f"切换商店页签超时: tab={tab_button}, check={tab_check}, clicked={click_count}")
@@ -701,7 +704,7 @@ class Island(SelectCharacter):
         """购买岛屿商店商品，适用于种子、鱼苗等同构购买弹窗。"""
         quantity = max(1, int(quantity))
         if tab_check is not None and tab_button is not None:
-            if not self.switch_shop_tab(tab_check, tab_button, verify_button=item_button):
+            if not self.switch_shop_tab(tab_check, tab_button):
                 return False
 
         if item_name:
@@ -740,26 +743,25 @@ class Island(SelectCharacter):
             self.device.click(ISLAND_SHOP_CONFIRM)
         return True
 
-    def goto_shop_from_select_product(self, shop_check, tab_check=None, tab_button=None, tab_verify_button=None):
+    def goto_shop_from_select_product(self, shop_check, tab_check=None, tab_button=None):
         """从岗位产品选择页跳转到补充材料的商店页签。"""
         self.interval_clear([ISLAND_SELECT_GOTO_BUY_SEED, ISLAND_SELECT_SEED])
+        tab_click_count = 0
         for _ in self.loop(timeout=20, skip_first=False):
             in_select_product = self.appear(ISLAND_SELECT_PRODUCT_CHECK, offset=1)
             in_shop = self.appear(shop_check)
-            in_tab = tab_check is not None and self.appear(tab_check)
-            target_visible = (
-                tab_verify_button is not None
-                and not in_select_product
-                and in_shop
-                and self.appear(tab_verify_button, threshold=30)
-            )
+            in_tab = tab_check is not None and self.appear(tab_check, threshold=30)
             goto_buy = self.appear(ISLAND_SELECT_GOTO_BUY_SEED)
 
             if not in_select_product and tab_check is not None and in_tab:
-                return True
-            if target_visible:
+                if tab_click_count:
+                    logger.info(f"补货商店页签检测成功: {tab_check}，点击 {tab_click_count} 次")
                 return True
             if not in_select_product and tab_button is not None and in_shop:
+                tab_click_count += 1
+                logger.info(
+                    f"补货商店页签检测失败，点击页签: {tab_button} -> {tab_check}，第 {tab_click_count} 次"
+                )
                 self.device.click(tab_button)
                 self.device.sleep(1)
                 continue
@@ -987,7 +989,6 @@ class Island(SelectCharacter):
             shop_check=shop_check,
             tab_check=tab_check,
             tab_button=tab_button,
-            tab_verify_button=item_button,
         ):
             return True
         if not self.buy_shop_item(
