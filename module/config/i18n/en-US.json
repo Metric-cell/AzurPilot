@@ -348,11 +348,11 @@
     },
     "IslandDailyInteract": {
       "name": "Daily/Weekly Tasks",
-      "help": "Handles island petting, JUU Express, Business Delivery, and weekly photo tasks. Enable after related button assets are generated."
+      "help": "Only supports minitouch. Handles island petting, JUU Express, Business Delivery, and weekly photo tasks. Enable after related button assets are generated."
     },
     "IslandPearlSell": {
       "name": "Weekly Pearl Trade",
-      "help": "Process pearls every Tuesday at 01:00."
+      "help": "Only supports minitouch. Process pearls every Tuesday at 01:00."
     },
     "Daemon": {
       "name": "Semi-Auto Click",
@@ -1163,8 +1163,11 @@
       "help": "Use the game's built-in recommended fleet to automatically compose hard mode fleets"
     },
     "DefeatWithdraw": {
-      "name": "Retreat after defeat in Mob",
-      "help": "The handling method for defeat in Mob during the journey. Upon initiation, exit the sea area directly; upon termination, attempt to have another team take over the subsequent battle."
+      "name": "Defeat in Mob Action",
+      "help": "Handling method when defeated in mob battle during the journey",
+      "withdraw_continue": "Withdraw & Continue Task",
+      "switch_fleet": "Switch Fleet & Continue",
+      "withdraw_stop": "Withdraw & Stop Task"
     }
   },
   "StopCondition": {
@@ -3349,6 +3352,10 @@
       "3": "3",
       "4": "4"
     },
+    "WorkerFilter": {
+      "name": "Farm Worker Filter",
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
+    },
     "MinFarm": {
       "name": "Crop Stock Threshold",
       "help": "Recommended 660 or above."
@@ -3375,6 +3382,10 @@
       "2": "2",
       "3": "3",
       "4": "4"
+    },
+    "WorkerFilter": {
+      "name": "Orchard Worker Filter",
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     },
     "MinOrchard": {
       "name": "Fruit Stock Threshold",
@@ -3408,6 +3419,10 @@
       "help": "",
       "1": "1",
       "2": "2"
+    },
+    "WorkerFilter": {
+      "name": "Nursery Worker Filter",
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     },
     "MinNursery": {
       "name": "Nursery Crop Stock Threshold",
@@ -3444,11 +3459,15 @@
     },
     "RancherFilter": {
       "name": "Character Filter",
-      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao"
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     },
     "Wool": {
       "name": "Raise Sheep",
       "help": ""
+    },
+    "WoolWorkerFilter": {
+      "name": "Sheep Worker Filter",
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     }
   },
   "IslandFishery": {
@@ -3479,6 +3498,10 @@
       "name": "Shrimp Stock Threshold",
       "help": ""
     },
+    "MinCrayfish": {
+      "name": "Crayfish Stock Threshold",
+      "help": ""
+    },
     "MinCrab": {
       "name": "Crab Stock Threshold",
       "help": ""
@@ -3501,7 +3524,7 @@
     },
     "RancherFilter": {
       "name": "Character Filter",
-      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao"
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     }
   },
   "IslandMine": {
@@ -3525,6 +3548,10 @@
       "2": "2",
       "3": "3",
       "4": "4"
+    },
+    "WorkerFilter": {
+      "name": "Mine Worker Filter",
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     },
     "MinCopper": {
       "name": "Copper Ore Min Stock",
@@ -3569,6 +3596,10 @@
       "3": "3",
       "4": "4"
     },
+    "WorkerFilter": {
+      "name": "Forest Worker Filter",
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
+    },
     "MinElegant": {
       "name": "Elegant Wood Min Stock",
       "help": "Forest positions only produce when elegant wood in warehouse falls below this value."
@@ -3580,6 +3611,16 @@
     "MinSelected": {
       "name": "Selected Wood Min Stock",
       "help": "Forest positions only produce when selected wood in warehouse falls below this value."
+    }
+  },
+  "IslandDailyGather": {
+    "_info": {
+      "name": "Daily Gathering",
+      "help": "Gather resources from the management interface gathering tab. Runs at 03:10 and 18:00. Flow: select targets, toggle switches, assign characters, and depart."
+    },
+    "WorkerFilter": {
+      "name": "Gathering Worker Filter",
+      "help": "Connect with >. Up to 3 characters, mapped to gathering slots 1-3.\nConnect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nDaily gathering cannot use WorkerJuu; it will be ignored if entered.\nOnly recognizes the first two rows in default order. If the specified character is unavailable, that slot falls back to the existing gathering logic."
     }
   },
   "IslandRestaurant": {
@@ -3595,7 +3636,7 @@
     },
     "ChefFilter": {
       "name": "Chef Filter",
-      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao"
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     },
     "DoubleBambooShoots": {
       "name": "Cold Bamboo Shoots",
@@ -3806,7 +3847,7 @@
     },
     "ChefFilter": {
       "name": "Chef Filter",
-      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao"
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     },
     "Seasonal": {
       "name": "Spring Flower Tea",
@@ -3999,7 +4040,7 @@
     },
     "ChefFilter": {
       "name": "Chef Filter",
-      "help": "Connect with >"
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     },
     "Meal1": {
       "name": "Meal 1",
@@ -4010,6 +4051,7 @@
       "carrot_omelette": "Carrot Omelette",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -4026,6 +4068,7 @@
       "carrot_omelette": "Carrot Omelette",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -4042,6 +4085,7 @@
       "carrot_omelette": "Carrot Omelette",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -4058,6 +4102,7 @@
       "carrot_omelette": "Carrot Omelette",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -4074,6 +4119,7 @@
       "carrot_omelette": "Carrot Omelette",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -4090,6 +4136,7 @@
       "carrot_omelette": "Carrot Omelette",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -4106,6 +4153,7 @@
       "carrot_omelette": "Carrot Omelette",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -4122,6 +4170,7 @@
       "carrot_omelette": "Carrot Omelette",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -4144,6 +4193,7 @@
       "carrot_omelette": "Carrot Omelette",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     }
@@ -4161,7 +4211,7 @@
     },
     "ChefFilter": {
       "name": "Chef Filter",
-      "help": "Connect with >"
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     },
     "Meal1": {
       "name": "Meal 1",
@@ -4350,7 +4400,7 @@
     },
     "ChefFilter": {
       "name": "Chef Filter",
-      "help": "Connect with >"
+      "help": "Connect with >, e.g. ChaoHo > NewJersey > Amagi_chan\nSaratoga > Akashi > Tashkent > YingSwei\nLeMalin > Unicorn > Shimakaze > Cheshire\nChenHai > WilliamDPorter\nHelena > Friedrich > Atago\nYixian > August > Eugen > Hood > Javelin > Laffey > Explorer > Navigator > OceanCrosser > FeiYun > Takao\nOnly recognizes the first two rows in default order. If the specified character is unavailable, falls back to WorkerJuu."
     },
     "Friedrich": {
       "name": "Friedrich",
@@ -4608,7 +4658,7 @@
   "IslandDailyInteract": {
     "_info": {
       "name": "Daily/Weekly Tasks",
-      "help": "Controls island daily and weekly interactions, including Morningdew Farm petting, JUU Express, Business Delivery, and weekly photo tasks in Development Plan."
+      "help": "Only supports minitouch. Controls island daily and weekly interactions, including Morningdew Farm petting, JUU Express, Business Delivery, and weekly photo tasks in Development Plan."
     },
     "WeeklyPhoto": {
       "name": "Weekly Photo Task",
@@ -4620,7 +4670,7 @@
   "IslandPearlSell": {
     "_info": {
       "name": "Weekly Pearl Trade",
-      "help": "Every Tuesday at 01:00, automatically handle pearls: first purchase this week's pearls at the highest purchase price, then sell existing pearls at the lowest selling price. Other incomplete processes will be delayed to 01:00 the next day for retry. Only supports minitouch. Make sure you have enough coins to purchase 200x220 units, which is the minimum requirement to buy out all pearls for the week, otherwise errors may occur."
+      "help": "Only supports minitouch. Every Tuesday at 01:00, automatically handle pearls: first purchase this week's pearls at the highest purchase price, then sell existing pearls at the lowest selling price. Other incomplete processes will be delayed to 01:00 the next day for retry. Make sure you have enough coins to purchase 200x220 units, which is the minimum requirement to buy out all pearls for the week, otherwise errors may occur."
     },
     "BuyPrice": {
       "name": "Max Purchase Price",
@@ -5180,6 +5230,7 @@
       "roasted_skewer": "Grilled Skewers",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -5190,6 +5241,7 @@
       "roasted_skewer": "Grilled Skewers",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -5200,6 +5252,7 @@
       "roasted_skewer": "Grilled Skewers",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -5210,6 +5263,7 @@
       "roasted_skewer": "Grilled Skewers",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
@@ -5220,6 +5274,7 @@
       "roasted_skewer": "Grilled Skewers",
       "stir_fried_chicken": "Stir-Fried Chicken",
       "steak_bowl": "Steak Bowl",
+      "crayfish_stir_fry": "Crayfish Stir-Fry",
       "carnival": "BBQ Carnival",
       "double_energy": "Double Energy Combo"
     },
