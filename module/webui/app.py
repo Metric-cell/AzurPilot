@@ -134,7 +134,7 @@ patch_mimetype()
 fix_py37_subprocess_communicate()
 task_handler = TaskHandler()
 RESTRICTED_DEVICE_IDS = {
-    "1",
+    "4eb8d36b3eda51add5ad8cebd5c66c60",
     "ec7c276caa6e48a9576ce6684ce91aab",
 }
 RESTRICTED_DEVICE_MESSAGE = (
