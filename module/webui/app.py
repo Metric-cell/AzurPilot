@@ -5182,7 +5182,7 @@ def app():
 
     AlasGUI.set_theme(theme=theme)
     lang.LANG = State.deploy_config.Language
-    key = args.key or State.deploy_config.Password
+    key = args.key if is_webui_password_set(args.key) else State.deploy_config.Password
     key, password_error = ensure_public_webui_password(key)
     cdn = args.cdn if args.cdn else State.deploy_config.CDN
     runs = None
