@@ -351,6 +351,83 @@ class AlasGUI(Frame):
         self._overview_log = None
         self._overview_log_config_name = None
 
+    def _close_update_notice(self) -> None:
+        run_js(
+            r"""
+            (function () {
+                var el = document.getElementById('alas-update-notice');
+                if (!el) return;
+                el.classList.add('is-leaving');
+                setTimeout(function () {
+                    if (el && el.parentNode) {
+                        el.parentNode.removeChild(el);
+                    }
+                }, 180);
+            })();
+            """
+        )
+
+    def _remove_update_notice(self) -> None:
+        run_js(
+            r"""
+            (function () {
+                var el = document.getElementById('alas-update-notice');
+                if (el && el.parentNode) {
+                    el.parentNode.removeChild(el);
+                }
+            })();
+            """
+        )
+
+    def _show_update_notice(self, onclick) -> None:
+        self._remove_update_notice()
+        scope = f"update_notice_{int(time.time() * 1000)}"
+
+        def handle_later():
+            self._close_update_notice()
+
+        with use_scope("ROOT"):
+            put_html(
+                f"""
+                <div id="alas-update-notice" class="alas-update-notice" role="status" aria-live="polite">
+                    <div class="alas-update-notice__halo"></div>
+                    <div class="alas-update-notice__icon" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <path d="M7 10l5 5 5-5"></path>
+                            <path d="M12 15V3"></path>
+                        </svg>
+                    </div>
+                    <div class="alas-update-notice__body">
+                        <div class="alas-update-notice__eyebrow">发现新版本</div>
+                        <div class="alas-update-notice__title">有可用更新！</div>
+                        <div class="alas-update-notice__text">
+                            建议及时更新，以获得更稳定的脚本运行体验。
+                        </div>
+                        <div id="pywebio-scope-{scope}" class="alas-update-notice__actions"></div>
+                    </div>
+                </div>
+                """
+            )
+            put_buttons(
+                [
+                    {
+                        "label": "立即更新",
+                        "value": "update",
+                        "color": "danger",
+                    },
+                    {
+                        "label": "稍后再说",
+                        "value": "later",
+                        "color": "secondary",
+                    },
+                ],
+                onclick=[onclick, handle_later],
+                small=True,
+                scope=scope,
+            )
+
     @use_scope("aside", clear=True)
     def set_aside(self) -> None:
         # TODO: 更新 put_icon_buttons()
@@ -4022,7 +4099,7 @@ class AlasGUI(Frame):
         self.init_menu(name="Utils")
         self.set_title(t("Gui.MenuDevelop.Utils"))
         put_button(label=t("GUI测试 抛出异常事件"), onclick=raise_exception)
-        put_button(label=t("预览更新弹窗"), onclick=self._preview_update_popup)
+        put_button(label=t("预览更新提示"), onclick=self._preview_update_notice)
 
         def _get_debug_target_instance() -> Optional[str]:
             if getattr(self, "alas_name", ""):
@@ -4211,51 +4288,12 @@ class AlasGUI(Frame):
 
         self.task_handler.add(remote_switch.g(), delay=1, pending_delete=True)
 
-    def _preview_update_popup(self) -> None:
-        from pywebio.output import toast, close_popup
-
+    def _preview_update_notice(self) -> None:
         def handle_preview_click():
-            close_popup()
+            self._close_update_notice()
             toast("success", color="success")
 
-        with use_scope("ROOT"):
-            popup(
-                "更新提醒",
-                [
-                    put_html(f"""
-                    <div style="text-align: center; padding: 15px 0; font-family: \'Segoe UI\', Tahoma, Geneva, Verdana, sans-serif;">
-                        <div style="margin-bottom: 20px;">
-                            <div style="width: 50px; height: 50px; background: rgba(240, 62, 62, 0.1); border-radius: 25px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
-                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e03131" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                            </div>
-                        </div>
-                        <div style="font-size: 1.8rem; font-weight: 800; color: inherit; margin-bottom: 10px;">有可用更新！</div>
-                        <div style="font-size: 0.95rem; opacity: 0.8; margin-bottom: 25px; line-height: 1.5;">发现新版本，建议立即更新以<br>获得最佳的脚本运行体验。</div>
-                        
-                        <div style="background: rgba(128, 128, 128, 0.05); border-radius: 10px; padding: 15px; margin: 0 15px 25px; text-align: left; border: 1px solid rgba(128, 128, 128, 0.15);">
-                            <div style="font-weight: 700; color: inherit; margin-bottom: 5px;">✨ 温馨提示:</div>
-                            <div style="font-size: 0.85rem; color: inherit;">
-                                • 为确保脚本稳定性和安全性，请及时进行更新。<br>
-                            </div>
-                        </div>
-                    </div>
-                """),
-                    put_buttons(
-                        [
-                            {
-                                "label": "立即更新 / Update Now",
-                                "value": "update",
-                                "color": "danger",
-                            }
-                        ],
-                        onclick=[handle_preview_click],
-                    ).style(
-                        "text-align: center; width: 100%; padding-bottom: 20px; border-top: none;"
-                    ),
-                ],
-                size="large",
-                implicit_close=True,
-            )
+        self._show_update_notice(handle_preview_click)
 
     def ui_develop(self) -> None:
         if not self.is_mobile:
@@ -4803,6 +4841,7 @@ class AlasGUI(Frame):
         def goto_update():
             self.ui_develop()
             self.dev_update()
+            self._close_update_notice()
 
         def show_update_toast():
             if self._update_notified:
@@ -4818,42 +4857,7 @@ class AlasGUI(Frame):
                 updata=True,
             )
 
-            gradient = "linear-gradient(90deg, #00b894, #0984e3)"
-            toast(
-                t("Gui.Toast.ClickToUpdate"),
-                duration=0,
-                position="right",
-                color=gradient,
-                onclick=goto_update,
-            )
-
-            run_js(r"""
-                setTimeout(function(){
-                    var el = document.querySelector('.toastify.toastify-top.toastify-right') || document.querySelector('.toastify.toastify-top') || document.querySelector('.toastify');
-                    if (!el) return;
-                    el.classList.add('alas-force-text');
-                    el.style.boxShadow = '0 6px 18px rgba(0,0,0,0.22)';
-                    el.style.zIndex = '2147483647';
-                    /* children inherit via .alas-force-text */
-                    try{
-                        if (el.classList && el.classList.contains('toastify-right')){
-                            el.style.position = 'fixed';
-                            el.style.top = '8px';
-                            el.style.right = '8px';
-                            el.style.left = 'auto';
-                            el.style.transform = 'none';
-                            el.style.margin = '0';
-                        } else {
-                            el.style.position = 'fixed';
-                            el.style.top = '8px';
-                            el.style.left = '50%';
-                            el.style.right = 'auto';
-                            el.style.transform = 'translateX(-50%)';
-                            el.style.margin = '0';
-                        }
-                    }catch(e){}
-                }, 80);
-            """)
+            self._show_update_notice(goto_update)
 
         update_switch = Switch(
             status={1: show_update_toast},
@@ -4865,61 +4869,6 @@ class AlasGUI(Frame):
         self.task_handler.add(self.set_aside_status, 2)
         self.task_handler.add(visibility_state_switch.g(), 15)
         self.task_handler.add(update_switch.g(), 1)
-
-        def handle_update_click():
-            close_popup()
-            goto_update()
-
-        def update_popup_checker():
-            th = yield
-            th._task.delay = 1
-            yield
-            while True:
-                if updater.state == 1:
-                    with use_scope("ROOT"):
-                        popup(
-                            t("Gui.Toast.ClickToUpdate"),
-                            [
-                                put_html("""
-                                <div style="text-align: center; padding: 15px 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
-                                    <div style="margin-bottom: 20px;">
-                                        <div style="width: 50px; height: 50px; background: rgba(240, 62, 62, 0.1); border-radius: 25px; margin: 0 auto; display: flex; align-items: center; justify-content: center;">
-                                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#e03131" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                        </div>
-                                    </div>
-                                    <div style="font-size: 1.8rem; font-weight: 800; color: inherit; margin-bottom: 10px;">有可用更新！</div>
-                                    <div style="font-size: 0.95rem; opacity: 0.8; margin-bottom: 25px; line-height: 1.5;">发现新版本，建议立即更新以获得最佳的脚本运行体验。</div>
-                                    
-                                    <div style="background: rgba(128, 128, 128, 0.05); border-radius: 10px; padding: 15px; margin: 0 15px 25px; text-align: left; border: 1px solid rgba(128, 128, 128, 0.15);">
-                                        <div style="font-weight: 700; color: inherit; margin-bottom: 5px;">✨ 温馨提示:</div>
-                                        <div style="font-size: 0.85rem; color: inherit;">
-                                            • 为确保脚本稳定性和安全性，请及时进行更新。<br>
-                                        </div>
-                                    </div>
-                                </div>
-                            """),
-                                put_buttons(
-                                    [
-                                        {
-                                            "label": "立即更新 / Update Now",
-                                            "value": "update",
-                                            "color": "danger",
-                                        }
-                                    ],
-                                    onclick=[handle_update_click],
-                                ).style(
-                                    "text-align: center; width: 100%; padding-bottom: 20px; border-top: none;"
-                                ),
-                            ],
-                            size="large",
-                            implicit_close=True,
-                        )
-                    th._task.delay = 60
-                else:
-                    th._task.delay = 2
-                yield
-
-        self.task_handler.add(update_popup_checker(), delay=5)
 
         # 公告检查功能（非阻塞）
         def announcement_checker():
@@ -5182,7 +5131,7 @@ def app():
 
     AlasGUI.set_theme(theme=theme)
     lang.LANG = State.deploy_config.Language
-    key = args.key or State.deploy_config.Password
+    key = args.key if is_webui_password_set(args.key) else State.deploy_config.Password
     key, password_error = ensure_public_webui_password(key)
     cdn = args.cdn if args.cdn else State.deploy_config.CDN
     runs = None
