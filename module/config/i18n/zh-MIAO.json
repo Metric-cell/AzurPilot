@@ -431,8 +431,8 @@
     "Sensitive": {
       "name": "敏感任务 (╥﹏╥)",
       "help": "出错的时候不让重启游戏喵！直接停止 AzurPilot 运行喵！跨月每日、隐秘海域、深渊海域这种关键时刻的任务才需要开喵~",
-      "True": "True",
-      "False": "False"
+      "True": "是喵",
+      "False": "否喵"
     }
   },
   "Emulator": {
@@ -2175,8 +2175,8 @@
       "help": "物资超550000时购买所有消耗物资物品喵。"
     },
     "OverflowCoins": {
-      "name": "GeneralShop.OverflowCoins.name",
-      "help": "GeneralShop.OverflowCoins.help"
+      "name": "溢出金币喵",
+      "help": "金币超过上限时购买喵"
     },
     "Filter": {
       "name": "商店过滤器喵",
@@ -3080,8 +3080,8 @@
       "help": "额外行动力消耗，一般不开喵。"
     },
     "HasStronghold": {
-      "name": "OpsiStronghold.HasStronghold.name",
-      "help": "OpsiStronghold.HasStronghold.help"
+      "name": "塞壬要塞喵",
+      "help": "检测到塞壬要塞时执行喵"
     }
   },
   "OpsiMonthBoss": {
@@ -3185,8 +3185,8 @@
     "SkipHpCheck": {
       "name": "献祭流跳过血量检测",
       "help": "开启后跳过战斗后的血量检测，即使船沉了也不会停止练级nanoda",
-      "True": "True",
-      "False": "False"
+      "True": "开启喵",
+      "False": "关闭喵"
     },
     "Cl1Filter": {
       "name": "明石购买筛选 (｀ω´)",
@@ -3310,8 +3310,8 @@
     "ActionPointEarlyTriggerEnable": {
       "name": "行动力提前调度",
       "help": "启用后在侵蚀一或短猫结束时记录自然行动力，并按每 10 分钟回复 1 点行动力计算智能调度下次运行时间，避免自然行动力溢出喵。",
-      "True": "True",
-      "False": "False"
+      "True": "开启喵",
+      "False": "关闭喵"
     },
     "ActionPointEarlyTriggerThreshold": {
       "name": "提前调度行动力阈值",
@@ -4699,8 +4699,8 @@
     "WeeklyPhoto": {
       "name": "每周照相任务",
       "help": "从开发计划页面启动每周照相任务，循环完成三轮照相与空闲选择，直到任务图标消失喵。",
-      "True": "True",
-      "False": "False"
+      "True": "开启喵",
+      "False": "关闭喵"
     }
   },
   "IslandPearlSell": {
@@ -5190,7 +5190,7 @@
   },
   "IslandBusinessShop4": {
     "_info": {
-      "name": "烏魚烤肉喵",
+      "name": "乌鱼烤肉喵",
       "help": "餐品会按从1~8的顺序依次生产喵，生产目标为餐品X数量选项，完全满足前一项后才会执行下一项喵，后一项在运行时不会影响之前几项任务的达成喵~"
     },
     "Char1": {
@@ -5575,8 +5575,8 @@
     "EnableRemoteSSH": {
       "name": "启用远程 SSH 管理",
       "help": "在重启模拟器之前，通过 SSH 在远程服务器上执行特定指令（如重启 Docker 容器）。",
-      "True": "True",
-      "False": "False"
+      "True": "开启喵",
+      "False": "关闭喵"
     },
     "RemoteSSHHost": {
       "name": "远程服务器地址",
@@ -5595,12 +5595,12 @@
       "help": "SSH 登录所需的公钥内容（如果需要）"
     },
     "RemoteStartCommand": {
-      "name": "EmulatorManager.RemoteStartCommand.name",
-      "help": "EmulatorManager.RemoteStartCommand.help"
+      "name": "远程启动命令喵",
+      "help": "模拟器远程启动时执行的命令喵"
     },
     "RemoteStopCommand": {
-      "name": "EmulatorManager.RemoteStopCommand.name",
-      "help": "EmulatorManager.RemoteStopCommand.help"
+      "name": "远程关闭命令喵",
+      "help": "模拟器远程关闭时执行的命令喵"
     }
   },
   "OpsiSimulatorParameters": {
@@ -5688,8 +5688,8 @@
       "help": "存放内部状态，异常时可手动清除喵。"
     },
     "Storage": {
-      "name": "Storage.Storage.name",
-      "help": "Storage.Storage.help"
+      "name": "存储空间喵",
+      "help": "清除任务内部存储的状态数据喵"
     }
   },
   "Gui": {
@@ -5974,7 +5974,7 @@
       "NoValidResourceData": "暂无有效资源数据喵"
     },
     "Tactical": {
-      "SkillAutoSwitch": "Gui.Tactical.SkillAutoSwitch"
+      "SkillAutoSwitch": "技能自动切换喵"
     },
     "OpsiScheduling": {
       "UseSmartSchedulingOperationCoinsPreserve": "获取X个凭证喵",
