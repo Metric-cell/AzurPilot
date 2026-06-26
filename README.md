@@ -57,6 +57,12 @@ AzurPilot 是基于 AzurLaneAutoScript 修改而来的碧蓝航线自动化辅�
   </a>
 </div>
 
+## Linux 一键部署
+
+```bash
+curl -fsSL https://alas.nanoda.work/install/deploy-image.sh | sudo -E bash
+```
+
 ## GUI
 <div align="center">
   <img src="doc/GUI.png" alt="GUI Preview" width="800">
