@@ -630,19 +630,6 @@ class RewardCommission(UI, InfoHandler):
                                 f'\n本月累计获取💎钻石 * {reward_stats["month"].get("Gem", 0)}'
                             )
                         tracked.append(text)
-
-                    # ===============================
-                    # if cube_count > 0:
-                    #     text = f'🧊魔方 * {cube_count}'
-                    #     if reward_stats:
-                    #         text += (
-                    #             f'\n\n今日累计获取🧊魔方 * {reward_stats["today"].get("Cube", 0)}'
-                    #             f'\n本周累计获取🧊魔方 * {reward_stats["week"].get("Cube", 0)}'
-                    #             f'\n本月累计获取🧊魔方 * {reward_stats["month"].get("Cube", 0)}'
-                    #         )
-                    #     tracked.append(text)
-                    # ===============================
-
                     if tracked:
 
                         msg = '\n'.join(tracked)
@@ -656,12 +643,6 @@ class RewardCommission(UI, InfoHandler):
                         elif gem_count > 0:
                             title = f"AzurPilot <{instance}> 委托获得顶级奖励喵！"
                             webui_title = f"AzurPilot <{instance}> 委托获得顶级奖励喵！"
-
-                        # ===============================
-                        #elif cube_count > 0:
-                        #    title = f"AzurPilot <{instance}> 委托获得高级奖励喵！"
-                        #    webui_title = f"AzurPilot <{instance}> 委托获得高级奖励喵！"
-                        # ===============================
                         handle_notify(
                             self.config.Error_OnePushConfig,
                             title=title,
