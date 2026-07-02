@@ -831,16 +831,8 @@ class CoinTaskMixin:
         """
         logger.info(f'{log_message}，准备结束当前任务')
         
-        # 获取实际任务名称
-        if hasattr(self.config, 'task') and hasattr(self.config.task, 'command'):
-            task_name = self.config.task.command
-        else:
-            task_name = self.__class__.__name__
-            if task_name == 'OperationSiren':
-                for cls in self.__class__.__mro__:
-                    if cls.__name__ in self.ALL_COIN_TASKS:
-                        task_name = cls.__name__
-                        break
+        # 获取实际任务名称。OpsiScheduling 代执行子任务时，config.task 仍是调度器。
+        task_name = self._get_current_coin_task_name()
         
         logger.info(f'处理任务: {task_name}')
         
@@ -906,7 +898,10 @@ class OpsiScheduling(CoinTaskMixin, OSMap):
         以指定大世界子任务身份执行逻辑，保证统计和配置读取仍按子任务归类。
         """
         previous = getattr(self, '_opsi_active_task_command', None)
+        previous_bind = getattr(self.config, '_bind_task_override', None)
         self._opsi_active_task_command = task_name
+        self.config._bind_task_override = task_name
+        self.config.bind(task_name)
         try:
             return func(*args, **kwargs)
         finally:
@@ -915,6 +910,14 @@ class OpsiScheduling(CoinTaskMixin, OSMap):
                     delattr(self, '_opsi_active_task_command')
             else:
                 self._opsi_active_task_command = previous
+
+            if previous_bind is None:
+                if hasattr(self.config, '_bind_task_override'):
+                    delattr(self.config, '_bind_task_override')
+                self.config.bind(self.config.task)
+            else:
+                self.config._bind_task_override = previous_bind
+                self.config.bind(previous_bind)
 
     def _get_scheduling_action_point(self):
         """
