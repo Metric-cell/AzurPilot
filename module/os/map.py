@@ -785,6 +785,9 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
         # 这里不应该直接切换到 CL1
         if self.is_smart_scheduling_enabled():
             return
+        if self.config.OpsiGeneral_BuyActionPointLimit > 0:
+            logger.info('石油购买行动力已启用，跳过 CL1 行动力保留拦截')
+            return
 
         if (
             self.is_cl1_enabled

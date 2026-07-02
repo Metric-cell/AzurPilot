@@ -218,6 +218,8 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
 
             if not self.is_cl1_enabled and self.config.OpsiGeneral_BuyActionPointLimit > 0:
                 keep_current_ap = False
+            if smart_enabled and self.config.OpsiGeneral_BuyActionPointLimit > 0:
+                keep_current_ap = False
 
             if not smart_enabled and self.is_cl1_enabled and cl1_yellow_enough:
                 try:

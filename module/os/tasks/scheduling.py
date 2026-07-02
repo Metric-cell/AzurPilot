@@ -932,6 +932,10 @@ class OpsiScheduling(CoinTaskMixin, OSMap):
             int(getattr(self, '_action_point_current', 0) or 0),
         )
 
+    def _is_action_point_purchase_enabled(self):
+        """判断是否允许用石油购买行动力。"""
+        return int(getattr(self.config, 'OpsiGeneral_BuyActionPointLimit', 0) or 0) > 0
+
     def _run_scheduled_meowfficer_farming(self, ap_preserve):
         """
         由智能调度执行一轮短猫相接。
@@ -1017,19 +1021,25 @@ class OpsiScheduling(CoinTaskMixin, OSMap):
                             f'虚拟资产不足 ({virtual_asset:.0f} < {virtual_asset_preserve})，需要执行黄币补充任务'
                         )
                         if current_ap < meow_ap_preserve:
-                            logger.warning(f'行动力不足以执行短猫 ({current_ap} < {meow_ap_preserve})')
-                            self._notify_coins_ap_insufficient(
-                                yellow_coins, current_ap, virtual_asset_preserve, meow_ap_preserve
-                            )
-                            self._switch_to_natural_ap_meow_cleanup(
-                                yellow_coins=yellow_coins,
-                                current_ap=current_ap,
-                                natural_ap=natural_ap,
-                                preserve=virtual_asset_preserve,
-                                meow_ap_preserve=meow_ap_preserve,
-                            )
-                            self.config.check_task_switch()
-                            continue
+                            if self._is_action_point_purchase_enabled():
+                                logger.info(
+                                    f'行动力低于补黄币保留 ({current_ap} < {meow_ap_preserve})，'
+                                    '但已启用石油购买行动力，继续执行补黄币任务'
+                                )
+                            else:
+                                logger.warning(f'行动力不足以执行短猫 ({current_ap} < {meow_ap_preserve})')
+                                self._notify_coins_ap_insufficient(
+                                    yellow_coins, current_ap, virtual_asset_preserve, meow_ap_preserve
+                                )
+                                self._switch_to_natural_ap_meow_cleanup(
+                                    yellow_coins=yellow_coins,
+                                    current_ap=current_ap,
+                                    natural_ap=natural_ap,
+                                    preserve=virtual_asset_preserve,
+                                    meow_ap_preserve=meow_ap_preserve,
+                                )
+                                self.config.check_task_switch()
+                                continue
 
                         self._dispatch_coin_task(
                             yellow_coins,
@@ -1043,19 +1053,25 @@ class OpsiScheduling(CoinTaskMixin, OSMap):
                 if yellow_coins < cl1_preserve:
                     logger.info(f'黄币不足 ({yellow_coins} < {cl1_preserve})，需要执行黄币补充任务')
                     if current_ap < meow_ap_preserve:
-                        logger.warning(f'行动力不足以执行短猫 ({current_ap} < {meow_ap_preserve})')
-                        self._notify_coins_ap_insufficient(
-                            yellow_coins, current_ap, cl1_preserve, meow_ap_preserve
-                        )
-                        self._switch_to_natural_ap_meow_cleanup(
-                            yellow_coins=yellow_coins,
-                            current_ap=current_ap,
-                            natural_ap=natural_ap,
-                            preserve=cl1_preserve,
-                            meow_ap_preserve=meow_ap_preserve,
-                        )
-                        self.config.check_task_switch()
-                        continue
+                        if self._is_action_point_purchase_enabled():
+                            logger.info(
+                                f'行动力低于补黄币保留 ({current_ap} < {meow_ap_preserve})，'
+                                '但已启用石油购买行动力，继续执行补黄币任务'
+                            )
+                        else:
+                            logger.warning(f'行动力不足以执行短猫 ({current_ap} < {meow_ap_preserve})')
+                            self._notify_coins_ap_insufficient(
+                                yellow_coins, current_ap, cl1_preserve, meow_ap_preserve
+                            )
+                            self._switch_to_natural_ap_meow_cleanup(
+                                yellow_coins=yellow_coins,
+                                current_ap=current_ap,
+                                natural_ap=natural_ap,
+                                preserve=cl1_preserve,
+                                meow_ap_preserve=meow_ap_preserve,
+                            )
+                            self.config.check_task_switch()
+                            continue
 
                     self._dispatch_coin_task(
                         yellow_coins,
@@ -1071,7 +1087,9 @@ class OpsiScheduling(CoinTaskMixin, OSMap):
                 ) or False
                 if meow_advance_enable:
                     should_meow, reason = self._should_start_meow_early(current_ap)
-                    if should_meow and current_ap >= meow_ap_preserve:
+                    if should_meow and (
+                        current_ap >= meow_ap_preserve or self._is_action_point_purchase_enabled()
+                    ):
                         logger.info(f'根据AP消耗速率分析: {reason}')
                         logger.info('月末行动力清理触发，执行短猫相接')
                         with self.config.multi_set():
@@ -1092,7 +1110,13 @@ class OpsiScheduling(CoinTaskMixin, OSMap):
                         logger.warning(f'行动力不足以执行短猫 ({current_ap} < {meow_ap_preserve})')
 
                 if current_ap < cl1_ap_preserve:
-                    self._delay_smart_scheduling_for_ap_limit(current_ap, natural_ap, cl1_ap_preserve)
+                    if self._is_action_point_purchase_enabled():
+                        logger.info(
+                            f'行动力低于 CL1 保留 ({current_ap} < {cl1_ap_preserve})，'
+                            '但已启用石油购买行动力，交给侵蚀 1 正常行动力流程处理'
+                        )
+                    else:
+                        self._delay_smart_scheduling_for_ap_limit(current_ap, natural_ap, cl1_ap_preserve)
 
                 logger.info(f'黄币充足 ({yellow_coins} >= {cl1_preserve})，执行侵蚀1练级')
                 self._execute_hazard1_leveling(yellow_coins, current_ap)
