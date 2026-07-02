@@ -2998,6 +2998,10 @@
       "name": "Last completed zone",
       "help": "Automatically updated value. Fill in 0 to reset progress. After reset, already explored sea zones will be automatically skipped.\nSupports sea zone ID, CN/EN/JP/TW server zone names, e.g. \"51\", \"NA Ocean SE Sector E\""
     },
+    "AllowHazard1Leveling": {
+      "name": "Allow Hazard 1 Leveling during exploration",
+      "help": "When enabled, OpsiExplore will not delay OpsiHazard1Leveling after it reaches a zone other than 0/44/24. OpsiScheduling is still delayed during OpsiExplore."
+    },
     "ExploreProgress": {
       "name": "Monthly Exploration Progress",
       "help": "Shows the current completion percentage of monthly exploration."

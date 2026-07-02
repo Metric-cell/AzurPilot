@@ -2998,6 +2998,10 @@
       "name": "最後に完了した海域",
       "help": "自動的に更新される値。進行状況をリセットするには0を入力します。リセット後は開放済み海域は自動でスキップされます。\n海域ID、中国サーバー/グローバルサーバー/日本サーバー/台湾サーバーの海域名をサポート（例：「51」「NA Ocean SE Sector E」など）"
     },
+    "AllowHazard1Leveling": {
+      "name": "探索中の侵食1レベリングを許可",
+      "help": "有効にすると、OpsiExplore が 0/44/24 以外の海域に到達した後、OpsiHazard1Leveling を遅延しません。OpsiScheduling は OpsiExplore 中も遅延されます。"
+    },
     "ExploreProgress": {
       "name": "月間開拓進捗",
       "help": "現在の月間開拓の完了パーセンテージを表示します。"

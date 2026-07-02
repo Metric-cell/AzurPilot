@@ -2998,6 +2998,10 @@
       "name": "上一次完成的區域",
       "help": "自動更新的數值，填0可重置進度，重置後自動跳過已開荒的海域\n支援海域ID、國服/國際服/日服/臺服海域名稱，例如 \"51\", \"NA海域東南E\", \"NA Ocean SE Sector E\""
     },
+    "AllowHazard1Leveling": {
+      "name": "允許開荒期間執行侵蝕1練級",
+      "help": "啟用後，OpsiExplore 進入非 0/44/24 區域後不再延遲 OpsiHazard1Leveling；OpsiScheduling 在 OpsiExplore 期間仍會被延遲。"
+    },
     "ExploreProgress": {
       "name": "每月開荒進度",
       "help": "顯示當前每月開荒的完成百分比"

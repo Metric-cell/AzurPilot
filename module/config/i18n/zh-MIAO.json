@@ -2998,6 +2998,10 @@
       "name": "上一次完成的区域",
       "help": "填0重置进度，重置后自动跳过已开荒海域。支持海域ID或名称喵。"
     },
+    "AllowHazard1Leveling": {
+      "name": "允许开荒期间运行侵蚀1练级喵",
+      "help": "开启后，OpsiExplore 进入非 0/44/24 区域后不再延迟 OpsiHazard1Leveling；OpsiScheduling 在 OpsiExplore 期间仍会被延迟喵。"
+    },
     "ExploreProgress": {
       "name": "每月开荒进度",
       "help": "显示当前完成百分比喵。 (=^･ω･^=)"

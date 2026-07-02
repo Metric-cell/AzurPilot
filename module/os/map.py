@@ -40,12 +40,29 @@ from module.statistics.opsi_runtime import (
     record_siren_research_device,
     start_meow_search_timer,
 )
-from module.os.tasks.smart_scheduling_utils import is_smart_scheduling_enabled
 from module.ui.assets import GOTO_MAIN
 from module.ui.page import page_os
 
 
 class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
+    def is_smart_scheduling_enabled(self) -> bool:
+        """
+        统一判断是否启用了智能调度（侵蚀1与补黄币任务共享的开关逻辑）。
+        """
+        # 检测是否在开荒中，如果是，则停止智能调度
+        if self.is_in_opsi_explore():
+            return False
+
+        try:
+            scheduling_enabled = self.config.cross_get(
+                keys='OpsiScheduling.Scheduler.Enable',
+                default=False
+            )
+        except (AttributeError, KeyError):
+            scheduling_enabled = False
+
+        return scheduling_enabled
+
     def os_init(self):
         """
         执行任何大世界功能之前调用此方法。
@@ -123,7 +140,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
 
         if (
             self.zone.zone_id == leveling_zone
-            and self.config.task.command == "OpsiHazard1Leveling"
+            and self.opsi_task_command == "OpsiHazard1Leveling"
         ):
             pass
         elif self.zone.zone_id == 154:
@@ -766,7 +783,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
         """
         # 检查智能调度是否启用，如果启用则由智能调度模块统一管理任务切换
         # 这里不应该直接切换到 CL1
-        if is_smart_scheduling_enabled(self.config):
+        if self.is_smart_scheduling_enabled():
             return
 
         if (
@@ -999,7 +1016,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
                     stop_event = self.config.stop_event
                     if stop_event is not None and stop_event.is_set():
                         self.interrupt_auto_search()
-                    elif self.config.task.command == "OpsiMeowfficerFarming":
+                    elif self.opsi_task_command == "OpsiMeowfficerFarming":
                         logger.info("Short meow search is running, delay task switch until search finished")
                     else:
                         self.interrupt_auto_search()
@@ -1257,7 +1274,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
         """
         if getattr(self.config, "_disable_siren_research", False):
             return False
-        task = self.config.task.command
+        task = self.opsi_task_command
         if task not in ("OpsiHazard1Leveling", "OpsiMeowfficerFarming"):
             task = "OpsiHazard1Leveling"
         return self.config.cross_get(
@@ -1359,7 +1376,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
                     logger.info("[装置处理] 检测到敌人模式，执行特殊处理")
 
                     # 获取配置的舰队
-                    task = self.config.task.command
+                    task = self.opsi_task_command
                     if task not in ("OpsiHazard1Leveling", "OpsiMeowfficerFarming"):
                         task = "OpsiHazard1Leveling"
                     siren_fleet = self.config.cross_get(
@@ -1440,7 +1457,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
         logger.info(f"Run auto search, question={question}, rescan={rescan}")
         finished_combat = 0
         with self.stat.new(
-            genre=inflection.underscore(self.config.task.command),
+            genre=inflection.underscore(self.opsi_task_command),
             method=self.config.DropRecord_OpsiRecord,
         ) as drop:
             while 1:
@@ -1491,7 +1508,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
         logger.hr("Run strategy search", level=2)
 
         with self.stat.new(
-            genre=inflection.underscore(self.config.task.command),
+            genre=inflection.underscore(self.opsi_task_command),
             method=self.config.DropRecord_OpsiRecord,
         ) as drop:
             try:
@@ -1625,7 +1642,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
                     logger.info("[装置处理] 敌人模式，执行特殊处理")
 
                     # 获取配置的舰队
-                    task = self.config.task.command
+                    task = self.opsi_task_command
                     if task not in ("OpsiHazard1Leveling", "OpsiMeowfficerFarming"):
                         task = "OpsiHazard1Leveling"
                     siren_fleet = self.config.cross_get(
