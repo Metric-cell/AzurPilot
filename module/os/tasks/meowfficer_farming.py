@@ -102,7 +102,6 @@ class MeowfficerTargetZoneMixin:
         zone_index = index % len(zones)
         zone = zones[zone_index]
         logger.attr('MeowTargetZoneIndex', f'{zone_index + 1}/{len(zones)}')
-        logger.hr(f'OS meowfficer farming (stay in zone), zone_id={zone.zone_id}', level=1)
         return zone, zone_index + 1
 
 
@@ -277,6 +276,7 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
         self.config.check_task_switch()
 
     def _meow_handle_stay_in_zone(self, zone):
+        logger.hr(f'OS meowfficer farming (stay in zone), zone_id={zone.zone_id}', level=1)
         self.get_current_zone()
         if self.zone.zone_id != zone.zone_id or not self.is_zone_name_hidden:
             self.globe_goto(zone, types='SAFE', refresh=True)
@@ -317,6 +317,24 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
         if self._check_yellow_coins_and_return_to_cl1("循环中", "短猫相接"):
             return True
         return False
+
+    def _meow_handle_target_zone_search(self, zone):
+        """按普通短猫流程清理指定海域。"""
+        logger.hr(f'OS meowfficer farming, zone_id={zone.zone_id}', level=1)
+
+        self.globe_goto(zone)
+
+        self.fleet_set(self.config.OpsiFleet_Fleet)
+        self.os_order_execute(recon_scan=False, submarine_call=self.config.OpsiFleet_Submarine)
+
+        self.meow_search_metrics_start()
+        try:
+            self.run_auto_search()
+            self.handle_after_auto_search()
+        finally:
+            self.meow_search_metrics_end()
+
+        self.config.check_task_switch()
 
     def _meow_handle_normal_search(self):
         hazard_level = self.config.OpsiMeowfficerFarming_HazardLevel
@@ -424,8 +442,13 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
                 if self.config.OpsiMeowfficerFarming_StayInZone:
                     zone, _ = self._meow_target_zone_at(target_zones, target_zone_index)
                     target_zone_index += 1
-                    if self._meow_handle_stay_in_zone(zone):
-                        return
+                    if len(target_zones) == 1:
+                        if self._meow_handle_stay_in_zone(zone):
+                            return
+                    else:
+                        self._meow_handle_target_zone_search(zone)
+                        if not natural_ap_cleanup and self._check_yellow_coins_and_return_to_cl1("循环中", "短猫相接"):
+                            return
                     continue
 
                 # ===== 普通短猫搜索主逻辑 =====
