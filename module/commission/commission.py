@@ -620,15 +620,14 @@ class RewardCommission(UI, InfoHandler):
                     if self.config.Commission_CommissionNotifyRewardStatistics:
                         reward_stats = cl1_db.get_commission_reward_stats(instance)
                     gem_count = merged_items.get("Gem", 0)
-                    cube_count = merged_items.get("Cube", 0)
                     tracked = []
                     if gem_count > 0:
-                        text = f'💎钻石 * {gem_count}'
+                        text = f'本次获得钻石 * {gem_count}'
                         if reward_stats:
                             text += (
-                                f'\n\n今日累计获取💎钻石 * {reward_stats["today"].get("Gem", 0)}'
-                                f'\n本周累计获取💎钻石 * {reward_stats["week"].get("Gem", 0)}'
-                                f'\n本月累计获取💎钻石 * {reward_stats["month"].get("Gem", 0)}'
+                                f'\n\n今日累计: {reward_stats["today"].get("Gem", 0)}'
+                                f'\n本周累计: {reward_stats["week"].get("Gem", 0)}'
+                                f'\n本月累计: {reward_stats["month"].get("Gem", 0)}'
                             )
                         tracked.append(text)
                     if tracked:
