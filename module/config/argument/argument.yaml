@@ -275,7 +275,7 @@ PublicEmotion:
   FleetOnsen: false
 YukikazeTaskManager:
   TaskPriorityAdjustment:
-    type: textarea
+    type: task_priority
     value: |-
       Restart
       > OpsiCrossMonth

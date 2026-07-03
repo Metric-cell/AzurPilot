@@ -9,6 +9,7 @@ from module.base.timer import timer
 from module.config.deep import deep_default, deep_get, deep_iter, deep_set
 from module.config.env import IS_ON_PHONE_CLOUD
 from module.config.server import VALID_CHANNEL_PACKAGE, VALID_PACKAGE, VALID_SERVER_LIST, to_package, to_server
+from module.config.task_priority import get_scheduler_tasks, merge_task_priority
 from module.config.utils import *
 from module.config.redirect_utils.utils import *
 
@@ -733,6 +734,12 @@ class ConfigUpdater:
                     ) == template_priority
             ):
                 deep_set(new, 'General.YukikazeTaskManager.TaskPriorityAdjustment', template_priority)
+            else:
+                deep_set(
+                    new,
+                    'General.YukikazeTaskManager.TaskPriorityAdjustment',
+                    merge_task_priority(new_priority, template_priority, get_scheduler_tasks(self.args)),
+                )
         new = self._override(new)
 
         return new
