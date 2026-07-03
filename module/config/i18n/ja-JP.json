@@ -1854,6 +1854,14 @@
     "DoMajorCommission": {
       "name": "主要委託を実行する（1200燃料/1000燃料委託）",
       "help": "1200燃料委託は現在では廃止されており、収益が非常に低いです。オフにすることをお勧めします。"
+    },
+    "CommissionNotifyReward": {
+      "name": "委託成功でダイヤモンド取得通知",
+      "help": "注意：「プッシュ通知設定」を有効にして設定してください。設定されていない場合、この機能は動作しません。"
+    },
+    "CommissionNotifyRewardStatistics": {
+      "name": "ダイヤモンド通知の詳細",
+      "help": "オンにすると、AzurPilotは今回の委託で取得したダイヤモンドの数量と同時に、当日／今週／今月のダイヤモンド取得数量も通知します"
     }
   },
   "Tactical": {
@@ -2997,6 +3005,10 @@
     "LastZone": {
       "name": "最後に完了した海域",
       "help": "自動的に更新される値。進行状況をリセットするには0を入力します。リセット後は開放済み海域は自動でスキップされます。\n海域ID、中国サーバー/グローバルサーバー/日本サーバー/台湾サーバーの海域名をサポート（例：「51」「NA Ocean SE Sector E」など）"
+    },
+    "AllowHazard1Leveling": {
+      "name": "探索中の侵食1レベリングを許可",
+      "help": "有効にすると、OpsiExplore が 0/44/24 以外の海域に到達した後、OpsiHazard1Leveling を遅延しません。OpsiScheduling は OpsiExplore 中も遅延されます。"
     },
     "ExploreProgress": {
       "name": "月間開拓進捗",

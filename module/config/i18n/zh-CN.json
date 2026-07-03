@@ -1854,6 +1854,14 @@
     "DoMajorCommission": {
       "name": "做主要委托（1200油/1000油委托）",
       "help": "1200油委托现在已经过时，收益很低，建议关闭"
+    },
+    "CommissionNotifyReward": {
+      "name": "委托成功获取钻石推送",
+      "help": "注意，请开启错误推送设置并配置，否则此功能不生效"
+    },
+    "CommissionNotifyRewardStatistics": {
+      "name": "钻石推送详情",
+      "help": "开启后，AzurPilot在推送本次委托获取钻石数量的同时推送当日/本周/本月的钻石获取数量"
     }
   },
   "Tactical": {
@@ -2997,6 +3005,10 @@
     "LastZone": {
       "name": "上一次完成的区域",
       "help": "自动更新的数值，填0可重置进度，重置后自动跳过已开荒的海域\n支持海域ID、国服/国际服/日服/台服海域名称，例如 \"51\", \"NA海域东南E\", \"NA Ocean SE Sector E\""
+    },
+    "AllowHazard1Leveling": {
+      "name": "允许开荒期间运行侵蚀1练级",
+      "help": "开启后，OpsiExplore 进入非 0/44/24 区域后不再延迟 OpsiHazard1Leveling；OpsiScheduling 在 OpsiExplore 期间仍会被延迟。"
     },
     "ExploreProgress": {
       "name": "每月开荒进度",

@@ -6,7 +6,6 @@ from module.map.map_grids import SelectedGrids
 from module.os.map import OSMap
 from module.os_handler.action_point import ActionPointLimit
 from module.os.tasks.scheduling import CoinTaskMixin
-from module.os.tasks.smart_scheduling_utils import is_smart_scheduling_enabled
 
 
 class MeowfficerTargetZoneMixin:
@@ -106,16 +105,20 @@ class MeowfficerTargetZoneMixin:
 
 
 class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
-    def _is_natural_ap_cleanup_mode(self):
-        """判断是否由智能调度拉起短猫清理自然行动力。"""
+    def _has_natural_ap_cleanup_flag(self):
+        """判断是否存在智能调度短猫自然行动力清理标记。"""
         return self._config_enabled(
             keys=self.CONFIG_PATH_MEOW_NATURAL_AP_CLEANUP,
             default=False,
         )
 
+    def _is_natural_ap_cleanup_mode(self):
+        """判断是否由当前有效的智能调度拉起短猫清理自然行动力。"""
+        return self._has_natural_ap_cleanup_flag() and self.is_smart_scheduling_enabled()
+
     def _clear_natural_ap_cleanup_mode(self):
         """清理智能调度短猫自然行动力模式的一次性标记。"""
-        if self._is_natural_ap_cleanup_mode():
+        if self._has_natural_ap_cleanup_flag():
             self.config.cross_set(keys=self.CONFIG_PATH_MEOW_NATURAL_AP_CLEANUP, value=False)
 
     def _apply_natural_ap_cleanup_runtime(self):
@@ -161,12 +164,18 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
         except Exception:
             logger.debug('[智能调度] 短猫自然行动力清理结束后校准失败', exc_info=True)
 
-    def _meow_ap_and_scheduling_check(self, preserve, ap_checked):
-        """
-        行动力检查与智能调度检查。
+    def _finish_natural_ap_cleanup_mode(self, record_snapshot=False):
+        """结束短猫自然行动力清理模式，并恢复临时运行时配置。"""
+        has_runtime_backup = getattr(self, '_natural_ap_cleanup_backup', None) is not None
+        if has_runtime_backup or self._is_natural_ap_cleanup_mode():
+            if record_snapshot:
+                self._record_natural_ap_cleanup_snapshot()
+            self._restore_natural_ap_cleanup_runtime()
+        self._clear_natural_ap_cleanup_mode()
 
-        检查当前行动力是否充足，处理智能调度覆盖配置，
-        并在行动力不足时执行延迟或任务切换。
+    def _meow_ap_check(self, preserve, ap_checked):
+        """
+        行动力检查。
 
         Args:
             preserve (int): 行动力保留值。
@@ -177,14 +186,6 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
         """
         natural_ap_cleanup = self._is_natural_ap_cleanup_mode()
         self.config.OS_ACTION_POINT_PRESERVE = preserve
-
-        # ===== 智能调度：行动力保留覆盖 =====
-        if is_smart_scheduling_enabled(self.config) and not natural_ap_cleanup:
-            if hasattr(self, '_get_smart_scheduling_action_point_preserve'):
-                smart_ap_preserve = self._get_smart_scheduling_action_point_preserve()
-                if smart_ap_preserve > 0:
-                    logger.info(f'[智能调度] 行动力保留使用智能调度配置: {smart_ap_preserve} (原配置: {self.config.OS_ACTION_POINT_PRESERVE})')
-                    self.config.OS_ACTION_POINT_PRESERVE = smart_ap_preserve
 
         if natural_ap_cleanup:
             logger.info('[智能调度] 短猫自然行动力清理模式：不使用行动力箱子，不购买行动力')
@@ -199,20 +200,28 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
 
         if not ap_checked:
             # 行动力前置检查，确保明日每日任务有足够行动力
+            smart_enabled = self.is_smart_scheduling_enabled()
             keep_current_ap = True
             check_rest_ap = True
+            cl1_yellow_enough = False
             if self.is_cl1_enabled:
-                return_threshold, _ = self._get_operation_coins_return_threshold()
-                if return_threshold is not None:
-                    yellow_coins = self.get_yellow_coins()
-                    if yellow_coins >= return_threshold:
+                if smart_enabled:
+                    return_threshold, _ = self._get_operation_coins_return_threshold()
+                    if return_threshold is not None:
+                        yellow_coins = self.get_yellow_coins()
+                        if yellow_coins >= return_threshold:
+                            check_rest_ap = False
+                else:
+                    cl1_yellow_enough = self.cl1_enough_yellow_coins
+                    if cl1_yellow_enough:
                         check_rest_ap = False
 
             if not self.is_cl1_enabled and self.config.OpsiGeneral_BuyActionPointLimit > 0:
                 keep_current_ap = False
+            if smart_enabled and self.config.OpsiGeneral_BuyActionPointLimit > 0:
+                keep_current_ap = False
 
-            if self.is_cl1_enabled and self.cl1_enough_yellow_coins:
-                check_rest_ap = False
+            if not smart_enabled and self.is_cl1_enabled and cl1_yellow_enough:
                 try:
                     self.action_point_set(cost=0, keep_current_ap=keep_current_ap, check_rest_ap=check_rest_ap)
                 except ActionPointLimit:
@@ -222,40 +231,8 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
             else:
                 self.action_point_set(cost=0, keep_current_ap=keep_current_ap, check_rest_ap=check_rest_ap)
 
-            self.check_and_notify_action_point_threshold()
-
-            # ===== 智能调度：行动力不足检查 =====
-            if is_smart_scheduling_enabled(self.config) and not natural_ap_cleanup:
-                ap_preserve = self.config.OpsiMeowfficerFarming_ActionPointPreserve
-                if hasattr(self, '_get_smart_scheduling_action_point_preserve'):
-                    smart_ap_preserve = self._get_smart_scheduling_action_point_preserve()
-                    if smart_ap_preserve > 0:
-                        ap_preserve = smart_ap_preserve
-
-                if self._action_point_total < ap_preserve:
-                    logger.info(f'[智能调度] 短猫相接行动力不足 ({self._action_point_total} < {ap_preserve})')
-                    yellow_coins = self.get_yellow_coins()
-
-                    if self.is_cl1_enabled:
-                        self.notify_push(
-                            title="[AzurPilot] 短猫相接 - 切换至侵蚀 1",
-                            content=f"行动力 {self._action_point_total} 不足 (需要 {ap_preserve})\n补充凭证: {yellow_coins}\n推迟短猫 1 小时，切换至侵蚀 1"
-                        )
-                    else:
-                        self.notify_push(
-                            title="[AzurPilot] 短猫相接 - 行动力不足",
-                            content=f"行动力 {self._action_point_total} 不足 (需要 {ap_preserve})\n凭证: {yellow_coins}\n任务推迟 1 小时"
-                        )
-
-                    logger.info('已推迟短猫相接 1 小时')
-                    self.config.task_delay(minute=60)
-
-                    if self.is_cl1_enabled:
-                        logger.info('主动切换回侵蚀 1 任务')
-                        with self.config.multi_set():
-                            self.config.task_call('OpsiHazard1Leveling')
-
-                    self.config.task_stop()
+            if not smart_enabled:
+                self.check_and_notify_action_point_threshold()
             return True
         return ap_checked
 
@@ -314,7 +291,10 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
 
         self.config.check_task_switch()
         
-        if self._check_yellow_coins_and_return_to_cl1("循环中", "短猫相接"):
+        if (
+            not self._is_natural_ap_cleanup_mode()
+            and self._check_yellow_coins_and_return_to_scheduling("循环中", "短猫相接")
+        ):
             return True
         return False
 
@@ -364,33 +344,43 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
         self.config.check_task_switch()
         
     def os_meowfficer_farming(self):
-        """执行大世界短猫相接（猫箱搜寻）任务。"""
+        """短猫相接任务入口。"""
+        if self.trigger_smart_scheduling('短猫相接入口仅作为触发器'):
+            return
+        self.run_meowfficer_farming()
+
+    def _prepare_meowfficer_farming(self, ap_preserve=None):
+        """准备短猫相接运行环境。"""
         logger.hr(f'OS meowfficer farming, hazard_level={self.config.OpsiMeowfficerFarming_HazardLevel}', level=1)
         natural_ap_cleanup = self._is_natural_ap_cleanup_mode()
         if natural_ap_cleanup:
             self._apply_natural_ap_cleanup_runtime()
-        
-        # ===== 前置检查：黄币状态 =====
-        if self.is_cl1_enabled and not natural_ap_cleanup:
+
+        # 智能调度代执行时保留黄币返回检查，独立短猫沿用自身行动力限制逻辑。
+        if self.is_cl1_enabled and not natural_ap_cleanup and self.is_smart_scheduling_enabled():
             return_threshold, _ = self._get_operation_coins_return_threshold()
             if return_threshold is None:
                 logger.info('凭证返回阈值为 0，禁用黄币检查')
-            elif self._check_yellow_coins_and_return_to_cl1("任务开始前", "短猫相接"):
-                return
-        
-        # ===== 行动力保留配置 =====
-        if self.is_cl1_enabled and self.config.OpsiMeowfficerFarming_ActionPointPreserve < 500:
+            elif self._check_yellow_coins_and_return_to_scheduling('任务开始前', '短猫相接'):
+                return None
+
+        if ap_preserve is None and self.is_cl1_enabled and self.config.OpsiMeowfficerFarming_ActionPointPreserve < 500:
             logger.info('启用侵蚀 1 练级时，最低行动力保留自动调整为 500')
             self.config.OpsiMeowfficerFarming_ActionPointPreserve = 500
-        
-        preserve = min(self.get_action_point_limit(self.config.OpsiMeowfficerFarming_APPreserveUntilReset),
-                       self.config.OpsiMeowfficerFarming_ActionPointPreserve)
+
+        if ap_preserve is None:
+            preserve = min(
+                self.get_action_point_limit(self.config.OpsiMeowfficerFarming_APPreserveUntilReset),
+                self.config.OpsiMeowfficerFarming_ActionPointPreserve,
+            )
+        else:
+            preserve = int(ap_preserve)
         if natural_ap_cleanup:
             logger.info('[智能调度] 自然行动力清理模式下短猫保留行动力设为 0')
             preserve = 0
         if preserve == 0:
             self.config.override(OpsiFleet_Submarine=False)
-            
+
         if self.is_cl1_enabled:
             # 侵蚀 1 练级模式下的必要覆盖项
             self.config.override(
@@ -400,19 +390,24 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
             )
             cd = self.nearest_task_cooling_down
             logger.attr('最近冷却中的任务', cd)
-            
+
             remain = get_os_reset_remain()
             if cd is not None and remain > 0:
                 logger.info(f'存在冷却中的任务，延迟短猫任务至 {cd.next_run} 后执行')
-                self.config.task_delay(target=cd.next_run)
+                self.delay_opsi_active_task(target=cd.next_run)
+                if self.config.task.command == self.TASK_NAME_SCHEDULING:
+                    self.config.task_delay(target=cd.next_run)
                 self.config.task_stop()
-                
+
         if self.is_in_opsi_explore():
-            logger.warning(f'大世界探索正在运行，无法执行 {self.config.task.command}')
-            self.config.task_delay(server_update=True)
+            logger.warning(f'大世界探索正在运行，无法执行 {self.opsi_task_command}')
+            self.delay_opsi_active_task(server_update=True)
+            if self.config.task.command == self.TASK_NAME_SCHEDULING:
+                self.config.task_delay(server_update=True)
             self.config.task_stop()
 
-        if self.config.OpsiTarget_TargetFarming:
+        if self.config.OpsiTarget_TargetFarming and not getattr(self, '_meow_target_checked', False):
+            self._meow_target_checked = True
             if self.config.SERVER in ['cn', 'jp']:
                 if hasattr(self, '_os_target'):
                     self._os_target()
@@ -420,46 +415,78 @@ class OpsiMeowfficerFarming(MeowfficerTargetZoneMixin, CoinTaskMixin, OSMap):
                 logger.info(f'Server {self.config.SERVER} does not support OpsiTarget yet, please contact the developers.')
 
         target_zone_tokens = self._meow_target_zone_tokens()
-        target_zones = []
-        traditional_zone = None
-        target_zone_index = 0
+        self._meow_target_zone_list = []
+        self._meow_traditional_zone = None
+        self._meow_target_zone_index = getattr(self, '_meow_target_zone_index', 0)
         if self.config.OpsiMeowfficerFarming_StayInZone:
-            target_zones = self._meow_target_zones(require_target=True, allow_multiple=True)
+            self._meow_target_zone_list = self._meow_target_zones(require_target=True, allow_multiple=True)
         elif target_zone_tokens:
-            traditional_zone = self._meow_target_zones(require_target=False, allow_multiple=False)[0]
+            self._meow_traditional_zone = self._meow_target_zones(require_target=False, allow_multiple=False)[0]
 
+        return preserve
+
+    def run_meowfficer_farming(self):
+        """执行大世界短猫相接（猫箱搜寻）任务。"""
+        preserve = None
         ap_checked = False
         try:
+            preserve = self._prepare_meowfficer_farming()
+            if preserve is None:
+                return
             while True:
-                ap_checked = self._meow_ap_and_scheduling_check(preserve, ap_checked)
-
-                # ===== 传统目标海域模式 =====
-                if traditional_zone is not None:
-                    self._meow_handle_traditional_zone(traditional_zone)
-                    continue
-
-                # ===== 指定海域计划作战 (StayInZone) =====
-                if self.config.OpsiMeowfficerFarming_StayInZone:
-                    zone, _ = self._meow_target_zone_at(target_zones, target_zone_index)
-                    target_zone_index += 1
-                    if len(target_zones) == 1:
-                        if self._meow_handle_stay_in_zone(zone):
-                            return
-                    else:
-                        self._meow_handle_target_zone_search(zone)
-                        if not natural_ap_cleanup and self._check_yellow_coins_and_return_to_cl1("循环中", "短猫相接"):
-                            return
-                    continue
-
-                # ===== 普通短猫搜索主逻辑 =====
-                self._meow_handle_normal_search()
-
-                # ===== 循环中黄币充足检查 =====
-                if not natural_ap_cleanup and self._check_yellow_coins_and_return_to_cl1("循环中"):
-                    return
-                continue
+                ap_checked = self.run_meowfficer_farming_once(
+                    ap_preserve=preserve,
+                    ap_checked=ap_checked,
+                    prepared=True,
+                )
         finally:
-            if natural_ap_cleanup:
-                self._record_natural_ap_cleanup_snapshot()
-                self._restore_natural_ap_cleanup_runtime()
-            self._clear_natural_ap_cleanup_mode()
+            self._finish_natural_ap_cleanup_mode(record_snapshot=preserve is not None)
+
+    def run_meowfficer_farming_once(self, ap_preserve=None, ap_checked=False, prepared=False):
+        """执行一轮短猫相接，由独立任务或 OpsiScheduling 调用。"""
+        prepare_completed = prepared
+        try:
+            if prepared:
+                preserve = int(ap_preserve or 0)
+            else:
+                preserve = self._prepare_meowfficer_farming(ap_preserve=ap_preserve)
+                prepare_completed = preserve is not None
+                if preserve is None:
+                    return ap_checked
+
+            ap_checked = self._meow_ap_check(preserve, ap_checked)
+
+            # ===== 传统目标海域模式 =====
+            traditional_zone = getattr(self, '_meow_traditional_zone', None)
+            if traditional_zone is not None:
+                self._meow_handle_traditional_zone(traditional_zone)
+                return ap_checked
+
+            # ===== 指定海域计划作战 (StayInZone) =====
+            if self.config.OpsiMeowfficerFarming_StayInZone:
+                target_zones = getattr(self, '_meow_target_zone_list', [])
+                zone, _ = self._meow_target_zone_at(target_zones, getattr(self, '_meow_target_zone_index', 0))
+                self._meow_target_zone_index = getattr(self, '_meow_target_zone_index', 0) + 1
+                if len(target_zones) == 1:
+                    if self._meow_handle_stay_in_zone(zone):
+                        return ap_checked
+                else:
+                    self._meow_handle_target_zone_search(zone)
+                    if (
+                        not self._is_natural_ap_cleanup_mode()
+                        and self._check_yellow_coins_and_return_to_scheduling('循环中', '短猫相接')
+                    ):
+                        return ap_checked
+                return ap_checked
+
+            # ===== 普通短猫搜索主逻辑 =====
+            self._meow_handle_normal_search()
+            if (
+                not self._is_natural_ap_cleanup_mode()
+                and self._check_yellow_coins_and_return_to_scheduling('循环中', '短猫相接')
+            ):
+                return ap_checked
+            return ap_checked
+        finally:
+            if not prepared:
+                self._finish_natural_ap_cleanup_mode(record_snapshot=prepare_completed)

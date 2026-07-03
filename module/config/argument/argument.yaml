@@ -279,7 +279,6 @@ YukikazeTaskManager:
     value: |-
       Restart
       > OpsiCrossMonth
-      > OpsiScheduling
       > Commission > Tactical > Research
       > Exercise
       > Dorm > Meowfficer > Guild > Gacha
@@ -290,6 +289,7 @@ YukikazeTaskManager:
       > Minigame > Awaken
       > OpsiAshBeacon
       > OpsiDaily > OpsiShop > OpsiVoucher > EventShop
+      > OpsiScheduling
       > OpsiAbyssal > OpsiStronghold > OpsiObscure > OpsiArchive
       > Daily > Hard > OpsiAshBeacon > OpsiAshAssist > OpsiMonthBoss
       > Sos > EventSp > EventA > EventB > EventC > EventD
@@ -606,6 +606,12 @@ Commission:
     > Extra-0:20 > Extra-0:30 > Extra-1:00 > Extra-1:30 > Extra-2:00
     > shortest
   DoMajorCommission: false
+  CommissionNotifyReward:
+    type: checkbox
+    value: false
+  CommissionNotifyRewardStatistics:
+    type: checkbox
+    value: true
 Tactical:
   TacticalFilter: |-
     SameT4 > SameT3 > SameT2 > SameT1
@@ -983,6 +989,7 @@ OpsiExplore:
   SpecialRadar: false
   ForceRun: false
   LastZone: 0
+  AllowHazard1Leveling: false
   ExploreProgress:
     type: textarea
     display: disabled

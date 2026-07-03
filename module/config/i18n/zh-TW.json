@@ -1854,6 +1854,14 @@
     "DoMajorCommission": {
       "name": "做主要委託（1200油/1000油委託）",
       "help": "1200油委託現在已經過時，收益很低，建議關閉"
+    },
+    "CommissionNotifyReward": {
+      "name": "委託成功獲取鑽石推送",
+      "help": "注意，請啟用並設定「錯誤推送設定」，否則此功能將不會生效。"
+    },
+    "CommissionNotifyRewardStatistics": {
+      "name": "鑽石推送詳情",
+      "help": "開啟後，AzurPilot在推送本次委託獲取鑽石數量的同時推送當日/本週/本月的鑽石獲取數量"
     }
   },
   "Tactical": {
@@ -2997,6 +3005,10 @@
     "LastZone": {
       "name": "上一次完成的區域",
       "help": "自動更新的數值，填0可重置進度，重置後自動跳過已開荒的海域\n支援海域ID、國服/國際服/日服/臺服海域名稱，例如 \"51\", \"NA海域東南E\", \"NA Ocean SE Sector E\""
+    },
+    "AllowHazard1Leveling": {
+      "name": "允許開荒期間執行侵蝕1練級",
+      "help": "啟用後，OpsiExplore 進入非 0/44/24 區域後不再延遲 OpsiHazard1Leveling；OpsiScheduling 在 OpsiExplore 期間仍會被延遲。"
     },
     "ExploreProgress": {
       "name": "每月開荒進度",
