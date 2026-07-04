@@ -358,7 +358,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
         OpsiGeneral.RepairPackThresholdHazard1 仅用于 CL1 练级。
         """
         default_threshold = float(self.config.OpsiGeneral_RepairPackThreshold)
-        task = getattr(getattr(self.config, "task", None), "command", "")
+        task = getattr(self, "opsi_task_command", "")
         if task == "OpsiHazard1Leveling":
             return float(
                 getattr(
@@ -795,7 +795,8 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
             and self.cl1_enough_yellow_coins
         ):
             preserve = self.config.cross_get(
-                keys="OpsiMeowfficerFarming.OpsiMeowfficerFarming.ActionPointPreserve"
+                keys="OpsiHazard1Leveling.OpsiHazard1Leveling.MinimumActionPointReserve",
+                default=200,
             )
             logger.info(f"Keep {preserve} AP when CL1 available")
             if not self.action_point_check(preserve):
@@ -818,9 +819,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
     def on_auto_search_battle_count_add(self):
         self._auto_search_battle_count += 1
         logger.attr("battle_count", self._auto_search_battle_count)
-        if getattr(self, "is_in_task_cl1_leveling", False) and getattr(
-            self, "is_cl1_enabled", False
-        ):
+        if getattr(self, "is_in_task_cl1_leveling", False):
             try:
                 self._cl1_auto_search_battle_count += 1
                 logger.attr("cl1_battle_count", self._cl1_auto_search_battle_count)

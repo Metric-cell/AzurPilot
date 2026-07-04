@@ -25,7 +25,9 @@ def instance_name_from_config(config: Any, default: str = "default") -> str:
 
 def battle_source_from_config(config: Any) -> str | None:
     """返回当前任务对应的统计来源。"""
-    command = getattr(getattr(config, "task", None), "command", None)
+    command = getattr(config, "_opsi_active_task_command", None) or getattr(
+        getattr(config, "task", None), "command", None
+    )
     if command == CL1_TASK:
         return "cl1"
     if command == MEOW_TASK:

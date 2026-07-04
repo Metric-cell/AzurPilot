@@ -1856,12 +1856,12 @@
       "help": "1200燃料委託は現在では廃止されており、収益が非常に低いです。オフにすることをお勧めします。"
     },
     "CommissionNotifyReward": {
-      "name": "委託成功でダイヤモンド取得通知",
-      "help": "注意：「プッシュ通知設定」を有効にして設定してください。設定されていない場合、この機能は動作しません。"
+      "name": "Commission.CommissionNotifyReward.name",
+      "help": "Commission.CommissionNotifyReward.help"
     },
     "CommissionNotifyRewardStatistics": {
-      "name": "ダイヤモンド通知の詳細",
-      "help": "オンにすると、AzurPilotは今回の委託で取得したダイヤモンドの数量と同時に、当日／今週／今月のダイヤモンド取得数量も通知します"
+      "name": "Commission.CommissionNotifyRewardStatistics.name",
+      "help": "Commission.CommissionNotifyRewardStatistics.help"
     }
   },
   "Tactical": {
@@ -3008,7 +3008,7 @@
     },
     "AllowHazard1Leveling": {
       "name": "探索中の侵食1レベリングを許可",
-      "help": "有効にすると、OpsiExplore が 0/44/24 以外の海域に到達した後、OpsiHazard1Leveling を遅延しません。OpsiScheduling は OpsiExplore 中も遅延されます。"
+      "help": "有効にすると、侵食1レベリング任務を延期しなくなります。行動力が足りなくなってエリア開拓ができなくなる恐れがあるため、慎重に使用してください。"
     },
     "ExploreProgress": {
       "name": "月間開拓進捗",
@@ -3148,10 +3148,6 @@
     "ActionPointPreserve": {
       "name": "行動力をXポイント保留",
       "help": "行動力がX以下になると停止し、行動力ボックスを自動で開きます。\nこの値はセイレーン作戦リセット3日前に自動的に200ポイントに減ります。侵食1レベリングが有効な場合は1000ポイントに変更され、最終日には自動的に0ポイントに減ります。"
-    },
-    "SmartNaturalAPCleanup": {
-      "name": "スマートスケジュール自然行動力消化",
-      "help": "スマートスケジュールが自然回復した行動力を消化するために短猫を起動するときに使う一時的な非表示フラグ。"
     },
     "HazardLevel": {
       "name": "侵食レベル",

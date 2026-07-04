@@ -289,7 +289,6 @@ YukikazeTaskManager:
       > Minigame > Awaken
       > OpsiAshBeacon
       > OpsiDaily > OpsiShop > OpsiVoucher > EventShop
-      > OpsiScheduling
       > OpsiAbyssal > OpsiStronghold > OpsiObscure > OpsiArchive
       > Daily > Hard > OpsiAshBeacon > OpsiAshAssist > OpsiMonthBoss
       > Sos > EventSp > EventA > EventB > EventC > EventD
@@ -298,6 +297,7 @@ YukikazeTaskManager:
       > IslandFarm > IslandRancher > IslandMineForest > IslandDailyGather > IslandManufacture
       > IslandAirDrop > IslandBusiness > IslandDailyOrder > IslandDailyInteract > IslandPearlSell > IslandCargoPreparation
       > Event > Event2 > Event3 > Raid > Hospital > HospitalEvent > Coalition > RaidScuttle > Main > Main2 > Main3
+      > OpsiScheduling
       > OpsiMeowfficerFarming
       > GemsFarming
       > Ambush11
@@ -1042,10 +1042,6 @@ OpsiMonthBoss:
   ForceRun: false
 OpsiMeowfficerFarming:
   ActionPointPreserve: 1000
-  SmartNaturalAPCleanup:
-    type: stored
-    value: false
-    display: hide
   HazardLevel:
     value: 5
     option: [ 2, 3, 4, 5, 6, 10 ]

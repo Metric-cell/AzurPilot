@@ -17,8 +17,8 @@ from module.os_handler.assets import MISSION_ENTER, MISSION_CHECK, MISSION_QUIT
 
 class OpsiHazard1Leveling(CoinTaskMixin, OSMap):
     def _cl1_resource_check(self, yellow_coins):
-        """非智能调度模式下的侵蚀 1 资源保护检查。"""
-        if self.is_smart_scheduling_enabled():
+        """侵蚀 1 独立运行时的资源保护检查。"""
+        if self.is_running_smart_scheduling_task():
             return
 
         cl1_preserve = self.config.OpsiHazard1Leveling_OperationCoinsPreserve
@@ -118,8 +118,6 @@ class OpsiHazard1Leveling(CoinTaskMixin, OSMap):
 
     def os_hazard1_leveling(self):
         """侵蚀 1 练级任务入口。"""
-        if self.trigger_smart_scheduling('侵蚀 1 练级入口仅作为触发器'):
-            return
         self.run_hazard1_leveling()
 
     def run_hazard1_leveling(self):
@@ -164,15 +162,12 @@ class OpsiHazard1Leveling(CoinTaskMixin, OSMap):
             raise
 
         # 侵蚀 1 练级时，行动力优先用于此任务，而非短猫。
-        keep_current_ap = True
-        if self.config.OpsiGeneral_BuyActionPointLimit > 0:
-            keep_current_ap = False
         self.action_point_set(
-            cost=120, keep_current_ap=keep_current_ap, check_rest_ap=True
+            cost=120, keep_current_ap=True, check_rest_ap=True
         )
 
         yellow_coins = self.get_yellow_coins()
-        if not self.is_smart_scheduling_enabled():
+        if not self.is_running_smart_scheduling_task():
             self._cl1_resource_check(yellow_coins)
             self.check_and_notify_action_point_threshold()
             self._cl1_ap_check()

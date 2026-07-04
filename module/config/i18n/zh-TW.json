@@ -1856,12 +1856,12 @@
       "help": "1200油委託現在已經過時，收益很低，建議關閉"
     },
     "CommissionNotifyReward": {
-      "name": "委託成功獲取鑽石推送",
-      "help": "注意，請啟用並設定「錯誤推送設定」，否則此功能將不會生效。"
+      "name": "Commission.CommissionNotifyReward.name",
+      "help": "Commission.CommissionNotifyReward.help"
     },
     "CommissionNotifyRewardStatistics": {
-      "name": "鑽石推送詳情",
-      "help": "開啟後，AzurPilot在推送本次委託獲取鑽石數量的同時推送當日/本週/本月的鑽石獲取數量"
+      "name": "Commission.CommissionNotifyRewardStatistics.name",
+      "help": "Commission.CommissionNotifyRewardStatistics.help"
     }
   },
   "Tactical": {
@@ -3008,7 +3008,7 @@
     },
     "AllowHazard1Leveling": {
       "name": "允許開荒期間執行侵蝕1練級",
-      "help": "啟用後，OpsiExplore 進入非 0/44/24 區域後不再延遲 OpsiHazard1Leveling；OpsiScheduling 在 OpsiExplore 期間仍會被延遲。"
+      "help": "開啟後將不會推遲侵蝕1練級任務，慎用，沒體力開荒就老實了。"
     },
     "ExploreProgress": {
       "name": "每月開荒進度",
@@ -3148,10 +3148,6 @@
     "ActionPointPreserve": {
       "name": "保留 X 點行動力",
       "help": "行動力低於 X 後停止，自動開啟行動力箱子，X 包含箱子中的行動力，建議保留3000行動力給侵蝕1練級\n這個值將在大世界重置前3天自動減少至200點，如果啟用侵蝕1練級則改為1000點，並在最後一天自動減少至0點"
-    },
-    "SmartNaturalAPCleanup": {
-      "name": "智慧排程自然行動力清理",
-      "help": "智慧排程啟動短貓清理自然恢復行動力時使用的一次性隱藏標記。"
     },
     "HazardLevel": {
       "name": "侵蝕等級",
