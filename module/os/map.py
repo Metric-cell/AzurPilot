@@ -998,7 +998,7 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
                     self.interrupt_auto_search()
                 elif (
                     strategic
-                    and not getattr(self, 'is_running_smart_scheduling_task', lambda: False)()
+                    and not getattr(self.config, '_disable_task_switch', False)
                     and self.config.task_switched()
                 ):
                     if self.config.task.command == "OpsiMeowfficerFarming":
