@@ -510,9 +510,11 @@ class OpsiScheduling(CoinTaskMixin, OSMap):
         previous_context = getattr(self, '_smart_scheduling_context', None)
         previous_config_context = getattr(self.config, '_smart_scheduling_context', None)
         previous_disable_task_switch = getattr(self.config, '_disable_task_switch', False)
+        previous_task_switch_owner = getattr(self.config, '_task_switch_owner', None)
         self._smart_scheduling_context = True
         self.config._smart_scheduling_context = True
         self.config._disable_task_switch = True
+        self.config._task_switch_owner = previous_task
         self.config.task = self._make_opsi_task_function(task_name)
         self.config._bind_task_override = task_name
         self.config.bind(task_name)
@@ -533,6 +535,11 @@ class OpsiScheduling(CoinTaskMixin, OSMap):
             else:
                 self.config._smart_scheduling_context = previous_config_context
             self.config._disable_task_switch = previous_disable_task_switch
+            if previous_task_switch_owner is None:
+                if hasattr(self.config, '_task_switch_owner'):
+                    delattr(self.config, '_task_switch_owner')
+            else:
+                self.config._task_switch_owner = previous_task_switch_owner
 
             if previous_bind is None:
                 if hasattr(self.config, '_bind_task_override'):
