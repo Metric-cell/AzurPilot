@@ -994,17 +994,14 @@ class OSMap(OSFleet, Map, GlobeCamera, StorageHandler, StrategicSearchHandler):
             if self.combat_appear():
                 self.on_auto_search_battle_count_add()
                 stop_event = self.config.stop_event
-                smart_scheduling = getattr(self, 'is_running_smart_scheduling_task', lambda: False)()
-                if (strategic or smart_scheduling) and stop_event is not None and stop_event.is_set():
+                if strategic and stop_event is not None and stop_event.is_set():
                     self.interrupt_auto_search()
                 elif (
-                    (strategic or smart_scheduling)
+                    strategic
+                    and not getattr(self, 'is_running_smart_scheduling_task', lambda: False)()
                     and self.config.task_switched()
                 ):
-                    if (
-                        self.config.task.command == "OpsiMeowfficerFarming"
-                        and not smart_scheduling
-                    ):
+                    if self.config.task.command == "OpsiMeowfficerFarming":
                         logger.info("Short meow search is running, delay task switch until search finished")
                     else:
                         self.interrupt_auto_search()
