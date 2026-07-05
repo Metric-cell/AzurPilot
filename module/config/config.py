@@ -649,7 +649,7 @@ class AzurLaneConfig(ConfigUpdater, ManualConfig, GeneratedConfig, ConfigWatcher
         if self.stop_event is not None:
             if self.stop_event.is_set():
                 return True
-        prev = self.task
+        prev = getattr(self, '_task_switch_owner', self.task)
         self.load()
         new = self.get_next()
         if prev == new:
