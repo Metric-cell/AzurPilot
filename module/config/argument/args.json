@@ -12085,6 +12085,14 @@
         "type": "textarea",
         "value": "provider: null",
         "mode": "yaml"
+      },
+      "AutoSearchTimeLimit": {
+        "type": "input",
+        "value": 5,
+        "validate": [
+          1,
+          240
+        ]
       }
     },
     "Storage": {
