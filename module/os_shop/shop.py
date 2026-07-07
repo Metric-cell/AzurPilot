@@ -248,6 +248,9 @@ class OSShop(PortShop, AkashiShop):
             limit = 10
 
         self.interval_clear(AMOUNT_MAX)
+        # amount_max_stall: 记录AMOUNT_MAX点击后数量未变化的次数，防止按钮无效时死循环
+        amount_max_stall = 0
+        amount_max_stall_limit = 5
         while set_to_max:
             if skip_first_screenshot:
                 skip_first_screenshot = False
@@ -257,14 +260,21 @@ class OSShop(PortShop, AkashiShop):
             if self.appear_then_click(AMOUNT_MAX, offset=(50, 50), interval=3):
                 continue
 
-            if OCR_SHOP_AMOUNT.ocr(self.device.image) > 1:
+            current_amount = OCR_SHOP_AMOUNT.ocr(self.device.image)
+            if current_amount > 1:
                 break
 
-        # 仅在已点击AMOUNT_MAX时，才能读取游戏端实际允许的最大数量
-        # set_to_max=False时未点击AMOUNT_MAX，界面数量仍为1，不能作为上限依据
+            # AMOUNT_MAX点击后数量仍为1，说明按钮可能被游戏禁用（如商品只能逐个购买）
+            amount_max_stall += 1
+            if amount_max_stall >= amount_max_stall_limit:
+                logger.info(f'AMOUNT_MAX clicked {amount_max_stall} times but amount still {current_amount}, '
+                            f'skipping to AMOUNT_PLUS')
+                break
+
+        # 仅在已点击AMOUNT_MAX且数量成功增加时，才能读取游戏端实际允许的最大数量
         if set_to_max:
             game_max = OCR_SHOP_AMOUNT.ocr(self.device.image)
-            if game_max > 0 and limit > game_max:
+            if game_max > 1 and limit > game_max:
                 logger.info(f'Calculated limit {limit} exceeds game max {game_max}, using game max')
                 limit = game_max
 
