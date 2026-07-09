@@ -1686,20 +1686,6 @@
       "help": "Used to filter eligible white-rarity vanguard ships. Default is 125."
     }
   },
-  "EquipmentCode": {
-    "_info": {
-      "name": "Equipment code",
-      "help": ""
-    },
-    "ExportToConfig": {
-      "name": "Export to config",
-      "help": "Existing fields will not be updated. Delete the corresponding field in the config to trigger an update."
-    },
-    "Config": {
-      "name": "Config",
-      "help": "YAML format."
-    }
-  },
   "EventGeneral": {
     "_info": {
       "name": "Event General Settings",

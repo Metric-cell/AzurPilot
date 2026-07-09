@@ -1686,20 +1686,6 @@
       "help": "筛选白皮前排最高等级，默认125喵。"
     }
   },
-  "EquipmentCode": {
-    "_info": {
-      "name": "装备码 つ ~",
-      "help": ""
-    },
-    "ExportToConfig": {
-      "name": "导出配置",
-      "help": "原字段已有值时不会更新，删除配置中对应字段后才会重新导出喵。"
-    },
-    "Config": {
-      "name": "具体配置",
-      "help": "格式为 yaml 喵。"
-    }
-  },
   "EventGeneral": {
     "_info": {
       "name": "活动通用选项板",

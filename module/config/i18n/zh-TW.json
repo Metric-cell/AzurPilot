@@ -1686,20 +1686,6 @@
       "help": "用於篩選符合條件的白皮前排，預設為125。"
     }
   },
-  "EquipmentCode": {
-    "_info": {
-      "name": "裝備碼",
-      "help": ""
-    },
-    "ExportToConfig": {
-      "name": "匯出配置",
-      "help": "若原本對應欄位有值則不會更新，請透過刪除配置中對應欄位來觸發更新"
-    },
-    "Config": {
-      "name": "具體配置",
-      "help": "格式為 yaml"
-    }
-  },
   "EventGeneral": {
     "_info": {
       "name": "活動通用設定",

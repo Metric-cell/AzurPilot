@@ -290,10 +290,6 @@ class GeneratedConfig:
     GemsFarming_VanguardLevelMin = 1
     GemsFarming_VanguardLevelMax = 125
 
-    # 配置组 `EquipmentCode`
-    EquipmentCode_ExportToConfig = True
-    EquipmentCode_Config = None
-
     # 配置组 `EventGeneral`
     EventGeneral_PtLimit = 0
     EventGeneral_TimeLimit = datetime.datetime(2020, 1, 1, 0, 0)
