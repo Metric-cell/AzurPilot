@@ -194,37 +194,68 @@ class EquipmentCodeHandler(StorageHandler):
             logger.warning("FastInputIME not enabled, trying to enable it")
             self.fastinput_ime_enable()
 
+    @staticmethod
+    def _adb_input_text_escape(text):
+        text = str(text).replace('%', '%s')
+        for char in ['\\', '"', "'", '`', '$', '&', '|', '<', '>', ';', '(', ')', '*']:
+            text = text.replace(char, f'\\{char}')
+        return text
+
+    def _code_input_adb(self, code):
+        try:
+            text = self._adb_input_text_escape(code)
+            clear_keys = ' '.join(['KEYCODE_DEL'] * (len(code) + 10))
+            self.device.adb_shell(f'input keyevent KEYCODE_MOVE_END {clear_keys}', timeout=5)
+            self.device.adb_shell(f'input text {text}', timeout=5)
+            self.device.adb_shell('input keyevent KEYCODE_ENTER', timeout=1)
+            logger.info("通过 ADB 输入装备码")
+            return True
+        except (EmulatorNotRunningError, RequestHumanTakeover):
+            raise
+        except Exception as e:
+            logger.warning(f"通过 ADB 输入装备码失败: {e}")
+            return False
+
+    def _code_input_uiautomator2(self, code):
+        try:
+            d = self.device.u2
+            d.send_keys(text=code, clear=True)
+            d.send_action(code="done")
+            logger.info("通过 uiautomator2 输入装备码")
+            return True
+        except Exception as e:
+            logger.warning(f"通过 uiautomator2 输入装备码失败: {e}")
+            return False
+
     def _code_input(self, code):
         logger.info(f"Code input: {code}")
-        d = self.device.u2
-        click_timer = Timer(1, count=3)
-        for _ in self.loop():
-            name, shown = d.current_ime()
-            if shown:
-                if name != 'com.github.uiautomator/.FastInputIME':
-                    self.set_fastinput_ime()
-                    continue
-                else:
+        for _ in range(2):
+            click_timer = Timer(1, count=3)
+            textbox_clicked = False
+            for _ in self.loop(timeout=5):
+                if textbox_clicked and self._code_input_adb(code):
                     break
-            if click_timer.reached_and_reset():
-                self.device.click(EQUIPMENT_CODE_TEXTBOX)
-        else:
-            logger.warning("Equipment code load failed")
-            return False
-        d.send_keys(text=code, clear=True)
-        d.send_action(code="done")
-        self.device.sleep((0.3, 0.5))
-        for _ in self.loop(timeout=10, skip_first=False):
-            _, shown = d.current_ime()
-            if shown:
+                if click_timer.reached_and_reset():
+                    self.device.click(EQUIPMENT_CODE_TEXTBOX)
+                    textbox_clicked = True
+            else:
                 continue
-            if self.is_code_preview_loaded():
-                return True
-            if self.appear_then_click(EQUIPMENT_CODE_ENTER, offset=(5, 5), interval=3):
-                continue
-        else:
-            logger.warning("Equipment code load failed")
-            return False
+
+            for _ in self.loop(timeout=10, skip_first=False):
+                if self.is_code_preview_loaded():
+                    return True
+                if self.appear_then_click(EQUIPMENT_CODE_ENTER, offset=(5, 5), interval=3):
+                    continue
+
+        if self._code_input_uiautomator2(code):
+            for _ in self.loop(timeout=10, skip_first=False):
+                if self.is_code_preview_loaded():
+                    return True
+                if self.appear_then_click(EQUIPMENT_CODE_ENTER, offset=(5, 5), interval=3):
+                    continue
+
+        logger.warning("Equipment code load failed")
+        return False
 
     def _code_confirm(self):
         logger.info("Code apply")
