@@ -8,6 +8,7 @@ import queue
 import requests
 import secrets
 import string
+import subprocess
 import threading
 import time
 import re
@@ -2954,7 +2955,7 @@ class AlasGUI(Frame):
         )
 
     def _alas_start(self):
-        self.alas.start(None, updater.event)
+        self.alas.start(None, State.restart_event)
 
     def _simulator_start(self):
         if is_demo_mode():
@@ -3139,8 +3140,14 @@ class AlasGUI(Frame):
                     ),
                 )
             # version
-            local_commit = updater.get_commit(short_sha1=True)
-            version = local_commit[0] if local_commit and local_commit[0] else "Unknown"
+            try:
+                version = subprocess.check_output(
+                    ["git", "rev-parse", "--short", "HEAD"],
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                ).strip()
+            except Exception:
+                version = "Unknown"
             device_id = DEMO_DEVICE_ID_TEXT if is_demo_mode() else get_device_id()
             put_scope("log-container", [put_scope("log", [put_html("")])]).style(
                 f"--device-id: '{device_id}'; --version: 'Ver.{version}';"
@@ -4860,37 +4867,9 @@ class AlasGUI(Frame):
             name="state",
         )
 
-        def goto_update():
-            self.ui_develop()
-            self.dev_update()
-            self._close_update_notice()
-
-        def show_update_toast():
-            if self._update_notified:
-                return
-            self._update_notified = True
-
-            from module.notify.notify import notify_webui
-
-            notify_webui(
-                instance="Alas",
-                title=t("Gui.Toast.ClickToUpdate"),
-                content="检测到了新更新喵~ 指挥官快来更新喵~",
-                updata=True,
-            )
-
-            self._show_update_notice(goto_update)
-
-        update_switch = Switch(
-            status={1: show_update_toast},
-            get_state=lambda: updater.state,
-            name="update_state",
-        )
-
         self.task_handler.add(self.state_switch.g(), 2)
         self.task_handler.add(self.set_aside_status, 2)
         self.task_handler.add(visibility_state_switch.g(), 15)
-        self.task_handler.add(update_switch.g(), 1)
 
         # 公告检查功能（非阻塞）
         def announcement_checker():
@@ -5090,11 +5069,6 @@ def debug():
 def startup():
     State.init()
     lang.reload()
-    updater.event = State.manager.Event()
-    if State.deploy_config.AutoUpdate:
-        if updater.delay > 0:
-            task_handler.add(updater.check_update, updater.delay)
-        task_handler.add(updater.schedule_update(), 86400)
     task_handler.start()
     if State.deploy_config.StartOcrServer and not is_demo_mode():
         start_ocr_server_process(State.deploy_config.OcrServerPort)
