@@ -5096,8 +5096,6 @@ def startup():
             task_handler.add(updater.check_update, updater.delay)
         task_handler.add(updater.schedule_update(), 86400)
     task_handler.start()
-    if State.deploy_config.DiscordRichPresence:
-        init_discord_rpc()
     if State.deploy_config.StartOcrServer and not is_demo_mode():
         start_ocr_server_process(State.deploy_config.OcrServerPort)
 

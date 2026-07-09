@@ -73,7 +73,6 @@ DEPLOY_GROUPS: tuple[tuple[str, tuple[DeployField, ...]], ...] = (
             DeployField("AutoRestartTime", "nullable_string"),
         ),
     ),
-    ("Misc", (DeployField("DiscordRichPresence", "bool"),)),
     (
         "RemoteAccess",
         (

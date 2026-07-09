@@ -248,7 +248,6 @@ dependencies = [
     { name = "pycryptodome" },
     { name = "pydantic" },
     { name = "pygments" },
-    { name = "pypresence" },
     { name = "pywebio" },
     { name = "pyyaml" },
     { name = "pyzmq" },
@@ -306,7 +305,6 @@ requires-dist = [
     { name = "pycryptodome", specifier = "==3.23.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
     { name = "pygments", specifier = "==2.20.0" },
-    { name = "pypresence", specifier = "==4.2.1" },
     { name = "pywebio", specifier = "==1.7.1" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "pyzmq", specifier = "==27.1.0" },
@@ -1801,15 +1799,6 @@ source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
 sdist = { url = "https://mirrors.aliyun.com/pypi/packages/f3/91/9c6ee907786a473bf81c5f53cf703ba0957b23ab84c264080fb5a450416f/pyparsing-3.3.2.tar.gz", hash = "sha256:c777f4d763f140633dcb6d8a3eda953bf7a214dc4eff598413c070bcdc117cbc" }
 wheels = [
     { url = "https://mirrors.aliyun.com/pypi/packages/10/bd/c038d7cc38edc1aa5bf91ab8068b63d4308c66c4c8bb3cbba7dfbc049f9c/pyparsing-3.3.2-py3-none-any.whl", hash = "sha256:850ba148bd908d7e2411587e247a1e4f0327839c40e2e5e6d05a007ecc69911d" },
-]
-
-[[package]]
-name = "pypresence"
-version = "4.2.1"
-source = { registry = "https://mirrors.aliyun.com/pypi/simple/" }
-sdist = { url = "https://mirrors.aliyun.com/pypi/packages/58/df/be2dbd7ed2262791536278295d3c4e56d5c17d4291666f35fd6190a7f2ab/pypresence-4.2.1.tar.gz", hash = "sha256:691daf98c8189fd216d988ebfc67779e0f664211512d9843f37ab0d51d4de066" }
-wheels = [
-    { url = "https://mirrors.aliyun.com/pypi/packages/c4/bf/8f56ebae9775a922774293f05235323b0c359dda5f07d6e81b726d6269b2/pypresence-4.2.1-py2.py3-none-any.whl", hash = "sha256:12197b5f51c21e3e555b17f85d3e55023f4ad83b6fff72cd6387659ffd484a02" },
 ]
 
 [[package]]
