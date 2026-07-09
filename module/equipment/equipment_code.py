@@ -1,3 +1,5 @@
+import re
+
 import yaml
 
 from module.base.timer import Timer
@@ -10,6 +12,7 @@ from module.storage.assets import EQUIPMENT_FULL
 from module.storage.storage import StorageHandler
 
 EMPTY_CODE = "MC8wLzAvMC8wXDA="
+EQUIPMENT_CODE_PATTERN = re.compile(r'[A-Za-z0-9+/=]{%d,}' % len(EMPTY_CODE))
 U2_CONTROL_METHODS = {'uiautomator2', 'minitouch', 'MaaTouch'}
 EQUIPMENT_PREVIEW = list([
     EQUIPMENT_CODE_EQUIP_0,
@@ -32,14 +35,14 @@ class EquipmentCodeHandler(StorageHandler):
     def equipment_code_export_to_config(self):
         if self.equipment_code_config_key:
             return True
-        return self.config.EquipmentCode_ExportToConfig
+        return getattr(self.config, 'EquipmentCode_ExportToConfig', False)
 
     def _code_config_load(self):
         key = self.equipment_code_config_key
         if key:
             raw = self.config.cross_get(keys=key)
         else:
-            raw = self.config.EquipmentCode_Config
+            raw = getattr(self.config, 'EquipmentCode_Config', '')
 
         config = {}
         try:
@@ -55,8 +58,10 @@ class EquipmentCodeHandler(StorageHandler):
         key = self.equipment_code_config_key
         if key:
             self.config.cross_set(keys=key, value=value)
-        else:
+        elif hasattr(self.config, 'EquipmentCode_Config'):
             self.config.EquipmentCode_Config = value
+        else:
+            logger.warning("No equipment code config target, skip saving")
 
     def equipment_code_supported(self):
         method = self.config.Emulator_ControlMethod
@@ -252,13 +257,21 @@ class EquipmentCodeHandler(StorageHandler):
             return False
 
     @staticmethod
-    def _code_from_clipboard_output(output):
-        if output is None:
-            return None
-        if isinstance(output, bytes):
-            output = output.decode('utf-8', errors='ignore')
+    def _is_equipment_code(code):
+        code = code.strip().strip('\'"')
+        if len(code) < len(EMPTY_CODE):
+            return False
+        if len(code) % 4 != 0:
+            return False
+        if not EQUIPMENT_CODE_PATTERN.fullmatch(code):
+            return False
+        if '=' in code.rstrip('='):
+            return False
+        return True
 
-        for line in reversed(str(output).splitlines()):
+    @staticmethod
+    def _code_from_text(text):
+        for line in reversed(str(text).splitlines()):
             line = line.strip().strip('\'"')
             if not line:
                 continue
@@ -267,6 +280,7 @@ class EquipmentCodeHandler(StorageHandler):
             if any(text in lowered for text in [
                 'not found',
                 'unknown command',
+                'no shell command implementation',
                 'no primary clip',
                 'exception',
                 'error:',
@@ -282,16 +296,68 @@ class EquipmentCodeHandler(StorageHandler):
             if line.startswith('ClipData') and ':' in line:
                 line = line.rsplit(':', 1)[1].strip().strip('\'"')
 
-            # 装备码是无空白的短文本；过滤掉 shell 命令说明等非剪贴板内容。
-            if len(line) >= len(EMPTY_CODE) and not any(char.isspace() for char in line):
+            if EquipmentCodeHandler._is_equipment_code(line):
                 return line
 
+            for match in EQUIPMENT_CODE_PATTERN.finditer(line):
+                code = match.group(0).strip('=')
+                padding = '=' * (-len(code) % 4)
+                code = code + padding
+                if EquipmentCodeHandler._is_equipment_code(code):
+                    return code
+
         return None
+
+    @staticmethod
+    def _parcel_bytes(output):
+        data = bytearray()
+        for raw in str(output).splitlines():
+            line = raw.strip()
+            if line.startswith('0x') and ':' in line:
+                line = line.split(':', 1)[1]
+            elif 'Parcel(' in line:
+                line = line.split('Parcel(', 1)[1]
+            else:
+                continue
+            line = line.split("'", 1)[0]
+            for word in re.findall(r'\b[0-9a-fA-F]{8}\b', line):
+                data.extend(int(word, 16).to_bytes(4, 'little'))
+        return bytes(data)
+
+    @staticmethod
+    def _code_from_parcel_output(output):
+        data = EquipmentCodeHandler._parcel_bytes(output)
+        if not data:
+            return None
+
+        for text in [
+            data.decode('utf-8', errors='ignore'),
+            data.decode('utf-16le', errors='ignore'),
+        ]:
+            code = EquipmentCodeHandler._code_from_text(text.replace('\x00', '\n'))
+            if code is not None:
+                return code
+
+        return None
+
+    @staticmethod
+    def _code_from_clipboard_output(output):
+        if output is None:
+            return None
+        if isinstance(output, bytes):
+            output = output.decode('utf-8', errors='ignore')
+
+        code = EquipmentCodeHandler._code_from_parcel_output(output)
+        if code is not None:
+            return code
+
+        return EquipmentCodeHandler._code_from_text(output)
 
     def _clipboard_adb(self):
         for command in [
             ['cmd', 'clipboard', 'get'],
             ['cmd', 'clipboard', 'get-primary-clip'],
+            ['service', 'call', 'clipboard', '4', 's16', 'com.android.shell', 's16', '', 'i32', '0', 'i32', '0'],
         ]:
             try:
                 output = self.device.adb_shell(command, timeout=3)
