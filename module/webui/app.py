@@ -358,83 +358,6 @@ class AlasGUI(Frame):
         self._overview_log = None
         self._overview_log_config_name = None
 
-    def _close_update_notice(self) -> None:
-        run_js(
-            r"""
-            (function () {
-                var el = document.getElementById('alas-update-notice');
-                if (!el) return;
-                el.classList.add('is-leaving');
-                setTimeout(function () {
-                    if (el && el.parentNode) {
-                        el.parentNode.removeChild(el);
-                    }
-                }, 180);
-            })();
-            """
-        )
-
-    def _remove_update_notice(self) -> None:
-        run_js(
-            r"""
-            (function () {
-                var el = document.getElementById('alas-update-notice');
-                if (el && el.parentNode) {
-                    el.parentNode.removeChild(el);
-                }
-            })();
-            """
-        )
-
-    def _show_update_notice(self, onclick) -> None:
-        self._remove_update_notice()
-        scope = f"update_notice_{int(time.time() * 1000)}"
-
-        def handle_later():
-            self._close_update_notice()
-
-        with use_scope("ROOT"):
-            put_html(
-                f"""
-                <div id="alas-update-notice" class="alas-update-notice" role="status" aria-live="polite">
-                    <div class="alas-update-notice__halo"></div>
-                    <div class="alas-update-notice__icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <path d="M7 10l5 5 5-5"></path>
-                            <path d="M12 15V3"></path>
-                        </svg>
-                    </div>
-                    <div class="alas-update-notice__body">
-                        <div class="alas-update-notice__eyebrow">发现新版本</div>
-                        <div class="alas-update-notice__title">有可用更新！</div>
-                        <div class="alas-update-notice__text">
-                            建议及时更新，以获得更稳定的脚本运行体验。
-                        </div>
-                        <div id="pywebio-scope-{scope}" class="alas-update-notice__actions"></div>
-                    </div>
-                </div>
-                """
-            )
-            put_buttons(
-                [
-                    {
-                        "label": "立即更新",
-                        "value": "update",
-                        "color": "danger",
-                    },
-                    {
-                        "label": "稍后再说",
-                        "value": "later",
-                        "color": "secondary",
-                    },
-                ],
-                onclick=[onclick, handle_later],
-                small=True,
-                scope=scope,
-            )
-
     @use_scope("aside", clear=True)
     def set_aside(self) -> None:
         # TODO: 更新 put_icon_buttons()
@@ -3665,22 +3588,10 @@ class AlasGUI(Frame):
         # ).style(f"--menu-Translate--")
 
         put_button(
-            label=t("Gui.MenuDevelop.Remote"),
-            onclick=self.dev_remote,
-            color="menu",
-        ).style(f"--menu-Remote--")
-
-        put_button(
             label=t("Gui.MenuDevelop.Setting"),
             onclick=self.dev_setting,
             color="menu",
         ).style(f"--menu-Setting--")
-
-        put_button(
-            label=t("Gui.MenuDevelop.Announcement"),
-            onclick=lambda: self.ui_check_announcement(force=True),
-            color="menu",
-        ).style(f"--menu-Announcement--")
 
         put_button(
             label=t("Gui.MenuDevelop.Utils"),
@@ -4221,7 +4132,6 @@ class AlasGUI(Frame):
         self.init_menu(name="Utils")
         self.set_title(t("Gui.MenuDevelop.Utils"))
         put_button(label=t("GUI测试 抛出异常事件"), onclick=raise_exception)
-        put_button(label=t("预览更新提示"), onclick=self._preview_update_notice)
 
         def _get_debug_target_instance() -> Optional[str]:
             if getattr(self, "alas_name", ""):
@@ -4352,87 +4262,7 @@ class AlasGUI(Frame):
     def dev_remote(self) -> None:
         self.init_menu(name="Remote")
         self.set_title(t("Gui.MenuDevelop.Remote"))
-        put_row(
-            content=[put_scope("remote_loading"), None, put_scope("remote_state")],
-            size="auto .25rem 1fr",
-        )
-        put_scope("remote_info")
-
-        def u(state):
-            if state == -1:
-                return
-            status_map = {
-                "direct_p2p": t("Gui.Remote.StatusDirect"),
-                "turn_relay": t("Gui.Remote.StatusTurn"),
-                "ssh_forward": t("Gui.Remote.StatusSsh"),
-                "waiting_peer": t("Gui.Remote.StatusSignaling"),
-                "signaling": t("Gui.Remote.StatusSignaling"),
-                "starting": t("Gui.Remote.StatusStarting"),
-                "dependency_missing": t("Gui.Remote.StatusSsh"),
-                "failed": t("Gui.Remote.StatusFailed"),
-            }
-            clear("remote_loading")
-            clear("remote_state")
-            clear("remote_info")
-            if state in (1, 2):
-                put_loading("grow", "success", "remote_loading").style(
-                    "--loading-grow--"
-                )
-                remote_status = RemoteAccess.get_connection_state()
-                put_text(
-                    f"{t('Gui.Remote.Running')} · {status_map.get(remote_status, remote_status)}",
-                    scope="remote_state",
-                )
-                put_text(t("Gui.Remote.EntryPoint"), scope="remote_info")
-                entrypoint = RemoteAccess.get_entry_point()
-                if entrypoint:
-                    if State.electron:  # Prevent click into url in electron client
-                        put_text(entrypoint, scope="remote_info").style(
-                            "text-decoration-line: underline"
-                        )
-                    else:
-                        put_link(name=entrypoint, url=entrypoint, scope="remote_info")
-                else:
-                    put_text("Loading...", scope="remote_info")
-                remote_error = RemoteAccess.get_error()
-                if remote_error and remote_status in ("dependency_missing", "failed"):
-                    put_warning(remote_error, closable=False, scope="remote_info")
-            elif state in (0, 3, 4):
-                put_loading("border", "secondary", "remote_loading").style(
-                    "--loading-border-fill--"
-                )
-                if State.deploy_config.EnableRemoteAccess and (
-                    State.deploy_config.Password or os.environ.get("DEMO") == "1"
-                ):
-                    put_text(t("Gui.Remote.NotRunning"), scope="remote_state")
-                else:
-                    put_text(t("Gui.Remote.NotEnable"), scope="remote_state")
-                put_text(t("Gui.Remote.ConfigureHint"), scope="remote_info")
-                url = "http://app.azurlane.cloud" + (
-                    "" if State.deploy_config.Language.startswith("zh") else "/en.html"
-                )
-                put_html(
-                    f'<a href="{url}" target="_blank">{url}</a>', scope="remote_info"
-                )
-                if state == 3:
-                    put_warning(
-                        t("Gui.Remote.SSHNotInstall"),
-                        closable=False,
-                        scope="remote_info",
-                    )
-
-        remote_switch = Switch(
-            status=u, get_state=RemoteAccess.get_state, name="remote"
-        )
-
-        self.task_handler.add(remote_switch.g(), delay=1, pending_delete=True)
-
-    def _preview_update_notice(self) -> None:
-        def handle_preview_click():
-            self._close_update_notice()
-            toast("success", color="success")
-
-        self._show_update_notice(handle_preview_click)
+        put_text("远程访问功能已移除")
 
     def ui_develop(self) -> None:
         if not self.is_mobile:
@@ -4870,34 +4700,6 @@ class AlasGUI(Frame):
         self.task_handler.add(self.state_switch.g(), 2)
         self.task_handler.add(self.set_aside_status, 2)
         self.task_handler.add(visibility_state_switch.g(), 15)
-
-        # 公告检查功能（非阻塞）
-        def announcement_checker():
-            from module.base.api_client import ApiClient
-
-            logger.info("[WebUI] 公告检查任务启动")
-            th = yield  # 获取任务处理器引用
-            # 首次检查：触发异步获取
-            self._start_announcement_fetch(force=False)
-            next_periodic_check = time.time() + ApiClient.ANNOUNCEMENT_CHECK_INTERVAL
-            th._task.delay = 0.1  # 始终保持短间隔轮询
-            yield
-            while True:
-                # 处理已有结果（来自定期检查或手动点击）
-                self._process_announcement_result()
-                # 定期触发新的异步获取
-                if (
-                    not self._announcement_fetching
-                    and time.time() >= next_periodic_check
-                ):
-                    self._start_announcement_fetch(force=False)
-                    next_periodic_check = (
-                        time.time() + ApiClient.ANNOUNCEMENT_CHECK_INTERVAL
-                    )
-                yield
-
-        # 添加公告检查任务（初始延迟5秒）
-        self.task_handler.add(announcement_checker(), delay=5)
 
         # 启动任务处理器
         self.task_handler.start()

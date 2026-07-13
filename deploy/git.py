@@ -67,55 +67,6 @@ class GitManager(DeployConfig):
         logger.hr('Show Version', 1)
         self.execute(f'"{self.git}" --no-pager log --no-merges -1')
 
-    @property
-    def goc_client(self):
-        client = GitOverCdnClient(
-            url=[
-                'https://alas.nanoda.work/upd',
-                'https://1825239988.v.123pan.cn/1825239988/azur/AzurPilot_master',
-            ],
-            folder=self.root_filepath,
-            source='origin',
-            branch='master',
-            git=self.git,
-        )
-        client.logger = logger
-        return client
-
-    @staticmethod
-    def cloud_auto_update_enabled():
-        logger.info(f'Check cloud update control: {CLOUD_UPDATE_CONTROL_URL}')
-        try:
-            resp = requests.get(CLOUD_UPDATE_CONTROL_URL, timeout=5, headers={'User-Agent': 'alas AzurPilot'})
-            resp.raise_for_status()
-        except Exception as e:
-            logger.warning(f'Failed to check cloud update control: {e}')
-            return None
-
-        text = resp.text.strip()
-        try:
-            data = resp.json()
-        except ValueError:
-            data = text
-
-        if data is True or (isinstance(data, str) and data.lower() in ('true', 'ture')):
-            logger.info('Cloud update control is enabled')
-            return True
-        if data is False or (isinstance(data, str) and data.lower() in ('false', 'fales')):
-            logger.info('Cloud update control is disabled')
-            return False
-
-        logger.info(f'Cloud update control is inaccessible: {text}')
-        return None
-
-    def cloud_update_access_failed(self, fatal=True):
-        logger.hr('Cloud Update Control Failed', 0)
-        if fatal:
-            logger.warning('Failed to access cloud update control, stopping startup')
-            raise ExecutionError
-        else:
-            logger.warning('Failed to access cloud update control, skip update check')
-
     def git_install(self):
         logger.hr('Update AzurPilot', 0)
 

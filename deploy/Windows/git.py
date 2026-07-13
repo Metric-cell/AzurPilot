@@ -94,21 +94,6 @@ class GitManager(DeployConfig):
         self.execute(f'"{self.git}" --no-pager log --no-merges -1')
         Progress.GitShowVersion()
 
-    @property
-    def goc_client(self):
-        client = GitOverCdnClient(
-            url=[
-                'https://alas.nanoda.work/upd',
-                'https://1825239988.v.123pan.cn/1825239988/azur/AzurPilot_master',
-            ],
-            folder=self.root_filepath,
-            source='origin',
-            branch='master',
-            git=self.git,
-        )
-        client.logger = logger
-        return client
-
     def git_install(self):
         logger.hr('Update AzurPilot', 0)
 

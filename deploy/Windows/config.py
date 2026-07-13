@@ -40,20 +40,6 @@ class ConfigModel:
     # 更新配置
     EnableReload: bool = True
 
-    # 杂项
-    DiscordRichPresence: bool = False
-
-    # 远程访问
-    EnableRemoteAccess: bool = False
-    RemoteAccessMode: str = "auto"
-    SSHUser: Optional[str] = None
-    SSHServer: Optional[str] = None
-    SSHExecutable: Optional[str] = None
-    SignalingServer: Optional[str] = None
-    StunServers: Optional[str] = '["stun:stun.l.google.com:19302"]'
-    TurnServers: Optional[str] = None
-    TurnCredentialMode: str = "static"
-
     # WebUI 配置
     WebuiHost: str = "0.0.0.0"
     WebuiPort: int = 25548
@@ -65,9 +51,6 @@ class ConfigModel:
     Run: Optional[str] = None
     AppAsarUpdate: bool = True
     NoSandbox: bool = True
-
-    # 动态配置
-    GitOverCdn: bool = False
 
 
 class DeployConfig(ConfigModel):
@@ -118,8 +101,6 @@ class DeployConfig(ConfigModel):
 
         每次 `read()` 之后必须调用。
         """
-        # 绕过 webui.config.DeployConfig.__setattr__()，不写入 deploy.yaml
-        super().__setattr__('GitOverCdn', self.Repository in ['cn', GIT_OVER_CDN_REPOSITORY])
         if self.Repository in ['global']:
             super().__setattr__('Repository', 'https://github.com/wess09/AzurPilot')
         if self.Repository in ['cn']:
