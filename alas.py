@@ -10,7 +10,6 @@ import inflection
 from cached_property import cached_property
 
 from module.base.decorator import del_cached_property
-from module.base.api_client import ApiClient
 from module.config.config import AzurLaneConfig, TaskEnd
 from module.config.deep import deep_get, deep_set
 from module.config.time_source import now as current_time
@@ -106,9 +105,11 @@ class AzurLaneAutoScript:
                 # device 缓存不存在时，按平台回退创建新实例
                 if sys.platform == 'darwin':
                     from module.device.platform.platform_mac import PlatformMac
+
                     device = PlatformMac(self.config)
                 else:
                     from module.device.platform.platform_windows import PlatformWindows
+
                     device = PlatformWindows(self.config)
 
             logger.info('[Alas] 正在停止模拟器...')
@@ -172,6 +173,7 @@ class AzurLaneAutoScript:
     def device(self):
         try:
             from module.device.device import Device
+
             device = Device(config=self.config)
             return device
         except RequestHumanTakeover:
@@ -185,6 +187,7 @@ class AzurLaneAutoScript:
     def checker(self):
         try:
             from module.server_checker import ServerChecker
+
             checker = ServerChecker(server=self.config.Emulator_ServerName)
             return checker
         except Exception as e:
@@ -265,8 +268,8 @@ class AzurLaneAutoScript:
                 title=f" <{self.config_name}> 发出了警告喵！",
                 content=f"<{self.config_name}> 游戏未运行喵 将自动重启游戏喵~",
             )
-            self.config.task_call('Restart')
-            return 'recoverable'
+            self.config.task_call("Restart")
+            return "recoverable"
         except (GameStuckError, GameTooManyClickError) as e:
             # 游戏卡住或点击过多，尝试重启游戏；连续卡死则重启模拟器
             logger.error(e)
@@ -276,13 +279,13 @@ class AzurLaneAutoScript:
             if self.config.Error_GameStuckRestart:
                 self.consecutive_game_stuck += 1
                 limit = int(self.config.Error_GameStuckThreshold)
-                logger.warning(f'GameStuckError: {self.consecutive_game_stuck}/{limit}')
+                logger.warning(f"GameStuckError: {self.consecutive_game_stuck}/{limit}")
                 if self.consecutive_game_stuck >= limit:
                     logger.warning('[Alas] 游戏卡住次数过多，正在重启模拟器...')
                     if self._try_restart_emulator():
                         self.consecutive_game_stuck = 0
-                        self.config.task_call('Restart')
-                        return 'recoverable'
+                        self.config.task_call("Restart")
+                        return "recoverable"
 
             logger.warning(f'[Alas] 游戏卡住，{self.device.package} 将在10秒后重启')
             logger.warning('[Alas] 如果您正在手动操作，请停止 AzurPilot')
@@ -296,9 +299,9 @@ class AzurLaneAutoScript:
                 title=f"<{self.config_name}> 发出了警告喵！",
                 content=f"<{self.config_name}> 游戏卡住 将自动重启游戏喵~",
             )
-            self.config.task_call('Restart')
+            self.config.task_call("Restart")
             self.device.sleep(10)
-            return 'recoverable'
+            return "recoverable"
         except GameBugError as e:
             # 游戏客户端 bug，重启游戏修复
             logger.warning(e)
@@ -316,9 +319,9 @@ class AzurLaneAutoScript:
                 title=f"<{self.config_name}> 发出了警告喵！",
                 content=f"<{self.config_name}> 游戏客户端错误 将自动重启游戏喵~",
             )
-            self.config.task_call('Restart')
+            self.config.task_call("Restart")
             self.device.sleep(10)
-            return 'recoverable'
+            return "recoverable"
         except GamePageUnknownError:
             logger.info('[Alas] 游戏服务器可能正在维护或网络连接中断，正在检查服务器状态')
             self.checker.check_now()
@@ -371,7 +374,7 @@ class AzurLaneAutoScript:
                     title=f"{self.config_name} 出了点小问题喵~",
                     content=f"模拟器离线喵 所以重启了喵",
                 )
-                return 'recoverable'
+                return "recoverable"
             else:
                 # 重启失败或未启用自动重启，终止程序
                 logger.critical('[Alas] 模拟器都死透了你还在那看？赶紧动手去救它啊，没用的大叔！')
@@ -449,16 +452,19 @@ class AzurLaneAutoScript:
                                                    
         # LLM 错误分析放在最前面，避免后续截图保存时二次崩溃导致分析未执行
         try:
-            if hasattr(self, 'config') and getattr(self.config, 'Error_LlmAnalysis', False):
+            if hasattr(self, "config") and getattr(
+                self.config, "Error_LlmAnalysis", False
+            ):
                 from module.llm import analyze_exception
                 import sys
+
                 _, exc_value, _ = sys.exc_info()
                 if exc_value is not None:
                     analyze_exception(self.config, exc_value)
         except Exception as e:
-            logger.error(f'LLM Analysis failed: {e}')
+            logger.error(f"LLM Analysis failed: {e}")
 
-        if getattr(self.config, 'Error_SaveError', False):
+        if getattr(self.config, "Error_SaveError", False):
             config_folder = pathlib.Path(f"./log/error/{self.config_name}")
             folder = config_folder.joinpath(str(int(time.time() * 1000)))
             folder.mkdir(parents=True, exist_ok=True)
@@ -466,30 +472,34 @@ class AzurLaneAutoScript:
 
             try:
                 # 只在已经初始化了设备时才尝试保存截图，避免按需初始化时二次崩溃
-                if 'device' in self.__dict__:
+                if "device" in self.__dict__:
                     for data in self.device.screenshot_deque:
-                        image_time = datetime.strftime(data['time'], '%Y-%m-%d_%H-%M-%S-%f')
-                        image = handle_sensitive_image(data['image'])
-                        save_image(image, f'{folder}/{image_time}.png')
+                        image_time = datetime.strftime(
+                            data["time"], "%Y-%m-%d_%H-%M-%S-%f"
+                        )
+                        image = handle_sensitive_image(data["image"])
+                        save_image(image, f"{folder}/{image_time}.png")
             except Exception as e:
                 logger.error(f"Save error screenshot failed: {e}")
 
             try:
-                with open(logger.log_file, 'r', encoding='utf-8') as f:
+                with open(logger.log_file, "r", encoding="utf-8") as f:
                     lines = f.readlines()
                     start = 0
                     for index, line in enumerate(lines):
-                        line = line.strip(' \r\t\n')
-                        if re.match('^═{15,}$', line):
+                        line = line.strip(" \r\t\n")
+                        if re.match("^═{15,}$", line):
                             start = index
-                    lines = lines[start - 2:]
+                    lines = lines[start - 2 :]
                     lines = handle_sensitive_logs(lines)
-                with open(f'{folder}/log.txt', 'w', encoding='utf-8') as f:
+                with open(f"{folder}/log.txt", "w", encoding="utf-8") as f:
                     f.writelines(lines)
             except Exception as e:
                 logger.error(f"Save error logs failed: {e}")
-                
-            self.keep_last_errlog(config_folder, getattr(self.config, 'Error_SaveErrorCount', 0))
+
+            self.keep_last_errlog(
+                config_folder, getattr(self.config, "Error_SaveErrorCount", 0)
+            )
 
     def restart(self):
         from module.handler.login import LoginHandler
@@ -544,11 +554,13 @@ class AzurLaneAutoScript:
 
     def start(self):
         from module.handler.login import LoginHandler
+
         LoginHandler(self.config, device=self.device).app_start()
 
     def goto_main(self):
         from module.handler.login import LoginHandler
         from module.ui.ui import UI
+
         if self.device.app_is_running():
             logger.info('[Alas] 应用已在运行，前往主页面')
             UI(self.config, device=self.device).ui_goto_main()
@@ -559,70 +571,87 @@ class AzurLaneAutoScript:
 
     def research(self):
         from module.research.research import RewardResearch
+
         RewardResearch(config=self.config, device=self.device).run()
 
     def commission(self):
         from module.commission.commission import RewardCommission
+
         RewardCommission(config=self.config, device=self.device).run()
 
     def tactical(self):
         from module.tactical.tactical_class import RewardTacticalClass
+
         RewardTacticalClass(config=self.config, device=self.device).run()
 
     def dorm(self):
         from module.dorm.dorm import RewardDorm
+
         RewardDorm(config=self.config, device=self.device).run()
 
     def meowfficer(self):
         from module.meowfficer.meowfficer import RewardMeowfficer
+
         RewardMeowfficer(config=self.config, device=self.device).run()
 
     def guild(self):
         from module.guild.guild_reward import RewardGuild
+
         RewardGuild(config=self.config, device=self.device).run()
 
     def reward(self):
         from module.reward.reward import Reward
+
         Reward(config=self.config, device=self.device).run()
 
     def awaken(self):
         from module.awaken.awaken import Awaken
+
         Awaken(config=self.config, device=self.device).run()
 
     def shop_frequent(self):
         from module.shop.shop_reward import RewardShop
+
         RewardShop(config=self.config, device=self.device).run_frequent()
 
     def shop_once(self):
         from module.shop.shop_reward import RewardShop
+
         RewardShop(config=self.config, device=self.device).run_once()
 
     def event_shop(self):
         from module.shop_event.shop_event import EventShop
+
         EventShop(config=self.config, device=self.device).run()
 
     def shipyard(self):
         from module.shipyard.shipyard_reward import RewardShipyard
+
         RewardShipyard(config=self.config, device=self.device).run()
 
     def gacha(self):
         from module.gacha.gacha_reward import RewardGacha
+
         RewardGacha(config=self.config, device=self.device).run()
 
     def freebies(self):
         from module.freebies.freebies import Freebies
+
         Freebies(config=self.config, device=self.device).run()
 
     def minigame(self):
         from module.minigame.minigame import Minigame
+
         Minigame(config=self.config, device=self.device).run()
 
     def private_quarters(self):
         from module.private_quarters.private_quarters import PrivateQuarters
+
         PrivateQuarters(config=self.config, device=self.device).run()
 
     def island(self):
         from module.island.island import Island
+
         Island(config=self.config, device=self.device).run()
 
     def island_mine_forest(self):
@@ -695,103 +724,131 @@ class AzurLaneAutoScript:
 
     def daily(self):
         from module.daily.daily import Daily
+
         Daily(config=self.config, device=self.device).run()
 
     def hard(self):
         from module.hard.hard import CampaignHard
+
         CampaignHard(config=self.config, device=self.device).run()
 
     def exercise(self):
         from module.exercise.exercise import Exercise
+
         Exercise(config=self.config, device=self.device).run()
 
     def sos(self):
         from module.sos.sos import CampaignSos
+
         CampaignSos(config=self.config, device=self.device).run()
 
     def war_archives(self):
         from module.war_archives.war_archives import CampaignWarArchives
+
         CampaignWarArchives(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def raid_daily(self):
         from module.raid.daily import RaidDaily
+
         RaidDaily(config=self.config, device=self.device).run()
 
     def event_a(self):
         from module.event.campaign_abcd import CampaignABCD
+
         CampaignABCD(config=self.config, device=self.device).run()
 
     def event_b(self):
         from module.event.campaign_abcd import CampaignABCD
+
         CampaignABCD(config=self.config, device=self.device).run()
 
     def event_c(self):
         from module.event.campaign_abcd import CampaignABCD
+
         CampaignABCD(config=self.config, device=self.device).run()
 
     def event_d(self):
         from module.event.campaign_abcd import CampaignABCD
+
         CampaignABCD(config=self.config, device=self.device).run()
 
     def event_sp(self):
         from module.event.campaign_sp import CampaignSP
+
         CampaignSP(config=self.config, device=self.device).run()
 
     def maritime_escort(self):
         from module.event.maritime_escort import MaritimeEscort
+
         MaritimeEscort(config=self.config, device=self.device).run()
 
     def opsi_ash_assist(self):
         from module.os_ash.meta import AshBeaconAssist
+
         AshBeaconAssist(config=self.config, device=self.device).run()
 
     def opsi_ash_beacon(self):
         from module.os_ash.meta import OpsiAshBeacon
+
         OpsiAshBeacon(config=self.config, device=self.device).run()
 
     def opsi_explore(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_explore()
 
     def opsi_shop(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_shop()
 
     def opsi_voucher(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_voucher()
 
     def opsi_daily(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_daily()
 
     def opsi_obscure(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_obscure()
 
     def opsi_month_boss(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_month_boss()
 
     def opsi_abyssal(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_abyssal()
 
     def opsi_archive(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_archive()
 
     def opsi_stronghold(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_stronghold()
 
     def opsi_meowfficer_farming(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_meowfficer_farming()
 
     def opsi_hazard1_leveling(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_hazard1_leveling()
 
     def opsi_scheduling(self):
@@ -804,125 +861,188 @@ class AzurLaneAutoScript:
 
     def opsi_cross_month(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_cross_month()
 
     def opsi_daily_delay(self):
         from module.campaign.os_run import OSCampaignRun
+
         OSCampaignRun(config=self.config, device=self.device).opsi_daily_delay()
 
     def main(self):
         from module.campaign.run import CampaignRun
+
         CampaignRun(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def main2(self):
         from module.campaign.run import CampaignRun
+
         CampaignRun(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def main3(self):
         from module.campaign.run import CampaignRun
+
         CampaignRun(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def event(self):
         from module.campaign.run import CampaignRun
+
         CampaignRun(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def event2(self):
         from module.campaign.run import CampaignRun
+
         CampaignRun(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def event3(self):
         from module.campaign.run import CampaignRun
+
         CampaignRun(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def raid(self):
         from module.raid.run import RaidRun
+
         RaidRun(config=self.config, device=self.device).run()
 
     def raid_scuttle(self):
         from module.raid.scuttle import RaidScuttleRun
+
         RaidScuttleRun(config=self.config, device=self.device).run()
 
     def hospital(self):
         from module.event_hospital.hospital import Hospital
+
         Hospital(config=self.config, device=self.device).run()
 
     def hospital_event(self):
         from module.event_hospital.hospital_event import HospitalEvent
+
         HospitalEvent(config=self.config, device=self.device).run()
 
     def coalition(self):
         from module.coalition.coalition import Coalition
+
         Coalition(config=self.config, device=self.device).run()
 
     def coalition_sp(self):
         from module.coalition.coalition_sp import CoalitionSP
+
         CoalitionSP(config=self.config, device=self.device).run()
 
     def c72_mystery_farming(self):
         from module.campaign.run import CampaignRun
+
         CampaignRun(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def c122_medium_leveling(self):
         from module.campaign.run import CampaignRun
+
         CampaignRun(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def c124_large_leveling(self):
         from module.campaign.run import CampaignRun
+
         CampaignRun(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def gems_farming(self):
         from module.campaign.gems_farming import GemsFarming
+
         GemsFarming(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def three_oil_low_cost(self):
         from module.campaign.gems_farming import GemsFarming
+
         GemsFarming(config=self.config, device=self.device).run(
-            name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
+            name=self.config.Campaign_Name,
+            folder=self.config.Campaign_Event,
+            mode=self.config.Campaign_Mode,
+        )
 
     def ambush11(self):
         from module.campaign.ambush_1_1 import Ambush11
+
         Ambush11(config=self.config, device=self.device).run()
 
     def daemon(self):
         from module.daemon.daemon import AzurLaneDaemon
+
         AzurLaneDaemon(config=self.config, device=self.device, task="Daemon").run()
 
     def opsi_daemon(self):
         from module.daemon.os_daemon import AzurLaneDaemon
+
         AzurLaneDaemon(config=self.config, device=self.device, task="OpsiDaemon").run()
 
     def event_story(self):
         from module.eventstory.eventstory import EventStory
+
         EventStory(config=self.config, device=self.device, task="EventStory").run()
 
     def box_disassemble(self):
         from module.storage.box_disassemble import StorageBox
+
         StorageBox(config=self.config, device=self.device, task="BoxDisassemble").run()
 
     def azur_lane_uncensored(self):
         from module.daemon.uncensored import AzurLaneUncensored
-        AzurLaneUncensored(config=self.config, device=self.device, task="AzurLaneUncensored").run()
+
+        AzurLaneUncensored(
+            config=self.config, device=self.device, task="AzurLaneUncensored"
+        ).run()
 
     def benchmark(self):
         from module.daemon.benchmark import run_benchmark
+
         run_benchmark(config=self.config)
 
     def ocr_benchmark(self):
         from module.daemon.ocr_benchmark import run_ocr_benchmark
+
         run_ocr_benchmark(config=self.config)
 
     def game_manager(self):
         from module.daemon.game_manager import GameManager
+
         GameManager(config=self.config, device=self.device, task="GameManager").run()
 
     def emulator_manager(self):
@@ -1081,7 +1201,8 @@ class AzurLaneAutoScript:
             self.config.bind(task)
 
             from module.base.resource import release_resources
-            if self.config.task.command != 'Alas':
+
+            if self.config.task.command != "Alas":
                 release_resources(next_task=task.command)
 
             if task.next_run > current_time():
@@ -1122,11 +1243,11 @@ class AzurLaneAutoScript:
                     release_resources()
                     self.device.release_during_wait()
                     if not self.wait_until(task.next_run):
-                        del_cached_property(self, 'config')
+                        del_cached_property(self, "config")
                         continue
-                    if task.command != 'Restart':
-                        self.config.task_call('Restart')
-                        del_cached_property(self, 'config')
+                    if task.command != "Restart":
+                        self.config.task_call("Restart")
+                        del_cached_property(self, "config")
                         continue
                 elif method == 'goto_main':
                     logger.info('[Alas] 等待期间前往主页面')
@@ -1134,20 +1255,20 @@ class AzurLaneAutoScript:
                     release_resources()
                     self.device.release_during_wait()
                     if not self.wait_until(task.next_run):
-                        del_cached_property(self, 'config')
+                        del_cached_property(self, "config")
                         continue
                 elif method == 'stay_there':
                     release_resources()
                     self.device.release_during_wait()
                     if not self.wait_until(task.next_run):
-                        del_cached_property(self, 'config')
+                        del_cached_property(self, "config")
                         continue
                 else:
                     logger.warning(f'[Alas] 无效的 Optimization_WhenTaskQueueEmpty: {method}, 回退到 stay_there')
                     release_resources()
                     self.device.release_during_wait()
                     if not self.wait_until(task.next_run):
-                        del_cached_property(self, 'config')
+                        del_cached_property(self, "config")
                         continue
             break
 
@@ -1254,7 +1375,7 @@ class AzurLaneAutoScript:
                 failed = deep_get(self.failure_record, keys=task, default=0)
                 if success == True:
                     failed = 0  # 成功，重置计数
-                elif success == 'recoverable':
+                elif success == "recoverable":
                     # 可恢复错误（如 GameStuckError），不增加失败计数
                     # 但也不重置，保持之前的计数
                     logger.info(f'[Alas] 任务 `{task}` 遇到可恢复错误，不计入失败限制')
@@ -1282,13 +1403,11 @@ class AzurLaneAutoScript:
                         title=f"诶呀！{self.config_name}出现了问题喵！",
                         content=f"因为 {task} 任务失败次数过多喵！",
                     )
-                    logger.warning("[Alas] 任务连续失败次数过多，正在上报错误日志...")
-                    ApiClient.submit_bug_log(f"AzurPilot <{self.config_name}> crashed\nTask `{task}` failed {failed} or more times.")
                     exit(1)
 
                 if success == True:
-                    del_cached_property(self, 'config')
-                    consecutive_global_failures = 0 # 任务成功时重置全局失败计数器
+                    del_cached_property(self, "config")
+                    consecutive_global_failures = 0  # 任务成功时重置全局失败计数器
                     self.consecutive_game_stuck = 0
                     self.consecutive_adb_offline = 0
                     continue
@@ -1310,11 +1429,14 @@ class AzurLaneAutoScript:
                 
                 # 即使没有达到重启或失败上限，也第一时间自动请求分析崩溃原因
                 try:
-                    if hasattr(self, 'config') and getattr(self.config, 'Error_LlmAnalysis', False):
+                    if hasattr(self, "config") and getattr(
+                        self.config, "Error_LlmAnalysis", False
+                    ):
                         from module.llm import analyze_exception
+
                         analyze_exception(self.config, e)
                 except Exception as ex:
-                    logger.error(f'LLM Analysis failed: {ex}')
+                    logger.error(f"LLM Analysis failed: {ex}")
 
                 logger.warning(
                     f">>> 这是第 {consecutive_global_failures} 次连续全局失败，共 {MAX_GLOBAL_FAILURES} 次。"
@@ -1328,15 +1450,13 @@ class AzurLaneAutoScript:
                     logger.critical("[Alas] 这错误没救了，重启一百次也没用。")
                     self.save_error_log()
                     logger.critical("[Alas] 调度器罢工了！赶紧滚过来人工救场！")
-                    logger.warning("[Alas] 遇到无法恢复的致命错误，正在上报错误日志...")
-                    ApiClient.submit_bug_log(f"AzurPilot <{self.config_name}> 调度器终止。\n已达到最大全局失败次数 ({MAX_GLOBAL_FAILURES})。\n{traceback.format_exc()}")
                     exit(1)
 
                 # 尝试重启
                 logger.warning("[Alas] 尝试通过强制执行 RESTART 任务来恢复...")
                 try:
                     # 注入 Restart 任务
-                    self.config.task_call('Restart')
+                    self.config.task_call("Restart")
                     # 重新加载配置
                     del_cached_property(self, 'config')
                     logger.info("[Alas] 已为下一个循环安排了 `Restart` 任务。")
@@ -1345,12 +1465,13 @@ class AzurLaneAutoScript:
                     logger.error(f"[Alas] 安排错误: {restart_e}")
 
                 # 等待一段时间后开始下一次循环
-                wait_seconds = RESTART_DELAY if consecutive_global_failures < 4 else LONG_WAIT
-                logger.info(
-                    f"调度器将在 {wait_seconds} 秒后从头重试。"
+                wait_seconds = (
+                    RESTART_DELAY if consecutive_global_failures < 4 else LONG_WAIT
                 )
+                logger.info(f"调度器将在 {wait_seconds} 秒后从头重试。")
                 time.sleep(wait_seconds)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     alas = AzurLaneAutoScript()
     alas.loop()

@@ -6,10 +6,6 @@ from deploy.logger import logger
 from deploy.utils import *
 
 
-GIT_OVER_CDN_REPOSITORY = 'git://git.pull/AzurPilot'
-GIT_OVER_CDN_FALLBACK_REPOSITORY = 'https://gitcode.com/ddl2/AzurLaneAutoScript'
-
-
 class ExecutionError(Exception):
     pass
 
@@ -21,7 +17,6 @@ class ConfigModel:
     GitExecutable: str = "./.venv/Scripts/git/cmd/git.exe" if sys.platform == "win32" else "./.venv/bin/git"
     GitProxy: Optional[str] = None
     SSLVerify: bool = False
-    AutoUpdate: bool = True
 
     # Python 配置
     PythonExecutable: str = "./.venv/Scripts/python.exe" if sys.platform == "win32" else "./.venv/bin/python"
@@ -42,22 +37,6 @@ class ConfigModel:
 
     # 更新配置
     EnableReload: bool = True
-    CheckUpdateInterval: int = 5
-    AutoRestartTime: str = "03:50"
-
-    # 杂项
-    DiscordRichPresence: bool = False
-
-    # 远程访问
-    EnableRemoteAccess: bool = False
-    RemoteAccessMode: str = "auto"
-    SSHUser: Optional[str] = None
-    SSHServer: Optional[str] = None
-    SSHExecutable: Optional[str] = None
-    SignalingServer: Optional[str] = None
-    StunServers: Optional[str] = '["stun:stun.l.google.com:19302"]'
-    TurnServers: Optional[str] = None
-    TurnCredentialMode: str = "static"
 
     # WebUI 配置
     WebuiHost: str = "0.0.0.0"
@@ -70,9 +49,6 @@ class ConfigModel:
     Password: Optional[str] = None
     CDN: Union[str, bool] = False
     Run: Optional[str] = None
-
-    # 动态配置
-    GitOverCdn: bool = False
 
 
 class DeployConfig(ConfigModel):
@@ -93,7 +69,7 @@ class DeployConfig(ConfigModel):
     def show_config(self):
         logger.hr("Show deploy config", 1)
         for k, v in self.config.items():
-            if k in ("Password", "SSHUser"):
+            if k in ("Password",):
                 continue
             if self.config_template.get(k) == v:
                 continue
@@ -125,40 +101,16 @@ class DeployConfig(ConfigModel):
 
         每次 `read()` 之后必须调用。
         """
-        if self.Repository in [
-            'https://gitee.com/LmeSzinc/AzurLaneAutoScript',
-            'https://gitee.com/lmeszinc/azur-lane-auto-script-mirror',
-            'https://e.coding.net/llop18870/alas/AzurLaneAutoScript.git',
-            'https://e.coding.net/saarcenter/alas/AzurLaneAutoScript.git',
-            'https://git.saarcenter.com/LmeSzinc/AzurLaneAutoScript.git',
-            'git://git.lyoko.io/AzurLaneAutoScript',
-            'https://gitcode.com/ddl2/AzurLaneAutoScript',
-            'https://gitcode.com/ZhangMusan/AzurLaneAutoScript',
-            'https://gitcode.com/nerom/AzurLaneAutoScript',
-            'https://gitee.com/wqeaxc/AzurLaneAutoScript1',
-            'https://git.nanoda.work/git/AzurLaneAutoScript',
-            'https://git.nanoda.work/git/AzurPilot',
-            'https://git.nanoda.work',
-        ]:
-            self.Repository = GIT_OVER_CDN_REPOSITORY
-            self.config['Repository'] = GIT_OVER_CDN_REPOSITORY
         if self.PypiMirror in [
             'https://pypi.tuna.tsinghua.edu.cn/simple'
         ]:
             self.PypiMirror = 'https://mirrors.aliyun.com/pypi/simple'
             self.config['PypiMirror'] = 'https://mirrors.aliyun.com/pypi/simple'
 
-        # 绕过 webui.config.DeployConfig.__setattr__()，不写入 deploy.yaml
-        super().__setattr__(
-            'GitOverCdn',
-            self.Repository == GIT_OVER_CDN_REPOSITORY and self.Branch == 'master'
-        )
-        if self.Repository == GIT_OVER_CDN_REPOSITORY:
-            super().__setattr__('Repository', GIT_OVER_CDN_FALLBACK_REPOSITORY)
         if self.Repository in ['global']:
             super().__setattr__('Repository', 'https://github.com/wess09/AzurPilot')
         if self.Repository in ['cn']:
-            super().__setattr__('Repository', GIT_OVER_CDN_REPOSITORY)
+            super().__setattr__('Repository', 'https://github.com/wess09/AzurPilot')
 
     def filepath(self, key):
         """根据配置键获取绝对文件路径。

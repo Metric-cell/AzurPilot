@@ -8,6 +8,7 @@ import queue
 import requests
 import secrets
 import string
+import subprocess
 import threading
 import time
 import re
@@ -85,7 +86,6 @@ from module.ocr.rpc import start_ocr_server_process, stop_ocr_server_process
 from module.submodule.submodule import load_config
 from module.submodule.utils import get_config_mod
 from module.webui.base import Frame
-from module.webui.discord_presence import close_discord_rpc, init_discord_rpc
 from module.webui.fastapi import asgi_app
 from module.webui.lang import _t, t
 from module.webui.patch import (
@@ -95,9 +95,7 @@ from module.webui.patch import (
 )
 from module.webui.pin import put_checkbox, put_input, put_select
 from module.webui.process_manager import ProcessManager
-from module.webui.remote_access import RemoteAccess
 from module.webui.setting import State
-from module.webui.updater import updater
 from module.webui.utils import (
     Icon,
     Switch,
@@ -355,92 +353,10 @@ class AlasGUI(Frame):
         self._overview_snapshot = None
         self.load_home = False
         self.af_flag = False
-        self._last_announcement_id = None
-        self._announcement_result = None
-        self._announcement_fetching = False
-        self._announcement_force = False
-        self._update_notified = False
         self.simulator = OSSimulator()
         self._simulator_logger_pm = None
         self._overview_log = None
         self._overview_log_config_name = None
-
-    def _close_update_notice(self) -> None:
-        run_js(
-            r"""
-            (function () {
-                var el = document.getElementById('alas-update-notice');
-                if (!el) return;
-                el.classList.add('is-leaving');
-                setTimeout(function () {
-                    if (el && el.parentNode) {
-                        el.parentNode.removeChild(el);
-                    }
-                }, 180);
-            })();
-            """
-        )
-
-    def _remove_update_notice(self) -> None:
-        run_js(
-            r"""
-            (function () {
-                var el = document.getElementById('alas-update-notice');
-                if (el && el.parentNode) {
-                    el.parentNode.removeChild(el);
-                }
-            })();
-            """
-        )
-
-    def _show_update_notice(self, onclick) -> None:
-        self._remove_update_notice()
-        scope = f"update_notice_{int(time.time() * 1000)}"
-
-        def handle_later():
-            self._close_update_notice()
-
-        with use_scope("ROOT"):
-            put_html(
-                f"""
-                <div id="alas-update-notice" class="alas-update-notice" role="status" aria-live="polite">
-                    <div class="alas-update-notice__halo"></div>
-                    <div class="alas-update-notice__icon" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                             stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <path d="M7 10l5 5 5-5"></path>
-                            <path d="M12 15V3"></path>
-                        </svg>
-                    </div>
-                    <div class="alas-update-notice__body">
-                        <div class="alas-update-notice__eyebrow">发现新版本</div>
-                        <div class="alas-update-notice__title">有可用更新！</div>
-                        <div class="alas-update-notice__text">
-                            建议及时更新，以获得更稳定的脚本运行体验。
-                        </div>
-                        <div id="pywebio-scope-{scope}" class="alas-update-notice__actions"></div>
-                    </div>
-                </div>
-                """
-            )
-            put_buttons(
-                [
-                    {
-                        "label": "立即更新",
-                        "value": "update",
-                        "color": "danger",
-                    },
-                    {
-                        "label": "稍后再说",
-                        "value": "later",
-                        "color": "secondary",
-                    },
-                ],
-                onclick=[onclick, handle_later],
-                small=True,
-                scope=scope,
-            )
 
     @use_scope("aside", clear=True)
     def set_aside(self) -> None:
@@ -2962,7 +2878,7 @@ class AlasGUI(Frame):
         )
 
     def _alas_start(self):
-        self.alas.start(None, updater.event)
+        self.alas.start(None, State.restart_event)
 
     def _simulator_start(self):
         if is_demo_mode():
@@ -3147,8 +3063,14 @@ class AlasGUI(Frame):
                     ),
                 )
             # version
-            local_commit = updater.get_commit(short_sha1=True)
-            version = local_commit[0] if local_commit and local_commit[0] else "Unknown"
+            try:
+                version = subprocess.check_output(
+                    ["git", "rev-parse", "--short", "HEAD"],
+                    stderr=subprocess.DEVNULL,
+                    text=True,
+                ).strip()
+            except Exception:
+                version = "Unknown"
             device_id = DEMO_DEVICE_ID_TEXT if is_demo_mode() else get_device_id()
             put_scope("log-container", [put_scope("log", [put_html("")])]).style(
                 f"--device-id: '{device_id}'; --version: 'Ver.{version}';"
@@ -3666,28 +3588,10 @@ class AlasGUI(Frame):
         # ).style(f"--menu-Translate--")
 
         put_button(
-            label=t("Gui.MenuDevelop.Update"),
-            onclick=self.dev_update,
-            color="menu",
-        ).style(f"--menu-Update--")
-
-        put_button(
-            label=t("Gui.MenuDevelop.Remote"),
-            onclick=self.dev_remote,
-            color="menu",
-        ).style(f"--menu-Remote--")
-
-        put_button(
             label=t("Gui.MenuDevelop.Setting"),
             onclick=self.dev_setting,
             color="menu",
         ).style(f"--menu-Setting--")
-
-        put_button(
-            label=t("Gui.MenuDevelop.Announcement"),
-            onclick=lambda: self.ui_check_announcement(force=True),
-            color="menu",
-        ).style(f"--menu-Announcement--")
 
         put_button(
             label=t("Gui.MenuDevelop.Utils"),
@@ -3704,171 +3608,7 @@ class AlasGUI(Frame):
     def dev_update(self) -> None:
         self.init_menu(name="Update")
         self.set_title(t("Gui.MenuDevelop.Update"))
-
-        if State.restart_event is None:
-            put_warning(t("Gui.Update.DisabledWarn"))
-
-        put_row(
-            content=[put_scope("updater_loading"), None, put_scope("updater_state")],
-            size="auto .25rem 1fr",
-        )
-
-        put_scope("updater_btn")
-        put_scope("updater_info")
-
-        def update_table():
-            with use_scope("updater_info", clear=True):
-                local_commit = updater.get_commit(short_sha1=True)
-                upstream_commit = updater.get_commit(
-                    f"origin/{updater.Branch}", short_sha1=True
-                )
-                put_table(
-                    [
-                        [t("Gui.Update.Local"), *local_commit],
-                        [t("Gui.Update.Upstream"), *upstream_commit],
-                    ],
-                    header=[
-                        "",
-                        "SHA1",
-                        t("Gui.Update.Author"),
-                        t("Gui.Update.Time"),
-                        t("Gui.Update.Message"),
-                    ],
-                )
-            with use_scope("updater_detail", clear=True):
-                put_text(t("Gui.Update.DetailedHistory"))
-                history = updater.get_commit(
-                    f"origin/{updater.Branch}", n=20, short_sha1=True
-                )
-                put_table(
-                    [commit for commit in history],
-                    header=[
-                        "SHA1",
-                        t("Gui.Update.Author"),
-                        t("Gui.Update.Time"),
-                        t("Gui.Update.Message"),
-                    ],
-                )
-
-        def u(state):
-            if state == -1:
-                return
-            clear("updater_loading")
-            clear("updater_state")
-            clear("updater_btn")
-            if state == 0:
-                put_loading("border", "secondary", "updater_loading").style(
-                    "--loading-border-fill--"
-                )
-                put_text(t("Gui.Update.UpToDate"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.CheckUpdate"),
-                    onclick=updater.check_update,
-                    color="info",
-                    scope="updater_btn",
-                )
-                update_table()
-            elif state == 1:
-                put_loading("grow", "success", "updater_loading").style(
-                    "--loading-grow--"
-                )
-                put_text(t("Gui.Update.HaveUpdate"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.ClickToUpdate"),
-                    onclick=updater.run_update,
-                    color="success",
-                    scope="updater_btn",
-                )
-                update_table()
-            elif state == "checking":
-                put_loading("border", "primary", "updater_loading").style(
-                    "--loading-border--"
-                )
-                put_text(t("Gui.Update.UpdateChecking"), scope="updater_state")
-            elif state == "failed":
-                put_loading("grow", "danger", "updater_loading").style(
-                    "--loading-grow--"
-                )
-                put_text(t("Gui.Update.UpdateFailed"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.RetryUpdate"),
-                    onclick=updater.run_update,
-                    color="primary",
-                    scope="updater_btn",
-                )
-            elif state == "start":
-                put_loading("border", "primary", "updater_loading").style(
-                    "--loading-border--"
-                )
-                put_text(t("Gui.Update.UpdateStart"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.CancelUpdate"),
-                    onclick=updater.cancel,
-                    color="danger",
-                    scope="updater_btn",
-                )
-            elif state == "wait":
-                put_loading("border", "primary", "updater_loading").style(
-                    "--loading-border--"
-                )
-                put_text(t("Gui.Update.UpdateWait"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.CancelUpdate"),
-                    onclick=updater.cancel,
-                    color="danger",
-                    scope="updater_btn",
-                )
-            elif state == "run update":
-                put_loading("border", "primary", "updater_loading").style(
-                    "--loading-border--"
-                )
-                put_text(t("Gui.Update.UpdateRun"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.CancelUpdate"),
-                    onclick=updater.cancel,
-                    color="danger",
-                    scope="updater_btn",
-                    disabled=True,
-                )
-            elif state == "reload":
-                put_loading("grow", "success", "updater_loading").style(
-                    "--loading-grow--"
-                )
-                put_text(t("Gui.Update.UpdateSuccess"), scope="updater_state")
-                update_table()
-            elif state == "finish":
-                put_loading("grow", "success", "updater_loading").style(
-                    "--loading-grow--"
-                )
-                put_text(t("Gui.Update.UpdateFinish"), scope="updater_state")
-                update_table()
-            elif state == "cancel":
-                put_loading("border", "danger", "updater_loading").style(
-                    "--loading-border--"
-                )
-                put_text(t("Gui.Update.UpdateCancel"), scope="updater_state")
-                put_button(
-                    t("Gui.Button.CancelUpdate"),
-                    onclick=updater.cancel,
-                    color="danger",
-                    scope="updater_btn",
-                    disabled=True,
-                )
-            else:
-                put_text(
-                    "Something went wrong, please contact develops",
-                    scope="updater_state",
-                )
-                put_text(f"state: {state}", scope="updater_state")
-
-        updater_switch = Switch(
-            status=u, get_state=lambda: updater.state, name="updater"
-        )
-
-        update_table()
-        self.task_handler.add(updater_switch.g(), delay=0.5, pending_delete=True)
-
-        updater.check_update()
+        put_text("自动更新功能已移除")
 
     def _render_startup_run_setting(self) -> None:
         instance = self.alas_name or DEFAULT_CONFIG_NAME
@@ -4392,7 +4132,6 @@ class AlasGUI(Frame):
         self.init_menu(name="Utils")
         self.set_title(t("Gui.MenuDevelop.Utils"))
         put_button(label=t("GUI测试 抛出异常事件"), onclick=raise_exception)
-        put_button(label=t("预览更新提示"), onclick=self._preview_update_notice)
 
         def _get_debug_target_instance() -> Optional[str]:
             if getattr(self, "alas_name", ""):
@@ -4523,87 +4262,7 @@ class AlasGUI(Frame):
     def dev_remote(self) -> None:
         self.init_menu(name="Remote")
         self.set_title(t("Gui.MenuDevelop.Remote"))
-        put_row(
-            content=[put_scope("remote_loading"), None, put_scope("remote_state")],
-            size="auto .25rem 1fr",
-        )
-        put_scope("remote_info")
-
-        def u(state):
-            if state == -1:
-                return
-            status_map = {
-                "direct_p2p": t("Gui.Remote.StatusDirect"),
-                "turn_relay": t("Gui.Remote.StatusTurn"),
-                "ssh_forward": t("Gui.Remote.StatusSsh"),
-                "waiting_peer": t("Gui.Remote.StatusSignaling"),
-                "signaling": t("Gui.Remote.StatusSignaling"),
-                "starting": t("Gui.Remote.StatusStarting"),
-                "dependency_missing": t("Gui.Remote.StatusSsh"),
-                "failed": t("Gui.Remote.StatusFailed"),
-            }
-            clear("remote_loading")
-            clear("remote_state")
-            clear("remote_info")
-            if state in (1, 2):
-                put_loading("grow", "success", "remote_loading").style(
-                    "--loading-grow--"
-                )
-                remote_status = RemoteAccess.get_connection_state()
-                put_text(
-                    f"{t('Gui.Remote.Running')} · {status_map.get(remote_status, remote_status)}",
-                    scope="remote_state",
-                )
-                put_text(t("Gui.Remote.EntryPoint"), scope="remote_info")
-                entrypoint = RemoteAccess.get_entry_point()
-                if entrypoint:
-                    if State.electron:  # Prevent click into url in electron client
-                        put_text(entrypoint, scope="remote_info").style(
-                            "text-decoration-line: underline"
-                        )
-                    else:
-                        put_link(name=entrypoint, url=entrypoint, scope="remote_info")
-                else:
-                    put_text("Loading...", scope="remote_info")
-                remote_error = RemoteAccess.get_error()
-                if remote_error and remote_status in ("dependency_missing", "failed"):
-                    put_warning(remote_error, closable=False, scope="remote_info")
-            elif state in (0, 3, 4):
-                put_loading("border", "secondary", "remote_loading").style(
-                    "--loading-border-fill--"
-                )
-                if State.deploy_config.EnableRemoteAccess and (
-                    State.deploy_config.Password or os.environ.get("DEMO") == "1"
-                ):
-                    put_text(t("Gui.Remote.NotRunning"), scope="remote_state")
-                else:
-                    put_text(t("Gui.Remote.NotEnable"), scope="remote_state")
-                put_text(t("Gui.Remote.ConfigureHint"), scope="remote_info")
-                url = "http://app.azurlane.cloud" + (
-                    "" if State.deploy_config.Language.startswith("zh") else "/en.html"
-                )
-                put_html(
-                    f'<a href="{url}" target="_blank">{url}</a>', scope="remote_info"
-                )
-                if state == 3:
-                    put_warning(
-                        t("Gui.Remote.SSHNotInstall"),
-                        closable=False,
-                        scope="remote_info",
-                    )
-
-        remote_switch = Switch(
-            status=u, get_state=RemoteAccess.get_state, name="remote"
-        )
-
-        self.task_handler.add(remote_switch.g(), delay=1, pending_delete=True)
-
-    def _preview_update_notice(self) -> None:
-        def handle_preview_click():
-            self._close_update_notice()
-            toast("success", color="success")
-
-        self._show_update_notice(handle_preview_click)
+        put_text("远程访问功能已移除")
 
     def ui_develop(self) -> None:
         if not self.is_mobile:
@@ -4882,116 +4541,6 @@ class AlasGUI(Frame):
                 onclick=_disable,
             )
 
-    def _fetch_announcement_thread(self, force=False):
-        """
-        在后台线程中获取公告数据（非阻塞）
-        """
-        try:
-            from module.base.api_client import ApiClient
-
-            data = ApiClient.get_announcement(timeout=10)
-            self._announcement_result = (data, force)
-        except Exception as e:
-            logger.error(f"Announcement fetch failed: {e}")
-            self._announcement_result = (None, force, str(e))
-        finally:
-            self._announcement_fetching = False
-
-    def _start_announcement_fetch(self, force=False):
-        """
-        启动异步公告获取。如果已在获取中则跳过。
-        """
-        if self._announcement_fetching:
-            return
-        self._announcement_fetching = True
-        self._announcement_force = force
-        self._announcement_result = None
-        threading.Thread(
-            target=self._fetch_announcement_thread, args=(force,), daemon=True
-        ).start()
-
-    def _process_announcement_result(self):
-        """
-        处理异步获取的公告结果并推送到前端。
-        在 TaskHandler 循环中调用（非阻塞）。
-        Returns:
-            True 如果结果已处理，False 如果还在等待
-        """
-        if self._announcement_fetching or self._announcement_result is None:
-            return False
-
-        result = self._announcement_result
-        self._announcement_result = None
-
-        # 解包结果
-        if len(result) == 3:
-            # 有错误
-            _, force, error = result
-            if force:
-                toast(f"Check failed: {error}", color="error")
-            return True
-
-        data, force = result
-
-        if data:
-            announcement_id = data.get("announcementId")
-
-            # If force is False, check if we need to update
-            if not force:
-                if announcement_id and announcement_id == self._last_announcement_id:
-                    return True
-
-                # Check if browser has seen it (only if not forced)
-                try:
-                    announcement_id_json = json.dumps(announcement_id)
-                    has_shown = eval_js(
-                        f"window.alasHasBeenShown({announcement_id_json})"
-                    )
-                    if has_shown:
-                        self._last_announcement_id = announcement_id
-                        return True
-                except Exception:
-                    pass
-
-            title_json = json.dumps(data.get("title", ""))
-            content_json = json.dumps(data.get("content", ""))
-            announcement_id_json = json.dumps(announcement_id)
-            url_json = json.dumps(data.get("url", ""))
-            force_json = "true" if force else "false"
-
-            logger.info(f"Pushing announcement: {data.get('title')}")
-            run_js(
-                f"window.alasShowAnnouncement({title_json}, {content_json}, {announcement_id_json}, {url_json}, {force_json});"
-            )
-
-            # Pushing to launcher
-            from module.notify.notify import notify_webui
-
-            notify_webui(
-                instance="Alas",
-                title=data.get("title", ""),
-                content=data.get("content", ""),
-                updata=False,
-            )
-
-            self._last_announcement_id = announcement_id
-
-        elif force:
-            toast("暂无公告 / No announcement", color="info")
-
-        return True
-
-    def ui_check_announcement(self, force=False) -> None:
-        """
-        Check for announcements (non-blocking).
-        Starts async fetch; result is processed in announcement_checker.
-        Args:
-            force (bool): If True, show announcement even if already shown.
-        """
-        self._start_announcement_fetch(force=force)
-        if force:
-            toast("正在获取公告... / Fetching announcement...", color="info")
-
     def run(self) -> None:
         # setup gui
         set_env(title="AzurPilot", output_animation=False)
@@ -5148,65 +4697,9 @@ class AlasGUI(Frame):
             name="state",
         )
 
-        def goto_update():
-            self.ui_develop()
-            self.dev_update()
-            self._close_update_notice()
-
-        def show_update_toast():
-            if self._update_notified:
-                return
-            self._update_notified = True
-
-            from module.notify.notify import notify_webui
-
-            notify_webui(
-                instance="Alas",
-                title=t("Gui.Toast.ClickToUpdate"),
-                content="检测到了新更新喵~ 指挥官快来更新喵~",
-                updata=True,
-            )
-
-            self._show_update_notice(goto_update)
-
-        update_switch = Switch(
-            status={1: show_update_toast},
-            get_state=lambda: updater.state,
-            name="update_state",
-        )
-
         self.task_handler.add(self.state_switch.g(), 2)
         self.task_handler.add(self.set_aside_status, 2)
         self.task_handler.add(visibility_state_switch.g(), 15)
-        self.task_handler.add(update_switch.g(), 1)
-
-        # 公告检查功能（非阻塞）
-        def announcement_checker():
-            from module.base.api_client import ApiClient
-
-            logger.info("[WebUI] 公告检查任务启动")
-            th = yield  # 获取任务处理器引用
-            # 首次检查：触发异步获取
-            self._start_announcement_fetch(force=False)
-            next_periodic_check = time.time() + ApiClient.ANNOUNCEMENT_CHECK_INTERVAL
-            th._task.delay = 0.1  # 始终保持短间隔轮询
-            yield
-            while True:
-                # 处理已有结果（来自定期检查或手动点击）
-                self._process_announcement_result()
-                # 定期触发新的异步获取
-                if (
-                    not self._announcement_fetching
-                    and time.time() >= next_periodic_check
-                ):
-                    self._start_announcement_fetch(force=False)
-                    next_periodic_check = (
-                        time.time() + ApiClient.ANNOUNCEMENT_CHECK_INTERVAL
-                    )
-                yield
-
-        # 添加公告检查任务（初始延迟5秒）
-        self.task_handler.add(announcement_checker(), delay=5)
 
         # 启动任务处理器
         self.task_handler.start()
@@ -5378,20 +4871,9 @@ def debug():
 def startup():
     State.init()
     lang.reload()
-    updater.event = State.manager.Event()
-    if State.deploy_config.AutoUpdate:
-        if updater.delay > 0:
-            task_handler.add(updater.check_update, updater.delay)
-        task_handler.add(updater.schedule_update(), 86400)
     task_handler.start()
-    if State.deploy_config.DiscordRichPresence:
-        init_discord_rpc()
     if State.deploy_config.StartOcrServer and not is_demo_mode():
         start_ocr_server_process(State.deploy_config.OcrServerPort)
-    if State.deploy_config.EnableRemoteAccess and (
-        State.deploy_config.Password is not None or os.environ.get("DEMO") == "1"
-    ):
-        task_handler.add(RemoteAccess.keep_ssh_alive(), 60)
 
 
 def clearup():
@@ -5400,8 +4882,6 @@ def clearup():
     all process will NOT EXIT after close electron app.
     """
     logger.info("Start clearup")
-    RemoteAccess.kill_ssh_process()
-    close_discord_rpc()
     stop_ocr_server_process()
     for alas in ProcessManager._processes.values():
         alas.stop()
@@ -5515,8 +4995,6 @@ def app():
             return
         app_manage()
 
-    from mcp_server_sse import app as mcp_app
-
     app = asgi_app(
         applications=[index, manage],
         cdn=cdn,
@@ -5525,11 +5003,9 @@ def app():
         on_startup=[
             startup,
             lambda: ProcessManager.restart_processes(
-                instances=instances, ev=updater.event
+                instances=instances
             ),
         ],
         on_shutdown=[clearup],
     )
-    app.mount("/mcp", mcp_app)
-
     return app

@@ -197,7 +197,6 @@ DeploySetting:
   GroupOcr:
   GroupUpdate:
   GroupMisc:
-  GroupRemoteAccess:
   GroupWebui:
   Repository:
   RepositoryHelp:
@@ -209,8 +208,6 @@ DeploySetting:
   GitProxyHelp:
   SSLVerify:
   SSLVerifyHelp:
-  AutoUpdate:
-  AutoUpdateHelp:
   PythonExecutable:
   PythonExecutableHelp:
   PypiMirror:
@@ -235,34 +232,6 @@ DeploySetting:
   OcrClientAddressHelp:
   EnableReload:
   EnableReloadHelp:
-  CheckUpdateInterval:
-  CheckUpdateIntervalHelp:
-  AutoRestartTime:
-  AutoRestartTimeHelp:
-  DiscordRichPresence:
-  DiscordRichPresenceHelp:
-  EnableRemoteAccess:
-  EnableRemoteAccessHelp:
-  RemoteAccessMode:
-  RemoteAccessModeHelp:
-  SSHUser:
-  SSHUserHelp:
-  SSHServer:
-  SSHServerHelp:
-  SSHExecutable:
-  SSHExecutableHelp:
-  AllowedRedirectHosts:
-  AllowedRedirectHostsHelp:
-  MaxRedirects:
-  MaxRedirectsHelp:
-  SignalingServer:
-  SignalingServerHelp:
-  StunServers:
-  StunServersHelp:
-  TurnServers:
-  TurnServersHelp:
-  TurnCredentialMode:
-  TurnCredentialModeHelp:
   WebuiHost:
   WebuiHostHelp:
   WebuiPort:

@@ -266,8 +266,7 @@ DropRecord:
   MeowfficerTalent:
     value: do_not
     option: [do_not, save, upload, save_and_upload]
-  TelemetryReport: true
-  BugReport: true
+  # TelemetryReport and BugReport have been removed
 Log:
   LogKeepCount: 3
   LogBackUpMethod:

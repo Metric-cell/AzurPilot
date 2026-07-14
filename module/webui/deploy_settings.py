@@ -7,8 +7,6 @@ from module.webui.setting import State
 
 
 THEME_OPTIONS = ["default", "dark", "light", "socialism", "apple", "children"]
-REMOTE_ACCESS_MODE_OPTIONS = ["auto", "webrtc", "ssh"]
-TURN_CREDENTIAL_MODE_OPTIONS = ["static", "ephemeral"]
 INVALID_INSTANCE_CHARS = set(".\\/:*?\"'<>|")
 
 
@@ -36,7 +34,6 @@ DEPLOY_GROUPS: tuple[tuple[str, tuple[DeployField, ...]], ...] = (
             DeployField("GitExecutable"),
             DeployField("GitProxy", "nullable_string"),
             DeployField("SSLVerify", "bool"),
-            DeployField("AutoUpdate", "bool"),
         ),
     ),
     (
@@ -69,25 +66,6 @@ DEPLOY_GROUPS: tuple[tuple[str, tuple[DeployField, ...]], ...] = (
         "Update",
         (
             DeployField("EnableReload", "bool"),
-            DeployField("CheckUpdateInterval", "int"),
-            DeployField("AutoRestartTime", "nullable_string"),
-        ),
-    ),
-    ("Misc", (DeployField("DiscordRichPresence", "bool"),)),
-    (
-        "RemoteAccess",
-        (
-            DeployField("EnableRemoteAccess", "bool"),
-            DeployField("RemoteAccessMode", "select", tuple(REMOTE_ACCESS_MODE_OPTIONS)),
-            DeployField("SSHUser", "nullable_string"),
-            DeployField("SSHServer", "nullable_string"),
-            DeployField("SSHExecutable", "nullable_string"),
-            DeployField("AllowedRedirectHosts", "nullable_string"),
-            DeployField("MaxRedirects", "int"),
-            DeployField("SignalingServer", "nullable_string"),
-            DeployField("StunServers", "nullable_string"),
-            DeployField("TurnServers", "nullable_string"),
-            DeployField("TurnCredentialMode", "select", tuple(TURN_CREDENTIAL_MODE_OPTIONS)),
         ),
     ),
     (
