@@ -374,6 +374,10 @@
       "name": "拆裝備箱",
       "help": ""
     },
+    "AutoEquip": {
+      "name": "自動裝備",
+      "help": "從船塢第一艘艦船開始，進入快速更換並開啟「裝備中」篩選，隨後按艦船詳情頁滑動遍歷。實際換裝策略尚待設定。"
+    },
     "Benchmark": {
       "name": "效能測試",
       "help": ""
@@ -5577,6 +5581,46 @@
     "WhiteBoxLimit": {
       "name": "保留每種白色裝備箱 X 個",
       "help": ""
+    }
+  },
+  "AutoEquip": {
+    "_info": {
+      "name": "自動裝備",
+      "help": "目前版本搭建點擊流程：船塢、第一艘、快速更換、裝備中、佔位換裝邏輯、下一艘。"
+    },
+    "ShipLimit": {
+      "name": "處理艦船上限",
+      "help": "0 表示一直處理到無法切換下一艘；除錯時可設定為 1 或其他較小數量。"
+    },
+    "EnableSlot1": {
+      "name": "更換第 1 個裝備",
+      "help": "啟用後，僅當第 1 個裝備位為空時嘗試自動裝備。",
+      "True": "True",
+      "False": "False"
+    },
+    "EnableSlot2": {
+      "name": "更換第 2 個裝備",
+      "help": "啟用後，僅當第 2 個裝備位為空時嘗試自動裝備。",
+      "True": "True",
+      "False": "False"
+    },
+    "EnableSlot3": {
+      "name": "更換第 3 個裝備",
+      "help": "啟用後，僅當第 3 個裝備位為空時嘗試自動裝備。",
+      "True": "True",
+      "False": "False"
+    },
+    "EnableSlot4": {
+      "name": "更換第 4 個裝備",
+      "help": "啟用後，僅當第 4 個裝備位為空時嘗試自動裝備。",
+      "True": "True",
+      "False": "False"
+    },
+    "EnableSlot5": {
+      "name": "更換第 5 個裝備",
+      "help": "啟用後，僅當第 5 個裝備位為空時嘗試自動裝備。",
+      "True": "True",
+      "False": "False"
     }
   },
   "Benchmark": {

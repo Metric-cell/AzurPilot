@@ -374,6 +374,10 @@
       "name": "Disassemble Gear Box",
       "help": ""
     },
+    "AutoEquip": {
+      "name": "Auto Equip",
+      "help": "Starts from the first dock ship, opens quick equipment change, enables the equipping filter, then swipes through ship details. The actual equipment strategy is not configured yet."
+    },
     "Benchmark": {
       "name": "Performance Test",
       "help": ""
@@ -5577,6 +5581,46 @@
     "WhiteBoxLimit": {
       "name": "Keep X boxes of each type of white equipment",
       "help": ""
+    }
+  },
+  "AutoEquip": {
+    "_info": {
+      "name": "Auto Equip",
+      "help": "Current scaffold: dock, first ship, quick change, equipping filter, placeholder strategy, next ship."
+    },
+    "ShipLimit": {
+      "name": "Ship limit",
+      "help": "0 means continue until no next ship is detected. Use 1 or another small value while debugging."
+    },
+    "EnableSlot1": {
+      "name": "Replace equipment slot 1",
+      "help": "When enabled, AutoEquip will try to fill equipment slot 1 only if it is empty.",
+      "True": "True",
+      "False": "False"
+    },
+    "EnableSlot2": {
+      "name": "Replace equipment slot 2",
+      "help": "When enabled, AutoEquip will try to fill equipment slot 2 only if it is empty.",
+      "True": "True",
+      "False": "False"
+    },
+    "EnableSlot3": {
+      "name": "Replace equipment slot 3",
+      "help": "When enabled, AutoEquip will try to fill equipment slot 3 only if it is empty.",
+      "True": "True",
+      "False": "False"
+    },
+    "EnableSlot4": {
+      "name": "Replace equipment slot 4",
+      "help": "When enabled, AutoEquip will try to fill equipment slot 4 only if it is empty.",
+      "True": "True",
+      "False": "False"
+    },
+    "EnableSlot5": {
+      "name": "Replace equipment slot 5",
+      "help": "When enabled, AutoEquip will try to fill equipment slot 5 only if it is empty.",
+      "True": "True",
+      "False": "False"
     }
   },
   "Benchmark": {
