@@ -106,6 +106,10 @@
       "name": "光影风尚拍摄进行时喵",
       "help": "拿起相机拍下最美的瞬间喵，模特队的胜利！(ﾉ◕ヮ◕)ﾉ"
     },
+    "CoalitionScuttle": {
+      "name": "Task.CoalitionScuttle.name",
+      "help": "Task.CoalitionScuttle.help"
+    },
     "MaritimeEscort": {
       "name": "商船护航护送喵",
       "help": "保护商船，正义的雪风大人登场！ᕦ(ò_óˇ)ᕤ"
@@ -143,8 +147,8 @@
       "help": "共斗的每日任务，记得清掉喵~ (´・ω・`)"
     },
     "CoalitionSp": {
-      "name": "光影风尚拍摄进行时SP喵",
-      "help": "拍摄活动SP级别，需要精湛技巧喵！( •̀ᴗ-)✧"
+      "name": "怪谈纪实：逃离白夜山庄SP喵",
+      "help": "逃离白夜山庄的每日SP挑战，务必小心怪谈喵！( •̀ᴗ-)✧"
     },
     "Commission": {
       "name": "委托派遣喵",
@@ -737,10 +741,14 @@
     },
     "OcrDevice": {
       "name": "OCR设备选择",
-      "help": "OCR跑在CPU/GPU/ANE上。GPU用Windows DirectML，ANE用macOS Neural Engine。自动：Apple Silicon选ANE，Windows显存>1G选GPU，否则CPU。",
+      "help": "选择 OCR 推理设备喵。\n自动选择：Windows 按 QNN NPU、OpenVINO NPU、OpenVINO 独显 GPU、DirectML 独显 GPU、OpenVINO CPU、CPU 的顺序尝试喵；关闭“自动安装并使用厂商 EP”后只尝试 DirectML 独显 GPU 和 CPU 喵。\nQNN/OpenVINO 设备仅适用于 ONNX Runtime，ANE 仅适用于 Apple Silicon Mac 喵。",
       "auto": "自动判断",
+      "qnn_npu": "QNN NPU喵",
+      "openvino_npu": "OpenVINO NPU喵",
+      "openvino_gpu": "OpenVINO 独显 GPU喵",
+      "gpu": "DirectML 独显 GPU喵",
+      "openvino_cpu": "OpenVINO CPU喵",
       "cpu": "CPU喵",
-      "gpu": "GPU喵",
       "ane": "ANE喵"
     },
     "OcrBackend": {
@@ -749,6 +757,12 @@
       "auto": "自动 喵",
       "onnxruntime": "ONNX Runtime 喵",
       "ncnn": "ncnn 喵"
+    },
+    "OcrWindowsMlVendorEp": {
+      "name": "自动安装并使用厂商 EP 喵",
+      "help": "允许 Windows ML 通过 Windows Update 下载并使用 QNN/OpenVINO 厂商 EP 喵。",
+      "True": "启用喵",
+      "False": "禁用喵"
     },
     "OcrModelVersionEnglish": {
       "name": "OCR英文模型版本喵",
@@ -1046,6 +1060,7 @@
       "coalition_20250626": "The Neon City Investigator",
       "coalition_20251120": "DATE A LANE",
       "coalition_20260122": "Light & Shadow Fashion Shoot!",
+      "coalition_20260723": "怪谈纪实：逃离白夜山庄",
       "event_20200227_cn": "Northern Overture",
       "event_20200312_cn": "The Solomon Ranger Rerun",
       "event_20200326_cn": "Microlayer Medley",
@@ -1372,6 +1387,10 @@
       "fleet1_boss_fleet2_mob": "一队boss 二队道中喵",
       "fleet1_all_fleet2_standby": "一队全清 二队待机喵",
       "fleet1_standby_fleet2_all": "一队待机 二队全清喵"
+    },
+    "SkipPreparation": {
+      "name": "Fleet.SkipPreparation.name",
+      "help": "Fleet.SkipPreparation.help"
     }
   },
   "Submarine": {
@@ -1825,17 +1844,30 @@
     "Mode": {
       "name": "难度喵",
       "help": "SP图需用活动每日SP运行喵。 (´・ω・`)",
-      "tc1": "tc1",
-      "tc2": "tc2",
-      "tc3": "tc3",
-      "sp": "sp喵",
-      "ex": "ex"
+      "easy": "简单喵",
+      "normal": "普通喵",
+      "hard": "困难喵",
+      "sp": "SP喵",
+      "ex": "EX喵"
     },
     "Fleet": {
       "name": "出击队伍模式",
       "help": "",
       "single": "单队连战喵",
       "multi": "多队出击喵"
+    }
+  },
+  "CoalitionScuttle": {
+    "_info": {
+      "name": "CoalitionScuttle._info.name",
+      "help": "CoalitionScuttle._info.help"
+    },
+    "Sacrifice": {
+      "name": "CoalitionScuttle.Sacrifice.name",
+      "help": "CoalitionScuttle.Sacrifice.help",
+      "vanguard": "vanguard",
+      "flagship": "flagship",
+      "vanguard_flagship": "vanguard_flagship"
     }
   },
   "EventShop": {
@@ -1983,10 +2015,6 @@
       "only_no_project": "无项目可做时喵",
       "do_not_use": "不使用喵"
     },
-    "CubePreserve": {
-      "name": "保留 X 个魔方喵",
-      "help": "当当前魔方数量小于等于该值时，科研暂时不选择消耗魔方的项目喵。 0 表示关闭喵。"
-    },
     "UseCoin": {
       "name": "使用物资喵",
       "help": "",
@@ -2006,6 +2034,14 @@
     "AllowDelay": {
       "name": "资源不足时延迟科研",
       "help": "资源不足延迟到满足条件或科研队即将清空，不会停转。长期缺资源或运行时间不够可取消，保持队列满。 (´・ω・`)"
+    },
+    "AllowGenreT": {
+      "name": "允许做T类科研喵",
+      "help": "此功能可能导致科研空转和效率降低，确认确实需要后再开启喵"
+    },
+    "RemainingCommissions": {
+      "name": "T类科研剩余委托数",
+      "help": "T类科研还需完成多少次委托，-1代表没有挂起的T类科研喵"
     },
     "PresetFilter": {
       "name": "科研过滤器",
@@ -5925,10 +5961,32 @@
       "InvalidChar": "非法字符 .\\/:*?\"<>| 喵",
       "InvalidPrefixTemplate": "不能以 template 开头喵",
       "Back": "返回喵",
-      "New": "添加喵",
-      "Import": "导入喵",
+      "New": "添加配置喵",
+      "Import": "导入配置喵",
+      "ImportLegacy": "导入旧数据喵",
+      "ImportLegacyTitle": "导入旧 AzurPilot/ALAS 数据喵",
+      "ImportLegacyHint": "选择旧 AzurPilot/ALAS 根目录后，会自动导入下面的数据喵。",
+      "ImportLegacyContent": "配置文件、数据库和日志统计喵",
+      "ImportLegacyWarning": "同名文件会被覆盖，建议先备份当前项目喵。",
+      "ImportLegacyChoose": "选择旧 AzurPilot/ALAS 文件夹喵",
+      "ImportLegacySelecting": "请在弹出的窗口中选择旧 AzurPilot/ALAS 根目录喵",
+      "ImportLegacySuccess": "旧数据导入成功喵",
+      "ImportLegacyFailed": "旧数据导入失败喵：{error}",
+      "ImportLegacyNoMatch": "所选文件夹中没有找到 config/ 或 log/cl1/ 下的匹配文件喵",
+      "ImportLegacyRequestFailed": "上传请求失败喵",
+      "ImportLegacyUnknownError": "未知错误喵",
       "Export": "导出喵",
       "Delete": "删除喵",
+      "Summary": "概览喵",
+      "Collapse": "收起喵",
+      "EnabledTasks": "已启用任务喵",
+      "SchedulerOrderHint": "按调度优先级显示喵，实际执行时间仍由各任务的 NextRun 决定。",
+      "SummaryLoadFailed": "读取配置概览失败喵：{error}",
+      "DeleteConfirm": "确定删除配置“{name}”吗？此操作不能撤销，但日志和统计数据会保留喵。",
+      "DeleteRunning": "配置“{name}”正在运行，请先停止再删除喵。",
+      "DeleteLast": "至少要保留一个配置，请先添加其他配置喵。",
+      "DeleteSuccess": "配置“{name}”已删除喵",
+      "DeleteFailed": "删除配置失败喵：{error}",
       "OverrideWarning": "将会覆盖现有配置文件喵",
       "ImportSuccess": "导入成功喵",
       "NewSuccess": "添加成功喵",

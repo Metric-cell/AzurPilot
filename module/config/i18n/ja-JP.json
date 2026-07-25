@@ -106,6 +106,10 @@
       "name": "光影風尚-撮影進行中",
       "help": ""
     },
+    "CoalitionScuttle": {
+      "name": "Task.CoalitionScuttle.name",
+      "help": "Task.CoalitionScuttle.help"
+    },
     "MaritimeEscort": {
       "name": "商船の護衛",
       "help": ""
@@ -143,7 +147,7 @@
       "help": ""
     },
     "CoalitionSp": {
-      "name": "光影風尚-撮影進行中SP",
+      "name": "怪谈纪实：逃离白夜山庄SP",
       "help": ""
     },
     "Commission": {
@@ -737,10 +741,14 @@
     },
     "OcrDevice": {
       "name": "OCR デバイス",
-      "help": "OCR デバイスを選択します。GPU は Windows DirectML、ANE は macOS Apple Neural Engine です。自動：Apple Silicon Mac は ANE、Windows VRAM > 1GB は GPU、それ以外は CPU。",
+      "help": "OCR 推論デバイスを選択します。\n自動では Windows は QNN NPU、OpenVINO NPU、OpenVINO 専用 GPU、DirectML 専用 GPU、OpenVINO CPU、CPU の順に試行します。「ベンダー EP を自動インストールして使用」を無効にすると、DirectML 専用 GPU と CPU のみ試行します。\nQNN/OpenVINO デバイスは ONNX Runtime 専用です。ANE は Apple Silicon Mac 専用です。",
       "auto": "自動",
+      "qnn_npu": "QNN NPU",
+      "openvino_npu": "OpenVINO NPU",
+      "openvino_gpu": "OpenVINO 専用 GPU",
+      "gpu": "DirectML 専用 GPU",
+      "openvino_cpu": "OpenVINO CPU",
       "cpu": "CPU",
-      "gpu": "GPU",
       "ane": "ANE (Apple)"
     },
     "OcrBackend": {
@@ -749,6 +757,12 @@
       "auto": "自動 (onnxruntime)",
       "onnxruntime": "ONNX Runtime",
       "ncnn": "ncnn (Vulkan)"
+    },
+    "OcrWindowsMlVendorEp": {
+      "name": "ベンダー EP を自動インストールして使用",
+      "help": "Windows ML が Windows Update を通じて QNN/OpenVINO 実行プロバイダーをダウンロードして使用することを許可します。",
+      "True": "有効",
+      "False": "無効"
     },
     "OcrModelVersionEnglish": {
       "name": "OCR 英語モデルバージョン",
@@ -1046,6 +1060,7 @@
       "coalition_20250626": "ネオンシティの探索者",
       "coalition_20251120": "DATE A LANE",
       "coalition_20260122": "特集写真-撮影進行中",
+      "coalition_20260723": "怪谈纪实：逃离白夜山庄",
       "event_20200227_cn": "凍絶の北海",
       "event_20200312_cn": "南洋に靡く硝煙（復刻）",
       "event_20200326_cn": "闇靄払う銀翼",
@@ -1372,6 +1387,10 @@
       "fleet1_boss_fleet2_mob": "第一艦隊BOSS 第二艦隊道中",
       "fleet1_all_fleet2_standby": "第一艦隊全滅 第二艦隊待機",
       "fleet1_standby_fleet2_all": "第一艦隊待機 第二艦隊全滅"
+    },
+    "SkipPreparation": {
+      "name": "Fleet.SkipPreparation.name",
+      "help": "Fleet.SkipPreparation.help"
     }
   },
   "Submarine": {
@@ -1825,17 +1844,30 @@
     "Mode": {
       "name": "難易度",
       "help": "SPステージはイベントデイリーSPで実行する必要があります",
-      "tc1": "tc1",
-      "tc2": "tc2",
-      "tc3": "tc3",
-      "sp": "sp",
-      "ex": "ex"
+      "easy": "簡単",
+      "normal": "普通",
+      "hard": "困難",
+      "sp": "SP",
+      "ex": "EX"
     },
     "Fleet": {
       "name": "出撃艦隊",
       "help": "",
       "single": "単艦隊連戦",
       "multi": "複数艦隊出撃"
+    }
+  },
+  "CoalitionScuttle": {
+    "_info": {
+      "name": "CoalitionScuttle._info.name",
+      "help": "CoalitionScuttle._info.help"
+    },
+    "Sacrifice": {
+      "name": "CoalitionScuttle.Sacrifice.name",
+      "help": "CoalitionScuttle.Sacrifice.help",
+      "vanguard": "vanguard",
+      "flagship": "flagship",
+      "vanguard_flagship": "vanguard_flagship"
     }
   },
   "EventShop": {
@@ -1983,10 +2015,6 @@
       "only_no_project": "実行可能なプロジェクトがない場合",
       "do_not_use": "使用しない"
     },
-    "CubePreserve": {
-      "name": "X個のキューブを保持",
-      "help": "現在のキューブ数がこの値以下の場合、研究ではキューブを消費するプロジェクトを一時的に選択しません。\n0で無効。"
-    },
     "UseCoin": {
       "name": "資金を使用する",
       "help": "",
@@ -2006,6 +2034,14 @@
     "AllowDelay": {
       "name": "資源不足時に科研を遅延させる",
       "help": "資源が不足している場合、AzurPilotは条件が満たされるか科研キューが空になりそうになるまで科研を遅延させますが、科研が停止することはありません。\n長期間資源が不足している場合やAzurPilotの実行時間が十分でない場合は、このオプションをオフにして科研キューを常に満杯に保つことができます。"
+    },
+    "AllowGenreT": {
+      "name": "T型研究を許可",
+      "help": "T型研究は研究キューの停止や効率低下を招く可能性があります。必要な場合のみ有効にしてください。"
+    },
+    "RemainingCommissions": {
+      "name": "T型研究の残り委託回数",
+      "help": "保留中のT型研究に必要な残り委託回数です。-1は保留中のT型研究がないことを示します。"
     },
     "PresetFilter": {
       "name": "科研フィルター",
@@ -5925,10 +5961,32 @@
       "InvalidChar": "構成ファイル名には次の文字を含めることはできません: .\\/:*?\"<>|",
       "InvalidPrefixTemplate": "構成ファイル名をテンプレートで始めることはできません",
       "Back": "戻る",
-      "New": "に追加",
-      "Import": "輸入",
+      "New": "設定を追加",
+      "Import": "設定をインポート",
+      "ImportLegacy": "旧データをインポート",
+      "ImportLegacyTitle": "旧 AzurPilot/ALAS データをインポート",
+      "ImportLegacyHint": "旧 AzurPilot/ALAS のルートフォルダーを選択すると、次のデータが自動的にインポートされます。",
+      "ImportLegacyContent": "設定ファイル、データベース、ログ統計",
+      "ImportLegacyWarning": "同名のファイルは上書きされます。先に現在のプロジェクトをバックアップしてください。",
+      "ImportLegacyChoose": "旧 AzurPilot/ALAS フォルダーを選択",
+      "ImportLegacySelecting": "表示されたダイアログで旧 AzurPilot/ALAS のルートフォルダーを選択してください",
+      "ImportLegacySuccess": "旧データをインポートしました",
+      "ImportLegacyFailed": "旧データのインポートに失敗しました: {error}",
+      "ImportLegacyNoMatch": "選択したフォルダーの config/ または log/cl1/ に一致するファイルが見つかりませんでした",
+      "ImportLegacyRequestFailed": "アップロード要求に失敗しました",
+      "ImportLegacyUnknownError": "不明なエラー",
       "Export": "輸出",
       "Delete": "消去",
+      "Summary": "概要",
+      "Collapse": "折りたたむ",
+      "EnabledTasks": "有効なタスク",
+      "SchedulerOrderHint": "スケジューラーの優先順位で表示しています。実際の実行時刻は各タスクの NextRun によって決まります。",
+      "SummaryLoadFailed": "設定の概要を読み込めませんでした: {error}",
+      "DeleteConfirm": "設定「{name}」を削除しますか？この操作は元に戻せませんが、ログと統計データは削除されません。",
+      "DeleteRunning": "設定「{name}」は実行中です。停止してから削除してください。",
+      "DeleteLast": "設定は少なくとも1つ残す必要があります。先に別の設定を追加してください。",
+      "DeleteSuccess": "設定「{name}」を削除しました",
+      "DeleteFailed": "設定の削除に失敗しました: {error}",
       "OverrideWarning": "既存の設定ファイルは上書きされます",
       "ImportSuccess": "インポート成功",
       "NewSuccess": "正常に追加されました",

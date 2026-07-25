@@ -502,8 +502,12 @@
         "value": "auto",
         "option": [
           "auto",
-          "cpu",
+          "qnn_npu",
+          "openvino_npu",
+          "openvino_gpu",
           "gpu",
+          "openvino_cpu",
+          "cpu",
           "ane"
         ]
       },
@@ -514,6 +518,14 @@
           "auto",
           "onnxruntime",
           "ncnn"
+        ]
+      },
+      "OcrWindowsMlVendorEp": {
+        "type": "checkbox",
+        "value": true,
+        "option": [
+          true,
+          false
         ]
       },
       "OcrModelVersionEnglish": {
@@ -1156,6 +1168,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -1577,6 +1593,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -1998,6 +2018,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -2540,6 +2564,10 @@
           "fleet1_standby_fleet2_all"
         ],
         "display": "display"
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -3046,6 +3074,10 @@
           "fleet1_standby_fleet2_all"
         ],
         "display": "display"
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -3539,6 +3571,10 @@
           "fleet1_standby_fleet2_all"
         ],
         "display": "display"
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -3973,6 +4009,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -4410,6 +4450,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -4846,6 +4890,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -5595,6 +5643,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -5998,10 +6050,11 @@
         "value": "campaign_main",
         "option": [
           "coalition_20230323",
-          "coalition_20260122"
+          "coalition_20260122",
+          "coalition_20260723"
         ],
         "option_cn": [
-          "coalition_20260122"
+          "coalition_20260723"
         ],
         "option_en": [
           "coalition_20260122"
@@ -6014,7 +6067,8 @@
         ],
         "option_bold": [
           "coalition_20230323",
-          "coalition_20260122"
+          "coalition_20260122",
+          "coalition_20260723"
         ]
       },
       "Mode": {
@@ -6068,11 +6122,11 @@
     "Coalition": {
       "Mode": {
         "type": "select",
-        "value": "tc3",
+        "value": "hard",
         "option": [
-          "tc1",
-          "tc2",
-          "tc3",
+          "easy",
+          "normal",
+          "hard",
           "ex"
         ]
       },
@@ -6210,6 +6264,306 @@
         "type": "checkbox",
         "value": false,
         "display": "hide"
+      },
+      "Fleet2Onsen": {
+        "type": "checkbox",
+        "value": false
+      }
+    },
+    "Storage": {
+      "Storage": {
+        "type": "storage",
+        "value": {},
+        "valuetype": "ignore",
+        "display": "disabled"
+      }
+    }
+  },
+  "CoalitionScuttle": {
+    "Scheduler": {
+      "Enable": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "PushNotification": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "NextRun": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime"
+      },
+      "Command": {
+        "type": "input",
+        "value": "CoalitionScuttle",
+        "display": "hide"
+      },
+      "SuccessInterval": {
+        "type": "input",
+        "value": 30,
+        "display": "hide"
+      },
+      "FailureInterval": {
+        "type": "input",
+        "value": 30,
+        "display": "hide"
+      },
+      "ServerUpdate": {
+        "type": "input",
+        "value": "00:00",
+        "display": "hide"
+      },
+      "Sensitive": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      }
+    },
+    "CoalitionScuttle": {
+      "Sacrifice": {
+        "type": "select",
+        "value": "vanguard",
+        "option": [
+          "vanguard",
+          "flagship",
+          "vanguard_flagship"
+        ]
+      }
+    },
+    "Campaign": {
+      "Name": {
+        "type": "input",
+        "value": "dynamic",
+        "display": "hide"
+      },
+      "Event": {
+        "type": "state",
+        "value": "campaign_main",
+        "option": [
+          "coalition_20230323",
+          "coalition_20260122",
+          "coalition_20260723"
+        ],
+        "option_cn": [
+          "coalition_20260723"
+        ],
+        "option_en": [
+          "coalition_20260122"
+        ],
+        "option_jp": [
+          "coalition_20260122"
+        ],
+        "option_tw": [
+          "coalition_20230323"
+        ],
+        "option_bold": [
+          "coalition_20230323",
+          "coalition_20260122",
+          "coalition_20260723"
+        ]
+      },
+      "Mode": {
+        "type": "select",
+        "value": "normal",
+        "option": [
+          "normal",
+          "hard"
+        ],
+        "display": "hide"
+      },
+      "UseClearMode": {
+        "type": "checkbox",
+        "value": true,
+        "display": "hide"
+      },
+      "UseFleetLock": {
+        "type": "checkbox",
+        "value": true,
+        "display": "hide"
+      },
+      "UseAutoSearch": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
+      },
+      "Use2xBook": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
+      },
+      "AmbushEvade": {
+        "type": "checkbox",
+        "value": true,
+        "display": "hide"
+      },
+      "UseRecommendFleet": {
+        "type": "checkbox",
+        "value": false
+      },
+      "DefeatWithdraw": {
+        "type": "select",
+        "value": "withdraw_stop",
+        "option": [
+          "withdraw_continue",
+          "switch_fleet",
+          "withdraw_stop"
+        ]
+      }
+    },
+    "Coalition": {
+      "Mode": {
+        "type": "select",
+        "value": "hard",
+        "option": [
+          "easy",
+          "normal",
+          "hard",
+          "ex",
+          "sp"
+        ]
+      },
+      "Fleet": {
+        "type": "select",
+        "value": "single",
+        "option": [
+          "single",
+          "multi"
+        ]
+      }
+    },
+    "StopCondition": {
+      "OilLimit": {
+        "type": "input",
+        "value": 1000
+      },
+      "CoinLimit": {
+        "type": "input",
+        "value": 0
+      },
+      "RunCount": {
+        "type": "input",
+        "value": 0
+      },
+      "MapAchievement": {
+        "type": "select",
+        "value": "non_stop",
+        "option": [
+          "non_stop",
+          "non_stop_clear_all",
+          "100_percent_clear",
+          "map_3_stars",
+          "threat_safe",
+          "threat_safe_without_3_stars"
+        ],
+        "display": "hide"
+      },
+      "StageIncrease": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
+      },
+      "GetNewShip": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
+      },
+      "ReachLevel": {
+        "type": "input",
+        "value": 0,
+        "display": "hide"
+      }
+    },
+    "Emotion": {
+      "Mode": {
+        "type": "select",
+        "value": "calculate",
+        "option": [
+          "calculate",
+          "ignore",
+          "calculate_ignore"
+        ]
+      },
+      "Fleet1Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet1Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet1Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet1Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet1Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet1Onsen": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet2Value": {
+        "type": "input",
+        "value": 119
+      },
+      "Fleet2Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet2Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet2Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
       },
       "Fleet2Onsen": {
         "type": "checkbox",
@@ -6940,6 +7294,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -7394,6 +7752,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -7848,6 +8210,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -8302,6 +8668,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -8756,6 +9126,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -9200,6 +9574,10 @@
           "fleet1_all_fleet2_standby",
           "fleet1_standby_fleet2_all"
         ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Submarine": {
@@ -9721,10 +10099,11 @@
         "value": "campaign_main",
         "option": [
           "coalition_20230323",
-          "coalition_20260122"
+          "coalition_20260122",
+          "coalition_20260723"
         ],
         "option_cn": [
-          "coalition_20260122"
+          "coalition_20260723"
         ],
         "option_en": [
           "coalition_20260122"
@@ -9737,7 +10116,8 @@
         ],
         "option_bold": [
           "coalition_20230323",
-          "coalition_20260122"
+          "coalition_20260122",
+          "coalition_20260723"
         ]
       },
       "Mode": {
@@ -9791,14 +10171,15 @@
     "Coalition": {
       "Mode": {
         "type": "select",
-        "value": "tc3",
+        "value": "hard",
         "option": [
-          "tc1",
-          "tc2",
-          "tc3",
+          "easy",
+          "normal",
+          "hard",
           "sp",
           "ex"
-        ]
+        ],
+        "display": "hide"
       },
       "Fleet": {
         "type": "select",
@@ -10229,14 +10610,6 @@
           "do_not_use"
         ]
       },
-      "CubePreserve": {
-        "type": "input",
-        "value": 0,
-        "validate": [
-          0,
-          999999
-        ]
-      },
       "UseCoin": {
         "type": "select",
         "value": "always_use",
@@ -10260,6 +10633,14 @@
       "AllowDelay": {
         "type": "checkbox",
         "value": true
+      },
+      "AllowGenreT": {
+        "type": "checkbox",
+        "value": false
+      },
+      "RemainingCommissions": {
+        "type": "input",
+        "value": -1
       },
       "PresetFilter": {
         "type": "select",

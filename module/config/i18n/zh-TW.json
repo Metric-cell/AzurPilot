@@ -106,6 +106,10 @@
       "name": "光影風尚-拍攝進行時",
       "help": ""
     },
+    "CoalitionScuttle": {
+      "name": "Task.CoalitionScuttle.name",
+      "help": "Task.CoalitionScuttle.help"
+    },
     "MaritimeEscort": {
       "name": "商船護航",
       "help": ""
@@ -143,7 +147,7 @@
       "help": ""
     },
     "CoalitionSp": {
-      "name": "光影風尚-拍攝進行時SP",
+      "name": "怪谈纪实：逃离白夜山庄SP",
       "help": ""
     },
     "Commission": {
@@ -737,10 +741,14 @@
     },
     "OcrDevice": {
       "name": "OCR 裝置",
-      "help": "選擇 OCR 裝置。GPU 用 Windows DirectML，ANE 用 macOS Apple Neural Engine。自動：Apple Silicon Mac 使用 ANE，Windows VRAM > 1GB 用 GPU，否則 CPU。",
+      "help": "選擇 OCR 推論裝置。\n自動選擇：Windows 依序嘗試 QNN NPU、OpenVINO NPU、OpenVINO 獨顯 GPU、DirectML 獨顯 GPU、OpenVINO CPU、CPU；關閉「自動安裝並使用廠商 EP」後只嘗試 DirectML 獨顯 GPU 和 CPU。\nQNN/OpenVINO 裝置僅適用於 ONNX Runtime，ANE 僅適用於 Apple Silicon Mac。",
       "auto": "自動選擇",
+      "qnn_npu": "QNN NPU",
+      "openvino_npu": "OpenVINO NPU",
+      "openvino_gpu": "OpenVINO 獨顯 GPU",
+      "gpu": "DirectML 獨顯 GPU",
+      "openvino_cpu": "OpenVINO CPU",
       "cpu": "CPU",
-      "gpu": "GPU",
       "ane": "ANE (Apple)"
     },
     "OcrBackend": {
@@ -749,6 +757,12 @@
       "auto": "自動 (onnxruntime)",
       "onnxruntime": "ONNX Runtime",
       "ncnn": "ncnn (Vulkan)"
+    },
+    "OcrWindowsMlVendorEp": {
+      "name": "自動安裝並使用廠商 EP",
+      "help": "允許 Windows ML 透過 Windows Update 下載並使用 QNN/OpenVINO 廠商 EP。",
+      "True": "啟用",
+      "False": "停用"
     },
     "OcrModelVersionEnglish": {
       "name": "OCR 英文模型版本",
@@ -1046,6 +1060,7 @@
       "coalition_20250626": "迷彩都市的尋蹤者",
       "coalition_20251120": "DATE A LANE",
       "coalition_20260122": "光影風尚-拍攝進行時",
+      "coalition_20260723": "怪谈纪实：逃离白夜山庄",
       "event_20200227_cn": "Northern Overture",
       "event_20200312_cn": "斯圖爾特的硝煙",
       "event_20200326_cn": "Microlayer Medley",
@@ -1372,6 +1387,10 @@
       "fleet1_boss_fleet2_mob": "一隊boss二隊道中",
       "fleet1_all_fleet2_standby": "一隊全清二隊待機",
       "fleet1_standby_fleet2_all": "一隊待機二隊全清"
+    },
+    "SkipPreparation": {
+      "name": "Fleet.SkipPreparation.name",
+      "help": "Fleet.SkipPreparation.help"
     }
   },
   "Submarine": {
@@ -1825,17 +1844,30 @@
     "Mode": {
       "name": "難度",
       "help": "SP圖需要使用活動每日SP執行",
-      "tc1": "tc1",
-      "tc2": "tc2",
-      "tc3": "tc3",
-      "sp": "sp",
-      "ex": "ex"
+      "easy": "簡單",
+      "normal": "普通",
+      "hard": "困難",
+      "sp": "SP",
+      "ex": "EX"
     },
     "Fleet": {
       "name": "出擊隊伍",
       "help": "",
       "single": "單隊連戰",
       "multi": "多隊出擊"
+    }
+  },
+  "CoalitionScuttle": {
+    "_info": {
+      "name": "CoalitionScuttle._info.name",
+      "help": "CoalitionScuttle._info.help"
+    },
+    "Sacrifice": {
+      "name": "CoalitionScuttle.Sacrifice.name",
+      "help": "CoalitionScuttle.Sacrifice.help",
+      "vanguard": "vanguard",
+      "flagship": "flagship",
+      "vanguard_flagship": "vanguard_flagship"
     }
   },
   "EventShop": {
@@ -1983,10 +2015,6 @@
       "only_no_project": "無專案可做時",
       "do_not_use": "不使用"
     },
-    "CubePreserve": {
-      "name": "保留 X 個魔方",
-      "help": "當目前魔方數量小於等於該值時，科研暫時不選擇消耗魔方的專案。\n0 表示關閉。"
-    },
     "UseCoin": {
       "name": "使用物資",
       "help": "",
@@ -2006,6 +2034,14 @@
     "AllowDelay": {
       "name": "資源不足時延遲科研",
       "help": "資源不足時AzurPilot會延遲科研直到滿足條件或科研佇列即將清空，不會導致科研停轉\n如果長期保持資源不足或執行AzurPilot的時間不夠長，可以取消本選項以保持科研佇列裝滿"
+    },
+    "AllowGenreT": {
+      "name": "允許進行T類科研",
+      "help": "此功能可能導致科研佇列閒置及效率降低，請僅在確實需要時啟用。"
+    },
+    "RemainingCommissions": {
+      "name": "T類科研剩餘委託次數",
+      "help": "待處理T類科研仍需完成的委託次數，-1代表沒有待處理的T類科研。"
     },
     "PresetFilter": {
       "name": "科研過濾器",
@@ -5925,10 +5961,32 @@
       "InvalidChar": "配置檔名不能包含下列任何字元：.\\/:*?\"<>|",
       "InvalidPrefixTemplate": "配置檔名不能以 template 開頭",
       "Back": "返回",
-      "New": "新增",
-      "Import": "匯入",
+      "New": "新增配置",
+      "Import": "匯入配置",
+      "ImportLegacy": "匯入舊資料",
+      "ImportLegacyTitle": "匯入舊 AzurPilot/ALAS 資料",
+      "ImportLegacyHint": "選擇舊 AzurPilot/ALAS 根目錄後，將自動匯入以下資料。",
+      "ImportLegacyContent": "配置檔案、資料庫和日誌統計",
+      "ImportLegacyWarning": "同名檔案會被覆蓋，建議先備份目前專案。",
+      "ImportLegacyChoose": "選擇舊 AzurPilot/ALAS 資料夾",
+      "ImportLegacySelecting": "請在彈出的視窗中選擇舊 AzurPilot/ALAS 根目錄",
+      "ImportLegacySuccess": "舊資料匯入成功",
+      "ImportLegacyFailed": "舊資料匯入失敗：{error}",
+      "ImportLegacyNoMatch": "所選資料夾中未找到 config/ 或 log/cl1/ 下的相符檔案",
+      "ImportLegacyRequestFailed": "上傳請求失敗",
+      "ImportLegacyUnknownError": "未知錯誤",
       "Export": "匯出",
       "Delete": "刪除",
+      "Summary": "概覽",
+      "Collapse": "收起",
+      "EnabledTasks": "已啟用任務",
+      "SchedulerOrderHint": "依調度優先順序顯示；實際執行時間仍由各任務的 NextRun 決定。",
+      "SummaryLoadFailed": "無法讀取配置概覽：{error}",
+      "DeleteConfirm": "確定刪除配置「{name}」嗎？此操作無法復原，但不會刪除日誌與統計資料。",
+      "DeleteRunning": "配置「{name}」正在執行，請先停止後再刪除。",
+      "DeleteLast": "至少需要保留一個配置，請先新增其他配置。",
+      "DeleteSuccess": "已刪除配置「{name}」",
+      "DeleteFailed": "刪除配置失敗：{error}",
       "OverrideWarning": "將會覆蓋現有的配置檔案",
       "ImportSuccess": "匯入成功",
       "NewSuccess": "新增成功",

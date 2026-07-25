@@ -1,8 +1,11 @@
 import argparse
+
 # 此文件专门用于管理 Alas 运行时各实例进程的生存周期及其子进程。
 # 负责多账号多开时的进程池维护、状态（运行中、停止、异常）追踪及进程间通信的安全处理逻辑。
+from collections.abc import Sequence
 import os
 import queue
+import subprocess
 import threading
 import time
 from multiprocessing import Process
@@ -10,6 +13,7 @@ from typing import Dict, List, Union
 
 import inflection
 from rich.console import Console, ConsoleRenderable
+from rich.text import Text
 
 # 由于本文件不在 app.py 的同一进程或子进程中运行，
 # 以下代码需要重复执行。
@@ -21,8 +25,14 @@ import_fake_pil_module()
 from module.logger import logger, set_file_logger, set_func_logger
 from module.config.utils import DEFAULT_CONFIG_NAME
 from module.submodule.submodule import load_mod
-from module.submodule.utils import get_available_func, get_available_mod, get_available_mod_func, get_config_mod, \
-    get_func_mod, list_mod_instance
+from module.submodule.utils import (
+    get_available_func,
+    get_available_mod,
+    get_available_mod_func,
+    get_config_mod,
+    get_func_mod,
+    list_mod_instance,
+)
 from module.webui.setting import State
 
 
@@ -35,11 +45,11 @@ class ProcessManager:
         self.renderables: List[ConsoleRenderable] = []
         self.renderables_max_length = 400
         self.renderables_reduce_length = 80
-        self._process: Process = None
+        self._process: Process | None = None
         self._process_locks: Dict[str, threading.Lock] = {}
-        self.thd_log_queue_handler: threading.Thread = None
-        self._state_override: int = None
-        self._state_override_deadline: float = None
+        self.thd_log_queue_handler: threading.Thread | None = None
+        self._state_override: int | None = None
+        self._state_override_deadline: float | None = None
 
     def set_state_override(self, state: int, duration: float = 10) -> None:
         """
@@ -61,7 +71,7 @@ class ProcessManager:
         self._state_override = None
         self._state_override_deadline = None
 
-    def _get_state_override(self) -> Union[int, None]:
+    def _get_state_override(self) -> int | None:
         if self._state_override is None:
             return None
         if (
@@ -72,7 +82,7 @@ class ProcessManager:
             return None
         return self._state_override
 
-    def start(self, func, ev: threading.Event = None) -> None:
+    def start(self, func: str | None, ev: threading.Event | None = None) -> None:
         if not self.alive:
             if func is None:
                 func = get_config_mod(self.config_name)
@@ -82,18 +92,18 @@ class ProcessManager:
                 self._renderable_queue,
                 ev,
             )
-            self._process = Process(
+            process = Process(
                 target=ProcessManager.run_process,
                 args=args,
             )
-            self._process.start()
+            self._process = process
+            process.start()
+            self._register_process(process.pid)
             self.start_log_queue_handler()
 
-    def start_log_queue_handler(self):
-        if (
-            self.thd_log_queue_handler is not None
-            and self.thd_log_queue_handler.is_alive()
-        ):
+    def start_log_queue_handler(self) -> None:
+        log_queue_handler = self.thd_log_queue_handler
+        if log_queue_handler is not None and log_queue_handler.is_alive():
             return
         self.thd_log_queue_handler = threading.Thread(
             target=self._thread_log_queue_handler
@@ -108,18 +118,111 @@ class ProcessManager:
             self._process_locks[self.config_name] = lock
 
         with lock:
-            if self.alive:
-                self._process.kill()
-                self.renderables.append(
-                    f"[{self.config_name}] exited. Reason: Manual stop\n"
-                )
-            if self.thd_log_queue_handler is not None:
-                self.thd_log_queue_handler.join(timeout=1)
-                if self.thd_log_queue_handler.is_alive():
+            process = self._process
+            pid = (
+                process.pid
+                if process is not None and process.is_alive()
+                else self._registered_pid()
+            )
+            stopped = pid is None
+            if pid is not None:
+                stopped = self._kill_process_tree(pid)
+                if process is not None:
+                    process.join(timeout=3)
+                    stopped = stopped and not process.is_alive()
+            if stopped:
+                self._process = None
+                self._unregister_process()
+                if pid is not None:
+                    self.renderables.append(
+                        Text(f"[{self.config_name}] exited. Reason: Manual stop\n")
+                    )
+            else:
+                logger.error(f"[{self.config_name}] failed to stop worker PID {pid}")
+            log_queue_handler = self.thd_log_queue_handler
+            if log_queue_handler is not None:
+                log_queue_handler.join(timeout=1)
+                if log_queue_handler.is_alive():
                     logger.warning(
                         "Log queue handler thread does not stop within 1 seconds"
                     )
         logger.info(f"[{self.config_name}] exited")
+
+    @staticmethod
+    def _kill_process_tree(pid: int) -> bool:
+        """终止 worker 及其派生进程，避免关闭 WebUI 后任务留在后台。"""
+        if os.name == "nt":
+            try:
+                result = subprocess.run(
+                    ["taskkill", "/PID", str(pid), "/T", "/F"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                    timeout=3,
+                )
+                return result.returncode == 0
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                logger.warning(f"Failed to stop worker PID {pid}: {exc}")
+                try:
+                    os.kill(pid, 9)
+                except (PermissionError, ProcessLookupError):
+                    return not ProcessManager._pid_exists(pid)
+                return not ProcessManager._pid_exists(pid)
+        else:
+            try:
+                import psutil
+
+                parent = psutil.Process(pid)
+                for child in reversed(parent.children(recursive=True)):
+                    try:
+                        child.kill()
+                    except psutil.NoSuchProcess:
+                        pass
+            except (ImportError, psutil.Error if "psutil" in locals() else OSError):
+                pass
+        try:
+            os.kill(pid, 9)
+        except ProcessLookupError:
+            return True
+        return ProcessManager._wait_pid_exit(pid, timeout=3)
+
+    @staticmethod
+    def _pid_exists(pid: int) -> bool:
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
+    @staticmethod
+    def _wait_pid_exit(pid: int, timeout: float) -> bool:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            if not ProcessManager._pid_exists(pid):
+                return True
+            time.sleep(0.1)
+        return not ProcessManager._pid_exists(pid)
+
+    def _registered_pid(self) -> int | None:
+        registry = State.process_registry
+        if registry is None:
+            return None
+        try:
+            pid = registry.get(self.config_name)
+            return int(pid) if pid is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _register_process(self, pid: int | None) -> None:
+        if pid is not None and State.process_registry is not None:
+            State.process_registry[self.config_name] = pid
+
+    def _unregister_process(self) -> None:
+        if State.process_registry is not None:
+            State.process_registry.pop(self.config_name, None)
 
     def _thread_log_queue_handler(self) -> None:
         while self.alive:
@@ -134,10 +237,15 @@ class ProcessManager:
 
     @property
     def alive(self) -> bool:
-        if self._process is not None:
-            return self._process.is_alive()
-        else:
-            return False
+        process = self._process
+        if process is not None and process.is_alive():
+            return True
+        pid = self._registered_pid()
+        if pid is not None and self._pid_exists(pid):
+            return True
+        if pid is not None:
+            self._unregister_process()
+        return False
 
     @property
     def state(self) -> int:
@@ -202,23 +310,43 @@ class ProcessManager:
             cls._processes[config_name] = ProcessManager(config_name)
         return cls._processes[config_name]
 
+    @classmethod
+    def is_running(cls, config_name: str) -> bool:
+        """检查指定配置实例是否正在运行。"""
+        manager = cls._processes.get(config_name)
+        return manager is not None and manager.alive
+
+    @classmethod
+    def remove_manager(cls, config_name: str) -> None:
+        """移除指定配置实例的进程管理器。"""
+        cls._processes.pop(config_name, None)
+
     @staticmethod
     def run_process(
-        config_name, func: str, q: queue.Queue, e: threading.Event = None
+        config_name,
+        func: str,
+        q: queue.Queue[ConsoleRenderable],
+        e: threading.Event | None = None,
     ) -> None:
         import sys
+
         if sys.platform != "win32":
             import resource
+
             try:
                 _soft, _hard = resource.getrlimit(resource.RLIMIT_NOFILE)
-                _target = 65536 if _hard == resource.RLIM_INFINITY else min(65536, _hard)
+                _target = (
+                    65536 if _hard == resource.RLIM_INFINITY else min(65536, _hard)
+                )
                 if _soft < _target:
                     resource.setrlimit(resource.RLIMIT_NOFILE, (_target, _hard))
             except Exception:
                 pass
         parser = argparse.ArgumentParser()
         parser.add_argument(
-            "--electron", action="store_true", help="由 Electron 客户端运行时启用此参数。"
+            "--electron",
+            action="store_true",
+            help="由 Electron 客户端运行时启用此参数。",
         )
         args, _ = parser.parse_known_args()
         State.electron = args.electron
@@ -229,6 +357,7 @@ class ProcessManager:
             # 参考 https://github.com/LmeSzinc/AzurLaneAutoScript/issues/2051
             logger.info("[WebUI] 检测到 Electron 环境，移除标准输出日志处理器")
             from module.logger import console_hdlr
+
             logger.removeHandler(console_hdlr)
         set_func_logger(func=q.put)
 
@@ -248,9 +377,10 @@ class ProcessManager:
         remove_fake_pil_module()
 
         # 设置环境变量，使预加载模块（如 al_ocr.py）可以提前读取配置
-        os.environ['ALAS_CONFIG_NAME'] = config_name
+        os.environ["ALAS_CONFIG_NAME"] = config_name
 
-        AzurLaneConfig.stop_event = e
+        if e is not None:
+            AzurLaneConfig.stop_event = e
         try:
             # 运行 AzurPilot
             if func == "alas":
@@ -262,17 +392,27 @@ class ProcessManager:
             elif func in get_available_func():
                 from alas import AzurLaneAutoScript
 
-                AzurLaneAutoScript(config_name=config_name).run(inflection.underscore(func), skip_first_screenshot=True)
+                AzurLaneAutoScript(config_name=config_name).run(
+                    inflection.underscore(func), skip_first_screenshot=True
+                )
             elif func in get_available_mod():
                 mod = load_mod(func)
+
+                if mod is None:
+                    logger.critical(f"[WebUI] 无法加载功能模块：{func}")
+                    return
 
                 if e is not None:
                     mod.set_stop_event(e)
                 mod.loop(config_name)
             elif func in get_available_mod_func():
-                getattr(load_mod(get_func_mod(func)), inflection.underscore(func))(config_name)
+                getattr(load_mod(get_func_mod(func)), inflection.underscore(func))(
+                    config_name
+                )
             else:
-                logger.critical(f"[WebUI] 杂鱼大叔，连功能模块都找不到吗？{func} 这种东西根本不存在啦~")
+                logger.critical(
+                    f"[WebUI] 杂鱼大叔，连功能模块都找不到吗？{func} 这种东西根本不存在啦~"
+                )
             if e is not None and e.is_set():
                 logger.info(f"[{config_name}] exited. Reason: Update\n")
             else:
@@ -282,16 +422,16 @@ class ProcessManager:
 
     @classmethod
     def running_instances(cls) -> List["ProcessManager"]:
-        l = []
-        for process in cls._processes.values():
-            if process.alive:
-                l.append(process)
-        return l
+        names = set(cls._processes)
+        if State.process_registry is not None:
+            names.update(State.process_registry.keys())
+        return [cls.get_manager(name) for name in names if cls.get_manager(name).alive]
 
     @staticmethod
     def restart_processes(
-        instances: List[Union["ProcessManager", str]] = None, ev: threading.Event = None
-    ):
+        instances: Sequence[Union["ProcessManager", str]] | None = None,
+        ev: threading.Event | None = None,
+    ) -> None:
         """
         更新重载后（或更新失败时），重启所有更新前正在运行的 AzurPilot 实例。
 
@@ -307,7 +447,7 @@ class ProcessManager:
         if instances is None:
             instances = []
 
-        _instances = set()
+        _instances: set[ProcessManager] = set()
 
         for instance in instances:
             if isinstance(instance, str):
@@ -316,7 +456,7 @@ class ProcessManager:
                 _instances.add(instance)
 
         try:
-            with open("./config/reloadalas", mode="r") as f:
+            with open("./config/reloadalas", mode="r", encoding="utf-8") as f:
                 for line in f.readlines():
                     line = line.strip()
                     _instances.add(ProcessManager.get_manager(line))

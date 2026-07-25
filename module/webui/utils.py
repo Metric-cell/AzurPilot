@@ -418,8 +418,34 @@ def add_css(filepath):
     run_js(js)
 
 
+def load_webui_styles(theme=None, is_mobile=None):
+    """加载 WebUI 各入口共用的基础、响应式与主题样式。"""
+    if theme is None:
+        theme = State.theme or "default"
+    if is_mobile is None:
+        is_mobile = session_info.user_agent.is_mobile
+
+    styles = [
+        "alas",
+        "alas-mobile" if is_mobile else "alas-pc",
+        "entry-alas",
+    ]
+    theme_styles = {
+        "dark": ("dark-alas",),
+        "advanced_material": ("advanced-material-alas",),
+        "dark_advanced_material": (
+            "advanced-material-alas",
+            "dark-advanced-material-overrides-alas",
+        ),
+    }
+    styles.extend(theme_styles.get(theme, ("light-alas",)))
+
+    for name in styles:
+        add_css(filepath_css(name))
+
+
 def _read(path):
-    with open(path, "r") as f:
+    with open(path, "r", encoding="utf-8") as f:
         return f.read()
 
 
@@ -551,24 +577,49 @@ def _show_password_help(action):
 
 
 def _input_webui_password():
-    while True:
-        data = input_group(inputs=[
-            input(
-                name="password",
-                label="请输入 WebUI 密码",
-                type=PASSWORD,
-                placeholder="PASSWORD",
-            ),
-            actions(name="action", buttons=[
-                {"label": "登录", "value": "login", "type": "submit", "color": "primary"},
-                {"label": "没设置过密码？", "value": "new", "type": "submit", "color": "secondary"},
-                {"label": "忘记密码？", "value": "forgot", "type": "submit", "color": "secondary"},
-            ]),
-        ])
-        action = data["action"]
-        if action == "login":
-            return data["password"]
-        _show_password_help(action)
+    eval_js("(document.body.classList.add('alas-login-page'), true)")
+    try:
+        while True:
+            data = input_group(
+                label="AzurPilot",
+                inputs=[
+                    input(
+                        name="password",
+                        label="请输入 WebUI 密码",
+                        type=PASSWORD,
+                        placeholder="PASSWORD",
+                    ),
+                    actions(
+                        name="action",
+                        buttons=[
+                            {
+                                "label": "登录",
+                                "value": "login",
+                                "type": "submit",
+                                "color": "primary",
+                            },
+                            {
+                                "label": "没设置过密码？",
+                                "value": "new",
+                                "type": "submit",
+                                "color": "secondary",
+                            },
+                            {
+                                "label": "忘记密码？",
+                                "value": "forgot",
+                                "type": "submit",
+                                "color": "secondary",
+                            },
+                        ],
+                    ),
+                ],
+            )
+            action = data["action"]
+            if action == "login":
+                return data["password"]
+            _show_password_help(action)
+    finally:
+        run_js("document.body.classList.remove('alas-login-page')")
 
 
 def login(password):
@@ -660,7 +711,7 @@ def on_task_exception(self):
             word_wrap=True, extra_lines=1, show_locals=True
         )
 
-    if State.theme == "dark":
+    if State.theme in ("dark", "dark_advanced_material"):
         theme = DARK_TERMINAL_THEME
     else:
         theme = LIGHT_TERMINAL_THEME
