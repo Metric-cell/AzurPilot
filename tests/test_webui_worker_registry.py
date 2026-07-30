@@ -164,6 +164,13 @@ class TestWorkerRegistry(unittest.TestCase):
                     json.loads(registry_file.read_text(encoding="utf-8")),
                 )
 
+    def test_current_owner_creation_time_is_stable_after_clock_adjustment(self):
+        with patch.object(worker_registry, "_current_process_created_at", None), patch(
+            "psutil.Process.create_time", side_effect=[10.5, 11.5]
+        ):
+            self.assertEqual(10.5, worker_registry._process_created_at(os.getpid()))
+            self.assertEqual(10.5, worker_registry._process_created_at(os.getpid()))
+
     def test_repeated_owner_claim_preserves_registered_workers(self):
         with tempfile.TemporaryDirectory() as directory:
             registry_file = Path(directory) / "workers.json"

@@ -21,6 +21,10 @@ REGISTRY_LOCK_RETRY_INTERVAL = 0.05
 
 # 同一 Python 进程内先串行化，避免重复竞争系统级文件锁。
 _registry_lock = threading.RLock()
+# psutil 在 Linux 上会用当前系统时间换算进程启动时间。系统时钟被校准后，
+# 同一个进程的 create_time() 可能前后相差一秒；当前 WebUI 自己的 PID 不会
+# 被复用，因此缓存它的首次身份值即可避免误判，同时保留对其他 PID 的严格校验。
+_current_process_created_at: tuple[int, float] | None = None
 
 
 class WorkerRegistryOwnershipError(RuntimeError):
@@ -241,12 +245,23 @@ def _write_registry(registry: dict, registry_file: Path) -> None:
 
 
 def _process_created_at(pid: int) -> float:
+    global _current_process_created_at
+
+    if pid == os.getpid() and _current_process_created_at is not None:
+        cached_pid, cached_created_at = _current_process_created_at
+        if cached_pid == pid:
+            return cached_created_at
+
     try:
         import psutil
 
-        return psutil.Process(pid).create_time()
+        created_at = psutil.Process(pid).create_time()
     except Exception as exc:
         raise RuntimeError(f"无法读取 worker PID {pid} 的创建时间: {exc}") from exc
+
+    if pid == os.getpid():
+        _current_process_created_at = (pid, created_at)
+    return created_at
 
 
 def _owner_record(registry: dict) -> dict | None:
