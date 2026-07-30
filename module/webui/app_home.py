@@ -4,7 +4,7 @@ from module.webui.app_dependencies import (
     Switch,
     _t,
     alas_instance,
-    get_localstorage,
+    get_localstorage_values,
     get_window_visibility_state,
     go_app,
     is_oobe_needed,
@@ -121,39 +121,52 @@ class HomeMixin(WebUIMixinBase):
                 onclick=_disable,
             )
 
-    def run(self, initial_page="home") -> None:
+    def _load_deferred_client_assets(self) -> None:
+        """在首次绘制后再加载非关键的交互脚本。"""
+        run_js(
+            "(function() {"
+            "function load() {"
+            "if (!document.querySelector('link[rel=\"manifest\"]')) {"
+            "var manifest=document.createElement('link');"
+            "manifest.rel='manifest';manifest.href='static/assets/spa/manifest.json';"
+            "document.head.appendChild(manifest);"
+            "}"
+            "if (!document.getElementById('alas-utils-script')) {"
+            "var script=document.createElement('script');"
+            "script.id='alas-utils-script';script.async=true;"
+            "script.src='static/assets/gui/js/alas-utils.js';"
+            "document.head.appendChild(script);"
+            "}"
+            "}"
+            "if (window.requestIdleCallback) {"
+            "window.requestIdleCallback(load, {timeout: 3000});"
+            "} else { window.setTimeout(load, 0); }"
+            "})();"
+        )
+
+    def run(self, initial_page="home", localstorage=None) -> None:
         # setup gui
         set_env(title="AzurPilot", output_animation=False)
-        run_js(
-            "document.head.append(Object.assign(document.createElement('link'), { rel: 'manifest', href: '/static/assets/spa/manifest.json' }))"
-        )
         load_webui_styles(theme=self.theme, is_mobile=self.is_mobile)
-
-        # 加载静态 JS 工具文件（公告弹窗、截图查看器、自动刷新等）
-        # 替代原来的多个 run_js() 运行时注入
-        run_js(
-            "var s=document.createElement('script');"
-            "s.src='/static/assets/gui/js/alas-utils.js';"
-            "document.head.appendChild(s);"
-        )
-
-        aside = get_localstorage("aside")
+        if localstorage is None:
+            localstorage = get_localstorage_values(("aside",))
+        aside = localstorage.get("aside")
+        self._stored_aside = aside
 
         # OOBE 初次设置向导：无用户配置时引导完成基本设置
         if is_oobe_needed():
             from module.webui.oobe import OOBEWizard
 
             OOBEWizard(self).start()
+            self._load_deferred_client_assets()
             return
 
         self.mount_shell()
+        restore_instance = initial_page == "home" and aside in alas_instance()
         if initial_page == "manage":
             self.ui_manage()
-        else:
+        elif not restore_instance:
             self.show_home()
-
-        # init config watcher
-        self._init_alas_config_watcher()
 
         # save config
         _thread_save_config = threading.Thread(target=self._alas_thread_update_config)
@@ -190,10 +203,10 @@ class HomeMixin(WebUIMixinBase):
         self.task_handler.add(self.set_aside_status, 2)
         self.task_handler.add(visibility_state_switch.g(), 15)
 
+        if restore_instance:
+            self.ui_alas(aside)
+
+        self._load_deferred_client_assets()
+
         # 启动任务处理器
         self.task_handler.start()
-
-        # Return to previous page
-
-        if initial_page == "home" and aside in alas_instance():
-            self.ui_alas(aside)

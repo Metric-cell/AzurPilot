@@ -62,6 +62,7 @@ class DeployConfig(ConfigModel):
         self.template_file = get_deploy_template()
         self.config = {}
         self.config_template = {}
+        self._github_location_checked = False
         self.read()
 
         self.show_config()

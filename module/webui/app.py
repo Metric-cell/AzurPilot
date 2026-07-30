@@ -1,4 +1,14 @@
-"""AzurPilot WebUI 的兼容入口和 ASGI 应用工厂。"""
+"""AzurPilot WebUI 的兼容入口和 ASGI 应用工厂。
+
+提供 WebUI 的主应用类，通过多个 Mixin 组合实现各功能页面：
+仪表盘（Dashboard）、开发者菜单、开发者设置、开发者工具、
+版本更新、活动工具等。同时提供 ASGI 应用创建和路由注册。
+
+该模块是 WebUI 的顶层入口，被 gui.py 启动时引用。
+"""
+
+from hashlib import sha256
+from pathlib import Path
 
 from module.webui.app_dashboard import DashboardMixin
 from module.webui.app_dependencies import (
@@ -15,18 +25,19 @@ from module.webui.app_dependencies import (
     argparse,
     asgi_app,
     get_device_id,
+    get_localstorage_values,
     info,
     lang,
     load_webui_styles,
     local,
     logger,
     login,
-    os,
     popup,
     run_js,
     set_env,
     task_handler,
     time,
+    webconfig,
 )
 from module.webui.app_developer_menu import DeveloperMenuMixin
 from module.webui.app_developer_settings import DeveloperSettingsMixin
@@ -63,6 +74,18 @@ from module.webui.app_stat_resource import ResourceStatisticsMixin
 from module.webui.app_stat_ship import ShipExperienceStatisticsMixin
 from module.webui.app_statistics_page import StatisticsPageMixin
 from module.webui.app_task_config import TaskConfigMixin
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _versioned_static_asset(relative_path: str) -> str:
+    """返回带内容哈希的相对静态资源地址。"""
+    digest = sha256((PROJECT_ROOT / relative_path).read_bytes()).hexdigest()[:12]
+    return f"static/{relative_path}?v={digest}"
+
+
+INITIAL_WEBUI_CSS = _versioned_static_asset("assets/gui/css/alas.css")
 
 
 class AlasGUI(
@@ -142,17 +165,20 @@ def app():
     # 未传入 --run 时保持 None，由进程管理器跳过启动实例。
     instances: List[str] | None = runs
 
-    logger.hr("Webui configs")
-    logger.attr("Theme", State.deploy_config.Theme)
-    logger.attr("Language", lang.LANG)
-    logger.attr("Password", is_webui_password_set(key))
+    logger.hr("[WebUI] WebUI 配置")
+    logger.attr("主题", State.deploy_config.Theme)
+    logger.attr("语言", lang.LANG)
+    logger.attr("密码", is_webui_password_set(key))
     logger.attr("CDN", cdn)
-    logger.attr("IS_ON_PHONE_CLOUD", IS_ON_PHONE_CLOUD)
+    logger.attr("云手机", IS_ON_PHONE_CLOUD)
 
     from deploy.atomic import atomic_failure_cleanup
 
     atomic_failure_cleanup("./config")
-    static_path = os.getcwd()
+    static_mounts = {
+        "/static/assets": str(PROJECT_ROOT / "assets"),
+        "/static/doc": str(PROJECT_ROOT / "doc"),
+    }
 
     def _block_restricted_device() -> bool:
         if is_demo_mode():
@@ -180,28 +206,39 @@ def app():
 
     def _run_gui(initial_page: str = "home") -> None:
         set_env(title="AzurPilot", output_animation=False)
-        load_webui_styles(theme=AlasGUI.theme, is_mobile=info.user_agent.is_mobile)
+        load_webui_styles(
+            theme=AlasGUI.theme,
+            is_mobile=info.user_agent.is_mobile,
+            preloaded_styles=("alas",),
+        )
         if _block_restricted_device() or _block_public_webui_password_error():
             return
-        if is_webui_password_set(key) and not login(key):
-            logger.warning(f"{info.user_ip} login failed.")
+        localstorage = None
+        if is_webui_password_set(key):
+            localstorage = get_localstorage_values(("password", "aside"))
+        if is_webui_password_set(key) and not login(
+            key, stored_password=localstorage.get("password")
+        ):
+            logger.warning(f"[WebUI] {info.user_ip} 登录失败")
             time.sleep(1.5)
             run_js("location.reload();")
             return
         gui = AlasGUI()
         local.gui = gui
-        gui.run(initial_page=initial_page)
+        gui.run(initial_page=initial_page, localstorage=localstorage)
 
+    @webconfig(css_file=INITIAL_WEBUI_CSS)
     def index() -> None:
         _run_gui()
 
+    @webconfig(css_file=INITIAL_WEBUI_CSS)
     def manage() -> None:
         _run_gui(initial_page="manage")
 
     application = asgi_app(
         applications=[index, manage],
         cdn=cdn,
-        static_dir=static_path,
+        static_mounts=static_mounts,
         debug=True,
         on_startup=[
             startup,

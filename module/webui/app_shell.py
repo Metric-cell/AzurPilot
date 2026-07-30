@@ -3,14 +3,12 @@
 from module.webui.app_dependencies import (
     AzurLaneConfig,
     Icon,
-    OSSimulator,
     ProcessManager,
     State,
     alas_instance,
     clear,
     current_time,
     filepath_args,
-    get_localstorage,
     put_icon_buttons,
     put_loading_text,
     put_scope,
@@ -35,7 +33,6 @@ class AppShellMixin(WebUIMixinBase):
     def initial(self) -> None:
         self.ALAS_MENU = read_file(filepath_args("menu", self.alas_mod))
         self.ALAS_ARGS = read_file(filepath_args("args", self.alas_mod))
-        self._init_alas_config_watcher()
 
     def __init__(self) -> None:
         super().__init__()
@@ -51,12 +48,30 @@ class AppShellMixin(WebUIMixinBase):
         self.inst_cache = []
         self._shell_mounted = False
         self._active_aside = None
+        self._stored_aside = None
         self._overview_snapshot = None
         self.af_flag = False
-        self.simulator = OSSimulator()
+        self._simulator = None
         self._simulator_logger_pm = None
         self._overview_log = None
         self._overview_log_config_name = None
+
+    @property
+    def simulator(self):
+        """在首次进入大世界模拟器时再加载其运行时依赖。"""
+        if self._simulator is None:
+            import sys
+
+            from module.webui.fake_pil_module import remove_fake_pil_module
+
+            # matplotlib 需要真实 PIL；仅移除 WebUI 启动阶段安装的替身，
+            # 避免其他会话已加载真实 PIL 时再次从模块缓存中删除它。
+            if not hasattr(sys.modules.get("PIL"), "__path__"):
+                remove_fake_pil_module()
+            from module.os_simulator.simulator import OSSimulator
+
+            self._simulator = OSSimulator()
+        return self._simulator
 
     @use_scope("aside", clear=True)
     def set_aside(self) -> None:
@@ -100,7 +115,7 @@ class AppShellMixin(WebUIMixinBase):
                 ],
                 onclick=[self.ui_manage],
             )
-        aside_name = self._active_aside or get_localstorage("aside")
+        aside_name = self._active_aside or self._stored_aside or "Home"
         self.active_button("aside", aside_name)
 
     @use_scope("aside_instance")
@@ -152,7 +167,7 @@ class AppShellMixin(WebUIMixinBase):
                     changed = True
 
         if changed:
-            aside_name = self._active_aside or get_localstorage("aside")
+            aside_name = self._active_aside or self._stored_aside or "Home"
             self.active_button("aside", aside_name)
 
     def set_aside_status(self) -> None:
