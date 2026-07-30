@@ -4,6 +4,7 @@ from typing import cast
 
 from module.webui.app_dependencies import (
     Any,
+    DEFAULT_CONFIG_NAME,
     Dict,
     List,
     Optional,
@@ -18,6 +19,7 @@ from module.webui.app_dependencies import (
     dict_to_kv,
     filepath_config,
     get_device_id,
+    json,
     logger,
     os,
     parse_pin_value,
@@ -33,6 +35,7 @@ from module.webui.app_dependencies import (
     put_scope,
     put_text,
     queue,
+    re,
     re_fullmatch,
     run_js,
     t,
@@ -149,6 +152,90 @@ class TaskConfigMixin(WebUIMixinBase):
                     with use_scope("groups"):
                         put_scope("group_EventCalculator")
                     self._render_event_calculator(config)
+
+    def _render_startup_run_setting(self) -> None:
+        """渲染当前实例的 WebUI 启动自动运行开关。"""
+        instance = self.alas_name or DEFAULT_CONFIG_NAME
+        scope_id = re.sub(r"[^0-9A-Za-z_]", "_", instance)
+        switch_id = f"startup-run-switch-{scope_id}"
+        status_id = f"startup-run-status-{scope_id}"
+        put_html(
+            f"""
+            <div class="startup-run-panel">
+              <div class="startup-run-row">
+                <div>
+                  <div class="startup-run-title">{t("Gui.StartupRun.Title")}</div>
+                  <div class="startup-run-desc">{t("Gui.StartupRun.Description")}</div>
+                </div>
+                <label class="launcher-switch" title="{t("Gui.StartupRun.Title")}">
+                  <input id="{switch_id}" type="checkbox" disabled>
+                </label>
+              </div>
+              <div id="{status_id}" class="startup-run-status">{t("Gui.StartupRun.Loading")}</div>
+            </div>
+            """
+        )
+        run_js(
+            f"""
+            (function(){{
+              const instance = {json.dumps(instance)};
+              const switchEl = document.getElementById({json.dumps(switch_id)});
+              const statusEl = document.getElementById({json.dumps(status_id)});
+              const text = {{
+                loading: {json.dumps(t("Gui.StartupRun.Loading"))},
+                enabled: {json.dumps(t("Gui.StartupRun.Enabled"))},
+                disabled: {json.dumps(t("Gui.StartupRun.Disabled"))},
+                setting: {json.dumps(t("Gui.StartupRun.Setting"))},
+                failed: {json.dumps(t("Gui.StartupRun.Failed"))},
+                unavailable: {json.dumps(t("Gui.StartupRun.Unavailable"))}
+              }};
+
+              async function refresh() {{
+                switchEl.disabled = true;
+                statusEl.textContent = text.loading;
+                try {{
+                  const resp = await fetch('/api/deploy/startup-run?instance=' + encodeURIComponent(instance), {{cache: 'no-store'}});
+                  const result = await resp.json();
+                  if (!result.success) {{
+                    throw new Error(result.error || 'unknown error');
+                  }}
+                  switchEl.checked = result.data.enabled === true;
+                  switchEl.disabled = false;
+                  statusEl.textContent = result.data.enabled ? text.enabled : text.disabled;
+                }} catch (err) {{
+                  statusEl.textContent = text.unavailable + ': ' + (err.message || err);
+                }}
+              }}
+
+              switchEl.addEventListener('change', async function() {{
+                const target = switchEl.checked;
+                switchEl.disabled = true;
+                statusEl.textContent = text.setting;
+                try {{
+                  const resp = await fetch('/api/deploy/startup-run', {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify({{instance, enabled: target}})
+                  }});
+                  const result = await resp.json();
+                  if (!result.success) {{
+                    throw new Error(result.error || 'unknown error');
+                  }}
+                  switchEl.checked = result.data.enabled === true;
+                  statusEl.textContent = result.data.enabled ? text.enabled : text.disabled;
+                }} catch (err) {{
+                  switchEl.checked = !target;
+                  statusEl.textContent = text.failed + ': ' + (err.message || err);
+                  setTimeout(refresh, 1600);
+                  return;
+                }}
+                switchEl.disabled = false;
+              }});
+
+              refresh();
+            }})();
+            """
+        )
 
     @use_scope("groups")
     def set_group(self, group, arg_dict, config: Dict[str, Any], task: str) -> int:
