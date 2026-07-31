@@ -1164,6 +1164,10 @@ class AzurLaneAutoScript:
 
         run_ocr_benchmark(config=self.config)
 
+    def fleet_scan(self):
+        from module.retire.fleet_management import FleetManagement
+        FleetManagement(config=self.config, device=self.device, task="FleetScan").run()
+
     def game_manager(self):
         from module.daemon.game_manager import GameManager
 

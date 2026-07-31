@@ -43,6 +43,7 @@ from module.webui.app_developer_menu import DeveloperMenuMixin
 from module.webui.app_developer_settings import DeveloperSettingsMixin
 from module.webui.app_developer_tools import DeveloperToolsMixin
 from module.webui.app_event_tools import EventToolsMixin
+from module.webui.app_fleet_management import FleetManagementMixin
 from module.webui.app_helpers import (
     DEMO_DEVICE_ID_TEXT,
     WEBUI_AUTO_PASSWORD_FILE,
@@ -98,6 +99,7 @@ class AlasGUI(
     OpsiExportMixin,
     ShipExperienceStatisticsMixin,
     CommissionIncomeStatisticsMixin,
+    FleetManagementMixin,
     TaskConfigMixin,
     EventToolsMixin,
     OverviewMixin,
@@ -239,7 +241,7 @@ def app():
         applications=[index, manage],
         cdn=cdn,
         static_mounts=static_mounts,
-        debug=True,
+        debug=False,
         on_startup=[
             startup,
             lambda: ProcessManager.restart_processes(instances=instances),
