@@ -4,10 +4,17 @@ import sys
 import threading
 import time
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
 
+import pywebio.session as pywebio_session
+from pywebio.output import put_text
+from pywebio.session import local
+from pywebio.session.threadbased import ThreadBasedSession
 from rich.text import Text
 from starlette.websockets import WebSocketState
 
+from module.webui.app_task_config import TaskConfigMixin
 from module.webui.fastapi import (
     SafeWebSocketConnection,
     WEBSOCKET_MAX_PENDING_MESSAGES,
@@ -56,14 +63,11 @@ class TestSafeWebSocketConnection(unittest.TestCase):
         for index in range(100):
             connection.write_message({"index": index})
 
-        pending = [
-            task
-            for task in asyncio.all_tasks()
-            if task is not asyncio.current_task() and not task.done()
-        ]
-        self.assertEqual(1, len(pending))
+        sender_task = connection._sender_task
+        self.assertIsNotNone(sender_task)
+        self.assertFalse(sender_task.done())
 
-        await pending[0]
+        await sender_task
         self.assertEqual(
             list(range(100)),
             [message["index"] for message in websocket.messages],
@@ -89,6 +93,17 @@ class TestSafeWebSocketConnection(unittest.TestCase):
             WEBSOCKET_MAX_PENDING_MESSAGES,
         )
         self.assertEqual(1, websocket.close_count)
+        self.assertTrue(connection.closed())
+        self.assertEqual(0, len(connection._pending_messages))
+
+        connection.write_message({"index": "after-close-1"})
+        connection.write_message({"index": "after-close-2"})
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+
+        self.assertEqual(0, len(connection._pending_messages))
+        self.assertEqual(1, websocket.close_count)
+        self.assertTrue(connection.closed())
 
 
 class TestTaskHandlerScheduling(unittest.TestCase):
@@ -167,6 +182,74 @@ class TestRichLogRendering(unittest.TestCase):
 
         self.assertIn("第一行", html)
         self.assertIn("第二行", html)
+
+    def test_batch_render_empty_iterable_returns_empty_string(self):
+        log = RichLog("log")
+
+        self.assertEqual("", log.render_many([]))
+
+
+class TestTaskConfigRendering(unittest.TestCase):
+    def test_subconfig_fields_are_sent_as_one_nested_output(self):
+        commands = []
+        closed = threading.Event()
+        previous_session_classes = pywebio_session._active_session_cls.copy()
+
+        def collect_commands(session):
+            batch = session.get_task_commands()
+            commands.extend(batch if isinstance(batch, list) else [batch])
+
+        def render_subconfig():
+            gui = object.__new__(TaskConfigMixin)
+            local.gui = gui
+            gui.alas_name = "test"
+            gui.alas_config = SimpleNamespace(
+                read_file=lambda _: {
+                    "Alas": {"Emulator": {"PackageName": "cn"}},
+                    "Synthetic": {"Group": {"First": "a", "Second": "b"}},
+                }
+            )
+            gui.ALAS_ARGS = {
+                "Synthetic": {
+                    "Group": {
+                        "First": {"type": "input", "value": "a"},
+                        "Second": {"type": "input", "value": "b"},
+                    }
+                }
+            }
+            gui.init_menu = lambda name: None
+            gui.set_title = lambda text: None
+            gui._bind_config_watcher = lambda path: None
+            gui._build_navigator = lambda group: put_text(group[0])
+            gui.alas_set_group("Synthetic")
+
+        pywebio_session._active_session_cls[:] = [ThreadBasedSession]
+        try:
+            with patch(
+                "module.webui.app_task_config.t",
+                side_effect=lambda key, *args, **kwargs: (
+                    "" if key.endswith(".help") else key
+                ),
+            ):
+                ThreadBasedSession(
+                    render_subconfig,
+                    session_info=SimpleNamespace(),
+                    on_task_command=collect_commands,
+                    on_session_close=closed.set,
+                )
+                self.assertTrue(closed.wait(timeout=2))
+        finally:
+            pywebio_session._active_session_cls[:] = previous_session_classes
+
+        output_commands = [
+            command for command in commands if command.get("command") == "output"
+        ]
+        self.assertEqual(1, len(output_commands))
+        self.assertEqual("scope", output_commands[0]["spec"]["type"])
+        self.assertEqual(
+            "pywebio-scope-_groups",
+            output_commands[0]["spec"]["dom_id"],
+        )
 
 
 class TestWebUIImports(unittest.TestCase):
