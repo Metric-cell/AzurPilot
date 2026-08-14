@@ -31,7 +31,6 @@ Deploy:
     # [其他情况] 连接到不受信任的网络时使用 false
     # [Other] Use false to when connected to an untrusted network
     SSLVerify: true
-
   Python:
     # Python 可执行文件路径
     # Filepath of python executable.
@@ -112,7 +111,6 @@ Deploy:
 
   Update:
     EnableReload: true
-
 
   Webui:
     # --host. 监听的主机地址
