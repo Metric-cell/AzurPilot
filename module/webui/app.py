@@ -65,7 +65,11 @@ from module.webui.app_instances import InstanceMixin
 from module.webui.app_lifecycle import clearup, startup
 from module.webui.app_manage import app_manage
 from module.webui.app_overview import OverviewMixin
-from module.webui.app_shell import AppShellMixin
+from module.webui.app_shell import (
+    AppShellMixin,
+    normalize_webui_theme,
+    pywebio_theme_for,
+)
 from module.webui.app_stat_action_point import ActionPointStatisticsMixin
 from module.webui.app_stat_action_point_toolbar import ActionPointToolbarMixin
 from module.webui.app_stat_commission import CommissionIncomeStatisticsMixin
@@ -75,6 +79,7 @@ from module.webui.app_stat_resource import ResourceStatisticsMixin
 from module.webui.app_stat_ship import ShipExperienceStatisticsMixin
 from module.webui.app_statistics_page import StatisticsPageMixin
 from module.webui.app_task_config import TaskConfigMixin
+from module.webui.fastapi import INITIAL_LOADING_STYLE_MARKER
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -98,18 +103,39 @@ WEBUI_THEME_STYLE_NAMES = {
 INITIAL_LOADING_JS = """
 (function () {
     var observer = null;
-    function markReady() {
+    var readyFrame = null;
+    function stylesSettled() {
+        var styles = document.querySelectorAll("link[data-alas-initial-style]");
+        for (var i = 0; i < styles.length; i++) {
+            if (styles[i].dataset.alasSettled !== "1") return false;
+        }
+        return true;
+    }
+    function hasContent() {
         var root = document.getElementById("pywebio-scope-ROOT");
         var inputs = document.getElementById("input-cards");
-        var hasContent = (root && root.firstElementChild)
+        return (root && root.firstElementChild)
             || (inputs && inputs.firstElementChild)
             || document.querySelector(".modal");
-        if (!hasContent) return;
-        document.documentElement.classList.add("alas-initial-ready");
-        if (observer) observer.disconnect();
+    }
+    function markReady() {
+        if (!hasContent() || !stylesSettled() || readyFrame !== null) return;
+        readyFrame = requestAnimationFrame(function () {
+            readyFrame = requestAnimationFrame(function () {
+                readyFrame = null;
+                if (!hasContent() || !stylesSettled()) return;
+                document.documentElement.classList.add("alas-initial-ready");
+                if (observer) observer.disconnect();
+                document.removeEventListener(
+                    "alas-initial-style-settled", markReady
+                );
+            });
+        });
     }
     observer = new MutationObserver(markReady);
     observer.observe(document.body, {childList: true, subtree: true});
+    document.addEventListener("alas-initial-style-settled", markReady);
+    window.addEventListener("load", markReady, {once: true});
     markReady();
 })();
 """
@@ -137,17 +163,30 @@ def _initial_loading_css(theme: str) -> str:
         accent = "#4e4c97"
         track = "rgba(78, 76, 151, .22)"
     return f"""
-html:not(.alas-initial-ready) #pywebio-scope-ROOT:empty {{
+/* {INITIAL_LOADING_STYLE_MARKER} */
+html:not(.alas-initial-ready),
+html:not(.alas-initial-ready) body {{
+    min-height: 100%;
+    background: {background};
+}}
+html:not(.alas-initial-ready) body {{
+    overflow: hidden;
+}}
+html:not(.alas-initial-ready) #pywebio-scope-ROOT {{
     position: fixed;
     inset: 0;
     z-index: 2147483000;
-    display: grid;
-    place-items: center;
+    display: grid !important;
+    place-items: center !important;
     min-height: 100vh;
-    background: {background};
+    overflow: hidden;
+    background: {background} !important;
     color: {foreground};
 }}
-html:not(.alas-initial-ready) #pywebio-scope-ROOT:empty::before {{
+html:not(.alas-initial-ready) #pywebio-scope-ROOT > * {{
+    visibility: hidden !important;
+}}
+html:not(.alas-initial-ready) #pywebio-scope-ROOT::before {{
     width: 34px;
     height: 34px;
     content: "";
@@ -156,7 +195,7 @@ html:not(.alas-initial-ready) #pywebio-scope-ROOT:empty::before {{
     border-radius: 50%;
     animation: alas-initial-spin .72s linear infinite;
 }}
-html:not(.alas-initial-ready) #pywebio-scope-ROOT:empty::after {{
+html:not(.alas-initial-ready) #pywebio-scope-ROOT::after {{
     position: absolute;
     top: calc(50% + 34px);
     content: "AzurPilot";
@@ -167,7 +206,7 @@ html:not(.alas-initial-ready) #pywebio-scope-ROOT:empty::after {{
     to {{ transform: rotate(360deg); }}
 }}
 @media (prefers-reduced-motion: reduce) {{
-    html:not(.alas-initial-ready) #pywebio-scope-ROOT:empty::before {{
+    html:not(.alas-initial-ready) #pywebio-scope-ROOT::before {{
         animation-duration: 1.8s;
     }}
 }}
@@ -237,7 +276,12 @@ def app():
     )
     args, _ = parser.parse_known_args()
 
-    initial_style_names = _initial_style_names(AlasGUI.theme)
+    initial_theme = normalize_webui_theme(State.deploy_config.Theme)
+    initial_pywebio_theme = pywebio_theme_for(initial_theme)
+    AlasGUI.theme = initial_theme
+    State.theme = initial_theme
+    State.deploy_config.Theme = initial_theme
+    initial_style_names = _initial_style_names(initial_theme)
     initial_css_files = (
         INITIAL_WEBUI_CSS,
         *(
@@ -245,7 +289,7 @@ def app():
             for name in initial_style_names[1:]
         ),
     )
-    initial_loading_css = _initial_loading_css(AlasGUI.theme)
+    initial_loading_css = _initial_loading_css(initial_theme)
     lang.LANG = State.deploy_config.Language
     key = args.key if is_webui_password_set(args.key) else State.deploy_config.Password
     key, password_error = ensure_public_webui_password(key)
@@ -300,7 +344,14 @@ def app():
         return True
 
     def _run_gui(initial_page: str = "home") -> None:
-        AlasGUI.set_theme(theme=State.deploy_config.Theme)
+        session_theme = normalize_webui_theme(State.deploy_config.Theme)
+        if session_theme != initial_theme:
+            # 应用运行期间切换主题时，当前 HTML 仍是启动时主题，需要兼容热切换。
+            AlasGUI.set_theme(theme=session_theme)
+        else:
+            # 正常首屏已预载正确主题，避免通过 WebSocket 删除并重复发送 CSS。
+            AlasGUI.theme = session_theme
+            State.theme = session_theme
         set_env(title="AzurPilot", output_animation=False)
         load_webui_styles(
             theme=AlasGUI.theme,
@@ -324,6 +375,7 @@ def app():
         gui.run(initial_page=initial_page, localstorage=localstorage)
 
     @webconfig(
+        theme=initial_pywebio_theme,
         css_file=initial_css_files,
         css_style=initial_loading_css,
         js_code=INITIAL_LOADING_JS,
@@ -332,6 +384,7 @@ def app():
         _run_gui()
 
     @webconfig(
+        theme=initial_pywebio_theme,
         css_file=initial_css_files,
         css_style=initial_loading_css,
         js_code=INITIAL_LOADING_JS,
