@@ -315,6 +315,7 @@ Stat:
   LoadApDataFailed:
   NoApData:
   Refresh:
+  NewDataAvailable:
   NoValidApData:
   ViewTitleLine:
   ViewTitleDay:
