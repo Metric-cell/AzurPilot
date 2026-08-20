@@ -103,14 +103,6 @@ WEBUI_THEME_STYLE_NAMES = {
 INITIAL_LOADING_JS = """
 (function () {
     var observer = null;
-    var readyFrame = null;
-    function stylesSettled() {
-        var styles = document.querySelectorAll("link[data-alas-initial-style]");
-        for (var i = 0; i < styles.length; i++) {
-            if (styles[i].dataset.alasSettled !== "1") return false;
-        }
-        return true;
-    }
     function hasContent() {
         var root = document.getElementById("pywebio-scope-ROOT");
         var inputs = document.getElementById("input-cards");
@@ -119,23 +111,12 @@ INITIAL_LOADING_JS = """
             || document.querySelector(".modal");
     }
     function markReady() {
-        if (!hasContent() || !stylesSettled() || readyFrame !== null) return;
-        readyFrame = requestAnimationFrame(function () {
-            readyFrame = requestAnimationFrame(function () {
-                readyFrame = null;
-                if (!hasContent() || !stylesSettled()) return;
-                document.documentElement.classList.add("alas-initial-ready");
-                if (observer) observer.disconnect();
-                document.removeEventListener(
-                    "alas-initial-style-settled", markReady
-                );
-            });
-        });
+        if (!hasContent()) return;
+        document.documentElement.classList.add("alas-initial-ready");
+        if (observer) observer.disconnect();
     }
     observer = new MutationObserver(markReady);
     observer.observe(document.body, {childList: true, subtree: true});
-    document.addEventListener("alas-initial-style-settled", markReady);
-    window.addEventListener("load", markReady, {once: true});
     markReady();
 })();
 """
@@ -164,29 +145,17 @@ def _initial_loading_css(theme: str) -> str:
         track = "rgba(78, 76, 151, .22)"
     return f"""
 /* {INITIAL_LOADING_STYLE_MARKER} */
-html:not(.alas-initial-ready),
-html:not(.alas-initial-ready) body {{
-    min-height: 100%;
-    background: {background};
-}}
-html:not(.alas-initial-ready) body {{
-    overflow: hidden;
-}}
-html:not(.alas-initial-ready) #pywebio-scope-ROOT {{
+html:not(.alas-initial-ready) #pywebio-scope-ROOT:empty {{
     position: fixed;
     inset: 0;
     z-index: 2147483000;
-    display: grid !important;
-    place-items: center !important;
+    display: grid;
+    place-items: center;
     min-height: 100vh;
-    overflow: hidden;
-    background: {background} !important;
+    background: {background};
     color: {foreground};
 }}
-html:not(.alas-initial-ready) #pywebio-scope-ROOT > * {{
-    visibility: hidden !important;
-}}
-html:not(.alas-initial-ready) #pywebio-scope-ROOT::before {{
+html:not(.alas-initial-ready) #pywebio-scope-ROOT:empty::before {{
     width: 34px;
     height: 34px;
     content: "";
@@ -195,7 +164,7 @@ html:not(.alas-initial-ready) #pywebio-scope-ROOT::before {{
     border-radius: 50%;
     animation: alas-initial-spin .72s linear infinite;
 }}
-html:not(.alas-initial-ready) #pywebio-scope-ROOT::after {{
+html:not(.alas-initial-ready) #pywebio-scope-ROOT:empty::after {{
     position: absolute;
     top: calc(50% + 34px);
     content: "AzurPilot";
@@ -206,7 +175,7 @@ html:not(.alas-initial-ready) #pywebio-scope-ROOT::after {{
     to {{ transform: rotate(360deg); }}
 }}
 @media (prefers-reduced-motion: reduce) {{
-    html:not(.alas-initial-ready) #pywebio-scope-ROOT::before {{
+    html:not(.alas-initial-ready) #pywebio-scope-ROOT:empty::before {{
         animation-duration: 1.8s;
     }}
 }}

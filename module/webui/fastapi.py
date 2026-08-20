@@ -46,18 +46,15 @@ _PYWEBIO_ASSET_PATTERN = re.compile(
     rb'(?P<url>(?:href|src)="pywebio_static/[^"?]+)(?P<quote>")'
 )
 _DEFERRED_STYLE_ATTRIBUTES = (
-    b' media="print" data-alas-initial-style '
-    b'onload=\'this.media="all";this.dataset.alasSettled="1";'
-    b'document.dispatchEvent(new Event("alas-initial-style-settled"))\' '
-    b'onerror=\'this.dataset.alasSettled="1";'
-    b'document.dispatchEvent(new Event("alas-initial-style-settled"))\''
+    b' media="print" '
+    b'onload=\'this.media="all";this.onload=null\''
 )
 
 
 def _defer_stylesheet_link(match: re.Match[bytes]) -> bytes:
-    """将首屏样式改为非阻塞加载，并暴露加载完成状态。"""
+    """将首屏样式改为非阻塞加载，且不让其状态阻塞真实内容。"""
     tag = match.group(0)
-    if b"data-alas-initial-style" in tag or b" media=" in tag:
+    if b" media=" in tag:
         return tag
     return tag.replace(
         b'<link rel="stylesheet"',
@@ -77,7 +74,7 @@ def _version_pywebio_asset(match: re.Match[bytes]) -> bytes:
 
 
 def _optimize_initial_page(body: bytes) -> bytes:
-    """让加载骨架先于外部样式绘制，并延迟展示未完成样式化的页面。"""
+    """让加载骨架先于外部样式绘制，同时优先展示已到达的内容。"""
     marker = INITIAL_LOADING_STYLE_MARKER.encode("ascii")
     marker_position = body.find(marker)
     if marker_position < 0:

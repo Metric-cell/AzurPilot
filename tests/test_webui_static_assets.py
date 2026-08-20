@@ -117,13 +117,14 @@ class TestWebUIStaticAssets(unittest.TestCase):
         loading_css = _initial_loading_css("default")
 
         self.assertIn(INITIAL_LOADING_STYLE_MARKER, loading_css)
-        self.assertIn("#pywebio-scope-ROOT::before", loading_css)
-        self.assertIn("#pywebio-scope-ROOT > *", loading_css)
+        self.assertIn("#pywebio-scope-ROOT:empty::before", loading_css)
+        self.assertNotIn("#pywebio-scope-ROOT > *", loading_css)
+        self.assertNotIn("visibility: hidden", loading_css)
         self.assertIn("alas-initial-ready", loading_css)
         self.assertIn("MutationObserver", INITIAL_LOADING_JS)
         self.assertIn("input-cards", INITIAL_LOADING_JS)
-        self.assertIn("stylesSettled", INITIAL_LOADING_JS)
-        self.assertIn("requestAnimationFrame", INITIAL_LOADING_JS)
+        self.assertNotIn("stylesSettled", INITIAL_LOADING_JS)
+        self.assertNotIn("alas-initial-style-settled", INITIAL_LOADING_JS)
 
     def test_initial_shell_paints_before_external_stylesheets(self):
         @config(
@@ -150,8 +151,10 @@ class TestWebUIStaticAssets(unittest.TestCase):
             all('media="print"' in tag for tag in stylesheet_tags)
         )
         self.assertTrue(
-            all("data-alas-initial-style" in tag for tag in stylesheet_tags)
+            all('onload=\'this.media="all"' in tag for tag in stylesheet_tags)
         )
+        self.assertNotIn("data-alas-initial-style", html)
+        self.assertNotIn("alas-initial-style-settled", html)
         self.assertIn("pywebio_static/css/markdown.min.css?v=", html)
         self.assertIn("pywebio_static/js/jquery.min.js?v=", html)
 

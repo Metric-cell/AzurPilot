@@ -8,6 +8,7 @@ from module.webui.app_dependencies import (
     alas_instance,
     clear,
     current_time,
+    datetime,
     filepath_args,
     put_icon_buttons,
     put_loading_text,
@@ -155,7 +156,8 @@ class AppShellMixin(WebUIMixinBase):
     def set_aside(self) -> None:
         # TODO: 更新 put_icon_buttons()
 
-        current_date = current_time().date()
+        # 愚人节装饰只需要本机日历，不应在首屏请求线程同步等待 NTP。
+        current_date = datetime.now().date()
         if current_date.month == 4 and current_date.day == 1:
             self.af_flag = True
 
