@@ -1,224 +1,87 @@
-"""网络时间源模块。
+"""纯本机时间源。
 
-通过 NTP 服务器校准本地时间，确保任务调度的时间准确性。
-在长时间运行场景下，系统时钟可能存在漂移，
-NTP 校时可以保证委托、科研等定时任务的精确触发。
-
-特性：
-- 启动时自动校准，后续读取使用缓存的偏移量
-- 支持多个 NTP 服务器，自动故障转移
-- 校时失败时回退到本机时间，不影响运行
-- 可通过环境变量 AZURPILOT_NTP_DISABLE 禁用
-- 可通过环境变量 AZURPILOT_NTP_SERVERS 自定义服务器
+clean 版本只读取操作系统时钟，不进行 DNS 查询、NTP 请求或其他网络传输。
+任务调度仍统一通过本模块取时；计时与休眠继续使用单调时钟，避免系统时间调整
+影响间隔计算。
 """
 
-import os
-import socket
-import struct
-import threading
 import time as time_
 from datetime import datetime, timezone
 
 
-# NTP 协议常量
-NTP_EPOCH_DELTA = 2208988800  # NTP 时间纪元与 Unix 时间纪元的差值（秒）
-NTP_PORT = 123
-NTP_PACKET = b'\x1b' + b'\0' * 47
-NTP_SERVERS_ENV = 'AZURPILOT_NTP_SERVERS'
-NTP_DISABLE_ENV = 'AZURPILOT_NTP_DISABLE'
-# 默认 NTP 服务器列表（中国优先）
-DEFAULT_NTP_SERVERS = (
-    'ntp.ntsc.ac.cn',
-    'ntp.aliyun.com',
-    'ntp.tencent.com',
-    'cn.pool.ntp.org',
-    'pool.ntp.org',
-)
+class LocalTimeSource:
+    """提供与旧时间源兼容的纯本机时间接口。"""
 
-
-class NetworkTimeSource:
-    """通过 NTP 服务器校准本地时间。
-
-    只缓存本机时间与 NTP 时间的偏移量，后续读取不会频繁访问网络。
-    """
-
-    def __init__(self):
+    def __init__(self) -> None:
         self.offset = 0.0
-        self.base_timestamp = 0.0
-        self.base_monotonic = 0.0
         self.server = None
         self.synced = False
-        self.last_sync_monotonic = 0.0
-        self.retry_after_monotonic = 0.0
-        self.refresh_interval = 30 * 60
-        self.retry_interval = 10 * 60
-        self.timeout = 1.0
-        self._lock = threading.RLock()
-        self._warned = False
+        self.refresh_interval = 0
 
     @property
-    def enabled(self):
-        value = os.environ.get(NTP_DISABLE_ENV, '').strip().lower()
-        return value not in {'1', 'true', 'yes', 'on'}
+    def enabled(self) -> bool:
+        """clean 版本始终关闭网络校时。"""
+        return False
 
-    @property
-    def servers(self):
-        value = os.environ.get(NTP_SERVERS_ENV, '').strip()
-        if value:
-            servers = [item.strip() for item in value.replace(';', ',').split(',')]
-            servers = [item for item in servers if item]
-            if servers:
-                return servers
+    def refresh(self, force: bool = False) -> bool:
+        """保留旧调用接口；本机时间无需联网刷新。"""
+        return False
 
-        return list(DEFAULT_NTP_SERVERS)
-
-    def _query_server(self, host):
-        last_error = None
-        addresses = socket.getaddrinfo(host, NTP_PORT, type=socket.SOCK_DGRAM)
-        for family, socktype, proto, _, sockaddr in addresses:
-            with socket.socket(family, socktype, proto) as sock:
-                sock.settimeout(self.timeout)
-                try:
-                    sent = time_.time()
-                    sock.sendto(NTP_PACKET, sockaddr)
-                    data, _ = sock.recvfrom(48)
-                    received = time_.time()
-                except OSError as e:
-                    last_error = e
-                    continue
-
-            if len(data) < 48:
-                continue
-
-            mode = data[0] & 0b00000111
-            stratum = data[1]
-            if mode not in {4, 5} or not 1 <= stratum <= 15:
-                continue
-
-            seconds, fraction = struct.unpack('!II', data[40:48])
-            ntp_timestamp = seconds - NTP_EPOCH_DELTA + fraction / 2 ** 32
-            local_timestamp = (sent + received) / 2
-            if ntp_timestamp < 1577836800:  # 2020-01-01
-                continue
-
-            return ntp_timestamp - local_timestamp
-
-        if last_error is not None:
-            raise last_error
-        raise OSError(f'无效的 NTP 响应: {host}')
-
-    def refresh(self, force=False):
-        """刷新 NTP 偏移量，失败时保留已有偏移并退回本机时间。"""
-        if not self.enabled:
-            return False
-
-        current = time_.monotonic()
-        with self._lock:
-            if not force and self.synced and current - self.last_sync_monotonic < self.refresh_interval:
-                return True
-            if not force and current < self.retry_after_monotonic:
-                return self.synced
-
-            errors = []
-            for server in self.servers:
-                try:
-                    offset = self._query_server(server)
-                except OSError as e:
-                    errors.append(f'{server}: {e}')
-                    continue
-
-                self.offset = offset
-                self.base_timestamp = time_.time() + offset
-                self.base_monotonic = time_.monotonic()
-                self.server = server
-                self.synced = True
-                self.last_sync_monotonic = time_.monotonic()
-                self.retry_after_monotonic = 0.0
-                self._warned = False
-                self._log_info(f'网络时间已校准: {server}, offset={offset:.3f}s')
-                return True
-
-            self.retry_after_monotonic = time_.monotonic() + self.retry_interval
-            if not self._warned:
-                detail = '; '.join(errors) if errors else '没有可用服务器'
-                self._log_warning(f'NTP 校时失败，暂时使用本机时间: {detail}')
-                self._warned = True
-            return self.synced
-
-    def timestamp(self):
-        self.refresh()
-        if self.synced:
-            return self.base_timestamp + (time_.monotonic() - self.base_monotonic)
+    def timestamp(self) -> float:
         return time_.time() + self.offset
 
-    def now(self, tz=None):
+    def now(self, tz=None) -> datetime:
         return datetime.fromtimestamp(self.timestamp(), tz=tz)
 
-    def status(self):
-        self.refresh()
+    def status(self) -> dict:
         return {
-            'enabled': self.enabled,
-            'synced': self.synced,
-            'server': self.server or '-',
-            'offset': self.offset,
-            'refresh_interval': self.refresh_interval,
-            'last_sync_elapsed': (
-                time_.monotonic() - self.last_sync_monotonic
-                if self.synced else None
-            ),
+            "enabled": self.enabled,
+            "synced": self.synced,
+            "server": self.server or "-",
+            "offset": self.offset,
+            "refresh_interval": self.refresh_interval,
+            "last_sync_elapsed": None,
         }
 
     @staticmethod
-    def monotonic():
+    def monotonic() -> float:
         return time_.monotonic()
 
     @staticmethod
-    def sleep(seconds):
+    def sleep(seconds: float) -> None:
         time_.sleep(seconds)
 
-    @staticmethod
-    def _log_info(message):
-        try:
-            from module.logger import logger
-            logger.info(message)
-        except Exception:
-            pass
 
-    @staticmethod
-    def _log_warning(message):
-        try:
-            from module.logger import logger
-            logger.warning(message)
-        except Exception:
-            pass
+local_time = LocalTimeSource()
+
+# 保留旧名称供现有扩展导入；二者都只指向纯本机实现。
+NetworkTimeSource = LocalTimeSource
+network_time = local_time
 
 
-network_time = NetworkTimeSource()
+def refresh_time(force: bool = False) -> bool:
+    return local_time.refresh(force=force)
 
 
-def refresh_time(force=False):
-    return network_time.refresh(force=force)
+def now(tz=None) -> datetime:
+    return local_time.now(tz=tz)
 
 
-def now(tz=None):
-    return network_time.now(tz=tz)
-
-
-def utcnow():
+def utcnow() -> datetime:
     return now(timezone.utc)
 
 
-def timestamp():
-    return network_time.timestamp()
+def timestamp() -> float:
+    return local_time.timestamp()
 
 
-def status():
-    return network_time.status()
+def status() -> dict:
+    return local_time.status()
 
 
-def monotonic():
-    return network_time.monotonic()
+def monotonic() -> float:
+    return local_time.monotonic()
 
 
-def sleep(seconds):
-    network_time.sleep(seconds)
+def sleep(seconds: float) -> None:
+    local_time.sleep(seconds)

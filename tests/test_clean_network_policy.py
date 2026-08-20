@@ -1,6 +1,9 @@
 import re
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+from module.config.time_source import LocalTimeSource
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -87,6 +90,43 @@ class TestCleanNetworkPolicy(unittest.TestCase):
                 )
 
         self.assertEqual([], violations)
+
+    def test_time_source_uses_only_the_local_clock(self):
+        source = (PROJECT_ROOT / "module/config/time_source.py").read_text(
+            encoding="utf-8"
+        )
+        forbidden_tokens = (
+            "import socket",
+            "socket.",
+            "getaddrinfo",
+            "sendto(",
+            "recvfrom(",
+            "NTP_PACKET",
+            "NTP_SERVERS",
+        )
+
+        self.assertEqual(
+            [],
+            [token for token in forbidden_tokens if token in source],
+        )
+
+    def test_local_time_source_preserves_the_shared_time_api(self):
+        source = LocalTimeSource()
+
+        with patch("module.config.time_source.time_.time", return_value=123.5):
+            self.assertEqual(123.5, source.timestamp())
+        self.assertFalse(source.refresh(force=True))
+        self.assertEqual(
+            {
+                "enabled": False,
+                "synced": False,
+                "server": "-",
+                "offset": 0.0,
+                "refresh_interval": 0,
+                "last_sync_elapsed": None,
+            },
+            source.status(),
+        )
 
 
 if __name__ == "__main__":
