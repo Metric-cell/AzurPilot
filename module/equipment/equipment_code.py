@@ -30,6 +30,7 @@ EQUIPMENT_PREVIEW = list([
 
 class EquipmentCodeHandler(StorageHandler):
     last_code: str = None
+    FASTINPUT_IME = 'com.github.uiautomator/.FastInputIME'
 
     @property
     def equipment_code_config_key(self):
@@ -198,6 +199,12 @@ class EquipmentCodeHandler(StorageHandler):
     def set_fastinput_ime(self):
         d = self.device.u2
         try:
+            name, _ = d.current_ime()
+        except Exception:
+            name = None
+        if name == self.FASTINPUT_IME:
+            return
+        try:
             d.set_fastinput_ime(True)
         except Exception:
             logger.warning("[装备-代码] FastInputIME未启用，尝试启用")
@@ -236,6 +243,25 @@ class EquipmentCodeHandler(StorageHandler):
             logger.warning(f"通过 uiautomator2 输入装备码失败: {e}")
             return False
 
+    def _code_wait_preview_loaded(self):
+        """确认输入后等待装备预览加载完成。"""
+        confirm_clicked = False
+        for _ in self.loop(timeout=10, skip_first=False):
+            # 确认按钮仍可见时，预览可能仍被输入法遮挡，不能提前校验。
+            if self.appear(EQUIPMENT_CODE_ENTER, offset=(5, 5), threshold=30):
+                if self.appear_then_click(EQUIPMENT_CODE_ENTER, offset=(5, 5), interval=3):
+                    confirm_clicked = True
+                continue
+
+            if self.device.ime_shown():
+                continue
+
+            # 预览槽使用空槽模板的负面判定，只能在确认后的无输入法截图中使用。
+            if confirm_clicked and self.is_code_preview_loaded():
+                return True
+
+        return False
+
     def _code_input(self, code):
         logger.info(f"代码输入: {code}")
         for _ in range(2):
@@ -250,18 +276,12 @@ class EquipmentCodeHandler(StorageHandler):
             else:
                 continue
 
-            for _ in self.loop(timeout=10, skip_first=False):
-                if self.is_code_preview_loaded():
-                    return True
-                if self.appear_then_click(EQUIPMENT_CODE_ENTER, offset=(5, 5), interval=3):
-                    continue
+            if self._code_wait_preview_loaded():
+                return True
 
         if self._code_input_uiautomator2(code):
-            for _ in self.loop(timeout=10, skip_first=False):
-                if self.is_code_preview_loaded():
-                    return True
-                if self.appear_then_click(EQUIPMENT_CODE_ENTER, offset=(5, 5), interval=3):
-                    continue
+            if self._code_wait_preview_loaded():
+                return True
 
         logger.warning("装备码加载失败")
         return False
@@ -442,6 +462,7 @@ class EquipmentCodeHandler(StorageHandler):
 
     def _code_export(self):
         self.handle_info_bar()
+        self.set_fastinput_ime()
         for _ in self.loop(timeout=10):
             if self.info_bar_count():
                 break

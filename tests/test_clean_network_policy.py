@@ -14,6 +14,9 @@ REMOVED_NETWORK_MODULES = (
     "mcp_server_sse.py",
     "module/base/api_client.py",
     "module/statistics/cl1_data_submitter.py",
+    "module/statistics/daily_summary.py",
+    "module/statistics/daily_summary_store.py",
+    "module/statistics/daily_summary_text.py",
     "module/webui/discord_presence.py",
     "module/webui/remote_access.py",
     "module/webui/updater.py",
@@ -23,6 +26,9 @@ REMOVED_IMPORTS = (
     "deploy.git_over_cdn.client",
     "module.base.api_client",
     "module.statistics.cl1_data_submitter",
+    "module.statistics.daily_summary",
+    "module.statistics.daily_summary_store",
+    "module.statistics.daily_summary_text",
     "module.webui.discord_presence",
     "module.webui.remote_access",
     "module.webui.updater",
@@ -32,11 +38,19 @@ REMOVED_CONFIG_FIELDS = (
     "AutoUpdate",
     "BugReport",
     "CheckUpdateInterval",
+    "DailySummary",
     "DiscordRichPresence",
     "EnableRemoteAccess",
     "GitOverCdn",
     "RemoteAccessMode",
     "TelemetryReport",
+)
+
+FORBIDDEN_RUNTIME_TOKENS = (
+    "alas-apiv2.nanoda.work",
+    "ip9.com.cn/get",
+    "microsoft-clarity-script",
+    "www.clarity.ms",
 )
 
 
@@ -88,6 +102,18 @@ class TestCleanNetworkPolicy(unittest.TestCase):
                 violations.append(
                     f"{path.relative_to(PROJECT_ROOT)}: {match.group(1)}"
                 )
+
+        self.assertEqual([], violations)
+
+    def test_removed_public_endpoints_stay_out_of_runtime(self):
+        violations = []
+        for path in _runtime_python_files():
+            source = path.read_text(encoding="utf-8")
+            for token in FORBIDDEN_RUNTIME_TOKENS:
+                if token in source:
+                    violations.append(
+                        f"{path.relative_to(PROJECT_ROOT)}: {token}"
+                    )
 
         self.assertEqual([], violations)
 

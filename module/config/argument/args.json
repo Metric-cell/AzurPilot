@@ -492,6 +492,34 @@
           10
         ]
       },
+      "WatchdogEnable": {
+        "type": "checkbox",
+        "value": false
+      },
+      "WatchdogTaskEnable": {
+        "type": "checkbox",
+        "value": false
+      },
+      "WatchdogTaskTimeout": {
+        "type": "input",
+        "value": 120,
+        "validate": [
+          0,
+          99999
+        ]
+      },
+      "RestartOperationTimeoutEnable": {
+        "type": "checkbox",
+        "value": false
+      },
+      "RestartOperationTimeout": {
+        "type": "input",
+        "value": 120,
+        "validate": [
+          10,
+          600
+        ]
+      },
       "LlmAnalysis": {
         "type": "checkbox",
         "value": true
@@ -612,6 +640,16 @@
           "goto_main",
           "close_game"
         ]
+      },
+      "WhenSchedulerStopped": {
+        "type": "select",
+        "value": "stay_there",
+        "option": [
+          "stay_there",
+          "goto_main",
+          "close_game",
+          "close_emulator"
+        ]
       }
     },
     "DropRecord": {
@@ -690,6 +728,10 @@
     },
     "EmulatorManagement": {
       "ScheduledEmulatorRestart": {
+        "type": "checkbox",
+        "value": false
+      },
+      "ForceScheduledRestart": {
         "type": "checkbox",
         "value": false
       },
@@ -6178,6 +6220,7 @@
           "easy",
           "normal",
           "hard",
+          "sp",
           "ex"
         ]
       },
@@ -12911,7 +12954,7 @@
       },
       "CustomFilter": {
         "type": "textarea",
-        "value": "LoggerAbyssalT6 > LoggerAbyssalT5 > LoggerObscure > LoggerAbyssalT4 > ActionPoint > PurpleCoins\n> GearDesignPlanT3 > PlateRandomT4 > DevelopmentMaterialT3 > GearDesignPlanT2 > GearPart\n> OrdnanceTestingReportT3 > OrdnanceTestingReportT2 > DevelopmentMaterialT2 > OrdnanceTestingReportT1\n> METARedBook > CrystallizedHeatResistantSteel > NanoceramicAlloy > NeuroplasticProstheticArm > SupercavitationGenerator"
+        "value": "LoggerAbyssalT6 > LoggerAbyssalT5 > LoggerAbyssalT4 > LoggerObscureT6 > LoggerObscureT5 > LoggerObscureT4 > LoggerObscureT3 > ActionPoint > PurpleCoins\n> GearDesignPlanT3 > PlateRandomT4 > DevelopmentMaterialT3 > GearDesignPlanT2 > GearPart\n> OrdnanceTestingReportT3 > OrdnanceTestingReportT2 > DevelopmentMaterialT2 > OrdnanceTestingReportT1\n> METARedBook > CrystallizedHeatResistantSteel > NanoceramicAlloy > NeuroplasticProstheticArm > SupercavitationGenerator"
       },
       "DisableBeforeDate": {
         "type": "input",
