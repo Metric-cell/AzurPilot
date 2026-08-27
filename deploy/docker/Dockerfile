@@ -3,6 +3,7 @@
 
 FROM python:3.14-slim-bookworm
 
+ARG PYTHON_VERSION=3.14.6
 ARG UV_INDEX_URL=https://pypi.org/simple
 ARG UV_EXTRA_INDEX_URL=
 ARG HTTP_PROXY=
@@ -17,19 +18,21 @@ ENV HTTP_PROXY=${HTTP_PROXY}
 ENV HTTPS_PROXY=${HTTPS_PROXY}
 ENV no_proxy=${NO_PROXY}
 ENV NO_PROXY=${NO_PROXY}
+ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
 ENV PATH=/app/AzurPilot/.venv/bin:${PATH}
 
 WORKDIR /app/AzurPilot
 
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.11.32 /uv /usr/local/bin/uv
 COPY pyproject.toml uv.lock ./
 
 RUN if [ -n "$HTTP_PROXY" ]; then \
     printf 'Acquire::http::Proxy "%s";\nAcquire::https::Proxy "%s";\n' "$HTTP_PROXY" "$HTTPS_PROXY" > /etc/apt/apt.conf.d/99proxy; \
     fi
 
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
+RUN apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update && \
+    apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
+    install -y --no-install-recommends \
     git \
     adb \
     libgomp1 \
@@ -45,7 +48,8 @@ RUN git config --global --add safe.directory '*' && \
         git config --global https.proxy "$HTTPS_PROXY"; \
     fi
 
-RUN uv venv --relocatable --python /usr/local/bin/python .venv && \
+RUN uv python install "${PYTHON_VERSION}" --no-bin --managed-python && \
+    uv venv --relocatable --python "${PYTHON_VERSION}" .venv && \
     uv sync --frozen --no-dev --no-install-project && \
     cp /usr/local/bin/uv .venv/bin/uv && \
     cp /usr/bin/adb .venv/bin/adb && \

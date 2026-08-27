@@ -9,7 +9,24 @@ __pycache__
 .agents
 .claude
 log
+cache
+files
 dist
 debug_img
 ocr_debug
 toolkit
+
+# 运行时配置和统计数据可能包含密码、API Key、设备信息与游戏记录。
+# 仅把仓库跟踪的无敏感模板放入镜像。
+config/*.json
+!config/template.json
+!config/template.fpy.json
+!config/template.maa.json
+config/deploy.yaml
+config/*.db
+config/*.db-*
+config/*.lock
+config/webui-*
+password.txt
+.env
+.env.*
