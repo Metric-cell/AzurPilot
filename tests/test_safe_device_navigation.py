@@ -1,7 +1,9 @@
 import unittest
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from module.device.device import Device
+from module.daemon.benchmark import Benchmark
 from module.exception import GamePageUnknownError
 from module.ui.page import page_main
 from module.ui.ui import UI
@@ -39,6 +41,25 @@ class TestSafeDeviceNavigation(unittest.TestCase):
 
             with self.assertRaises(GamePageUnknownError):
                 ui.ui_get_current_page(recover_unknown=False)
+
+
+class TestScreenshotBenchmarkCompatibility(unittest.TestCase):
+    def test_android_13_does_not_benchmark_droidcast(self):
+        benchmark = object.__new__(Benchmark)
+        benchmark.__dict__['device'] = SimpleNamespace(
+            sdk_ver=33,
+            is_chinac_phone_cloud=False,
+            nemu_ipc_available=lambda: False,
+            ldopengl_available=lambda: False,
+        )
+        benchmark.benchmark = Mock(return_value=('ADB', None))
+
+        self.assertEqual('ADB', benchmark.run_simple_screenshot_benchmark())
+
+        screenshot_methods, click_methods = benchmark.benchmark.call_args.args
+        self.assertNotIn('DroidCast', screenshot_methods)
+        self.assertNotIn('DroidCast_raw', screenshot_methods)
+        self.assertEqual((), click_methods)
 
 
 if __name__ == '__main__':
