@@ -109,8 +109,6 @@ class AzurLaneAutoScript:
         Returns:
             bool: 重启成功返回 True，本次重启失败返回 False（调度器会继续尝试）。
         """
-        import sys
-
         self.consecutive_adb_offline += 1
         limit = int(self.config.Error_AdbOfflineThreshold)
         logger.warning(f'[Alas] EmulatorNotRunningError: 连续次数 {self.consecutive_adb_offline}/{limit}')
@@ -129,13 +127,9 @@ class AzurLaneAutoScript:
             # 优先使用已缓存的设备对象
             device = self.__dict__.get('device', None)
             if device is None:
-                # device 缓存不存在时，按平台回退创建新实例
-                if sys.platform == 'darwin':
-                    from module.device.platform.platform_mac import PlatformMac
-                    device = PlatformMac(self.config)
-                else:
-                    from module.device.platform.platform_windows import PlatformWindows
-                    device = PlatformWindows(self.config)
+                # connect=False 避免在模拟器离线时先建立 ADB 连接。
+                from module.device.platform import Platform
+                device = Platform(self.config, connect=False)
 
             logger.info('[Alas] 正在停止模拟器...')
             self._emulator_op_with_timeout(

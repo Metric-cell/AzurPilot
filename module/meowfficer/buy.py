@@ -143,6 +143,44 @@ class MeowfficerBuy(MeowfficerBase):
         logger.warning('[指挥喵-购买] 尝试次数过多，停止')
         return False
 
+    @staticmethod
+    def _meow_get_buy_count(bought, total, coins, buy_amount, overflow_th):
+        """计算本次应购买的猫箱数量。
+
+        ``buy_amount`` 是每日基础购买目标；``overflow_th`` 小于 0 时关闭
+        溢出购买。每日首箱免费，因此尚未购买时需要额外补偿一个购买量，
+        才能确保执行后金币实际降到阈值以内。
+        """
+        today_left = max(0, total - bought)
+        if today_left <= 0:
+            logger.info(f'[指挥喵-购买] 今天已购买 {bought}/{total} 个，停止')
+            return 0
+
+        baseline = min(max(0, buy_amount - bought), today_left)
+
+        extra = 0
+        if overflow_th >= 0 and coins > overflow_th:
+            if bought == 0:
+                extra = -(-(coins - overflow_th + BUY_PRIZE) // BUY_PRIZE)
+            else:
+                extra = -(-(coins - overflow_th) // BUY_PRIZE)
+            extra = min(extra, today_left - baseline)
+            extra = max(0, extra)
+
+        count = baseline + extra
+
+        free = 1 if bought == 0 else 0
+        affordable = max(0, coins // BUY_PRIZE + free)
+        if count > affordable:
+            logger.info(f'[指挥喵-购买] 当前金币只够购买 {affordable} 个')
+            count = affordable
+
+        logger.info(
+            f'[指挥喵-购买] 计划购买 {count} 个 '
+            f'(基础={baseline}, 溢出={extra}, 已购买={bought}/{total}, 金币={coins})'
+        )
+        return count
+
     def meow_overflow_buy(self, overflow_coins):
         """金币溢出时购买猫箱，直到金币降至阈值以下。
 
@@ -183,26 +221,19 @@ class MeowfficerBuy(MeowfficerBase):
             logger.info(f'[指挥喵-溢出] 金币 {coins} <= 阈值 {overflow_coins}，跳过')
             return
 
-        # 计算溢出购买数量
-        today_left = total - bought
-        # 向上取整：需要购买多少个猫箱才能将金币降到阈值以下
-        overflow_count = -(-(coins - overflow_coins) // BUY_PRIZE)
-        # 限制在今日剩余数量内
-        count = min(overflow_count, today_left)
-
-        # 考虑首抽免费：如果剩余=总数（一个都没买），第一个免费
-        free = 1 if remain == total else 0
-        # 检查金币是否足够
-        affordable = coins // BUY_PRIZE + free
-        if count > affordable:
-            count = affordable
-            logger.info(f'[指挥喵-溢出] 金币只够购买 {count} 个指挥喵')
+        count = self._meow_get_buy_count(
+            bought=bought,
+            total=total,
+            coins=coins,
+            buy_amount=0,
+            overflow_th=overflow_coins,
+        )
 
         if count <= 0:
             logger.info('[指挥喵-溢出] 没有指挥喵可购买，跳过')
             return
 
-        logger.info(f'[指挥喵-溢出] 溢出购买数量: {count} (溢出计算={overflow_count}, 今日剩余={today_left})')
+        logger.info(f'[指挥喵-溢出] 溢出购买数量: {count}')
 
         # 执行购买
         # 传入总共需要达到的数量（已买 + 还需买），meow_choose 会自动计算差额

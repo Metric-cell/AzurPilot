@@ -195,12 +195,6 @@ class HomeMixin(WebUIMixinBase):
             name="visibility_state",
         )
 
-        self.state_switch = Switch(
-            status=self.set_status,
-            get_state=lambda: getattr(getattr(self, "alas", -1), "state", 0),
-            name="state",
-        )
-
         self.task_handler.add(self.state_switch.g(), 2)
         self.task_handler.add(self.set_aside_status, 2)
         self.task_handler.add(visibility_state_switch.g(), 15)
