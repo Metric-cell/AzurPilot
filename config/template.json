@@ -124,7 +124,9 @@
       "TaskHoardingDuration": 0,
       "CloseEmulatorDuringLongWait": true,
       "WhenTaskQueueEmpty": "goto_main",
-      "WhenSchedulerStopped": "stay_there"
+      "WhenSchedulerStopped": "stay_there",
+      "WarmupEnable": true,
+      "WarmupMinutes": 15
     },
     "DropRecord": {
       "SaveFolder": "./screenshots",
@@ -201,7 +203,8 @@
     "Restart": {
       "RandomDelay": "5, 50",
       "ClearCache": false,
-      "LoginWaitTimeout": 30
+      "LoginWaitTimeout": 30,
+      "MoveChannelFloat": false
     },
     "Storage": {
       "Storage": {}
@@ -2270,6 +2273,7 @@
     "MeritShop": {
       "Enable": true,
       "Refresh": false,
+      "BuyUnobtainedShip": false,
       "Filter": "Cube"
     },
     "CoreShop": {
@@ -2708,11 +2712,12 @@
       "TargetZone": 0,
       "OperationCoinsPreserve": 40000,
       "MinimumActionPointReserve": 200,
-      "ExecuteFixedPatrolScan": true,
+      "ExecuteFixedPatrolScan": 0,
       "SkipHpCheck": false,
       "Cl1Filter": "ActionPoint",
       "RecordNonCL1AP": true,
-      "RecordSeaMiles": true
+      "RecordSeaMiles": true,
+      "DebugClip": false
     },
     "OpsiSirenBug": {
       "SirenResearch_Enable": true,

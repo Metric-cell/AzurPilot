@@ -28,8 +28,9 @@ class TestErrorContext(unittest.TestCase):
 
 class TestGameNotRunningErrorHandling(unittest.TestCase):
     def test_schedules_restart_without_requesting_traceback(self):
-        script = AzurLaneAutoScript.__new__(AzurLaneAutoScript)
-        script.config_name = 'test'
+        script = AzurLaneAutoScript(config_name='test')
+        # 此用例仅验证任务异常恢复，不连接设备处理渠道服悬浮球。
+        script.handle_channel_float = Mock()
         script.__dict__['config'] = Mock()
         script.config.cross_get.return_value = False
         error = GameNotRunningError('Game not running')
