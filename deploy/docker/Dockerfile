@@ -1,6 +1,4 @@
-# docker build -t hgjazhgj/alas:latest -f deploy/docker/Dockerfile .
-# docker run -v ${PWD}:/app/AzurPilot -p 25548:25548 --name AzurPilot -it --rm hgjazhgj/alas
-
+# 在仓库根目录执行 docker compose build。
 FROM node:24-bookworm-slim AS frontend-build
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
@@ -8,55 +6,41 @@ RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.14-slim-bookworm
+FROM python:3.14.6-slim-bookworm
 
-ARG PYTHON_VERSION=3.14.6
 ARG UV_INDEX_URL=https://pypi.org/simple
 ARG UV_EXTRA_INDEX_URL=
 ARG HTTP_PROXY=
 ARG HTTPS_PROXY=
 ARG NO_PROXY=127.0.0.1,localhost
+ARG GIT_REVISION=unknown
 
-ENV UV_INDEX_URL=${UV_INDEX_URL}
-ENV UV_EXTRA_INDEX_URL=${UV_EXTRA_INDEX_URL}
-ENV http_proxy=${HTTP_PROXY}
-ENV https_proxy=${HTTPS_PROXY}
-ENV HTTP_PROXY=${HTTP_PROXY}
-ENV HTTPS_PROXY=${HTTPS_PROXY}
-ENV no_proxy=${NO_PROXY}
-ENV NO_PROXY=${NO_PROXY}
-ENV UV_PYTHON_INSTALL_DIR=/opt/uv-python
-ENV PATH=/app/AzurPilot/.venv/bin:${PATH}
+LABEL org.opencontainers.image.source="https://github.com/wess09/AzurPilot" \
+      org.opencontainers.image.revision="${GIT_REVISION}"
+
+ENV UV_INDEX_URL=${UV_INDEX_URL} \
+    UV_EXTRA_INDEX_URL=${UV_EXTRA_INDEX_URL} \
+    http_proxy=${HTTP_PROXY} \
+    https_proxy=${HTTPS_PROXY} \
+    HTTP_PROXY=${HTTP_PROXY} \
+    HTTPS_PROXY=${HTTPS_PROXY} \
+    no_proxy=${NO_PROXY} \
+    NO_PROXY=${NO_PROXY} \
+    UV_PYTHON_DOWNLOADS=never \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH=/app/AzurPilot/.venv/bin:${PATH}
 
 WORKDIR /app/AzurPilot
-
 COPY --from=ghcr.io/astral-sh/uv:0.11.32 /uv /usr/local/bin/uv
-COPY pyproject.toml uv.lock ./
-
-RUN if [ -n "$HTTP_PROXY" ]; then \
-    printf 'Acquire::http::Proxy "%s";\nAcquire::https::Proxy "%s";\n' "$HTTP_PROXY" "$HTTPS_PROXY" > /etc/apt/apt.conf.d/99proxy; \
-    fi
 
 RUN apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update && \
     apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 \
-    install -y --no-install-recommends \
-    git \
-    adb \
-    libgomp1 \
-    libgl1 \
-    libglib2.0-0 \
-    openssh-client && \
-    apt-get clean && \
+    install -y --no-install-recommends git adb libgomp1 libgl1 libglib2.0-0 openssh-client && \
     rm -rf /var/lib/apt/lists/*
 
-RUN git config --global --add safe.directory '*' && \
-    if [ -n "$HTTP_PROXY" ]; then \
-        git config --global http.proxy "$HTTP_PROXY" && \
-        git config --global https.proxy "$HTTPS_PROXY"; \
-    fi
-
-RUN uv python install "${PYTHON_VERSION}" --no-bin --managed-python && \
-    uv venv --relocatable --python "${PYTHON_VERSION}" .venv && \
+COPY pyproject.toml uv.lock ./
+RUN uv venv --relocatable --python /usr/local/bin/python .venv && \
     uv sync --frozen --no-dev --no-install-project && \
     cp /usr/local/bin/uv .venv/bin/uv && \
     cp /usr/bin/adb .venv/bin/adb && \
@@ -65,7 +49,7 @@ RUN uv python install "${PYTHON_VERSION}" --no-bin --managed-python && \
 
 COPY . .
 COPY --from=frontend-build /frontend/dist ./frontend/dist
-# 镜像内已有对应产物，运行时无需 Node 或 npm。
+# 标记镜像内产物，启动时无需 Node、npm 或联网构建。
 RUN .venv/bin/python -c "from pathlib import Path; from deploy.frontend import source_fingerprint; p=Path('frontend'); (p/'dist/.source-fingerprint').write_text(source_fingerprint(p))"
 
 CMD [".venv/bin/python", "gui.py"]

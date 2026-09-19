@@ -1,7 +1,7 @@
 services:
     ALAS:
         container_name: "alas"
-        image: "alas:py314"
+        image: "${ALAS_IMAGE:-alas:py314}"
         build:
             context: .
             dockerfile: ./deploy/docker/Dockerfile
@@ -9,30 +9,41 @@ services:
             args:
                 UV_INDEX_URL: ${UV_INDEX_URL:-https://pypi.org/simple}
                 UV_EXTRA_INDEX_URL: ${UV_EXTRA_INDEX_URL:-}
+                GIT_REVISION: ${GIT_REVISION:-unknown}
         network_mode: host
         restart: unless-stopped
         init: true
+        stop_grace_period: 60s
         working_dir: /app/AzurPilot
         environment:
             TZ: ${TZ:-Asia/Shanghai}
             PYTHONDONTWRITEBYTECODE: "1"
             PYTHONUNBUFFERED: "1"
+            ALAS_WEBUI_PORT: ${ALAS_WEBUI_PORT:-22267}
         volumes:
-            - '.:/app/AzurPilot:rw'
-            - 'alas-venv:/app/AzurPilot/.venv'
+            # 代码、依赖和前端全部来自镜像；只持久化运行数据。
+            - './config:/app/AzurPilot/config:rw'
+            - './log:/app/AzurPilot/log:rw'
+            - './cache:/app/AzurPilot/cache:rw'
+            - './files:/app/AzurPilot/files:rw'
+            - './AzurPilot_Data_Backup:/app/AzurPilot/AzurPilot_Data_Backup:rw'
             # - '../MAA:/app/MAA:rw'
             - '/etc/localtime:/etc/localtime:ro'
-        command: [".venv/bin/python", "gui.py"]
+        command: [".venv/bin/python", "gui.py", "--port", "${ALAS_WEBUI_PORT:-22267}"]
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
         healthcheck:
             test:
                 [
-                    "CMD-SHELL",
-                    ".venv/bin/python -c \"import socket; s=socket.create_connection(('127.0.0.1', 22267), 3); s.close()\"",
+                    "CMD",
+                    ".venv/bin/python",
+                    "-c",
+                    "import json, os, urllib.request; port = os.environ['ALAS_WEBUI_PORT']; response = urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=3); assert json.load(response)['status'] == 'ok'",
                 ]
             interval: 30s
             timeout: 5s
             retries: 6
             start_period: 90s
-
-volumes:
-    alas-venv:

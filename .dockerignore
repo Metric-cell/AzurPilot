@@ -34,4 +34,4 @@ frontend/node_modules
 frontend/dist
 frontend/test-results
 frontend/playwright-report
-cache
+AzurPilot_Data_Backup
