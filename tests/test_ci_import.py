@@ -5,12 +5,10 @@
 1. **入口点导入**：`alas` / `gui` / `module.ocr.al_ocr`
    在独立子进程中必须可导入。入口点导入失败说明运行时代码损坏。
 
-2. **进程隔离守卫**：WebUI 进程不得加载 OCR 相关模块
-   （`module.ocr.al_ocr` / `rapidocr`）。
-   fake_pil_module 会污染 `sys.modules['PIL']`，一旦 OCR 被引入 WebUI 进程，
-   rapidocr 会因 `cannot import name 'ImageDraw' from 'PIL'` 崩溃。
-   本测试守护该隔离不被破坏；若未来需要在 WebUI 进程内使用 OCR，
-   应先在 WebUI 侧 remove_fake_pil_module() 或重构假 PIL 注入方式。
+2. **进程隔离守卫**：WebUI 进程不得加载 OCR
+   相关模块（`module.ocr.al_ocr` / `rapidocr`）。
+   React API 与 OCR 分属不同进程，模型只在实际需要推理的工作进程中加载。
+   旧的伪 PIL 注入已移除，本测试继续守护轻量服务进程的依赖边界。
 
 所有检查都在子进程中执行，避免 import 副作用污染测试运行器本身。
 """
@@ -27,11 +25,13 @@ PYTHON = sys.executable
 
 def _run_py(code: str, timeout: int = 120) -> subprocess.CompletedProcess:
     """在独立子进程中执行代码，隔离 import 副作用。"""
-    env = {**os.environ, "AZURPILOT_NTP_DISABLE": "1"}
+    env = {**os.environ, "AZURPILOT_NTP_DISABLE": "1", "PYTHONUTF8": "1"}
     return subprocess.run(
         [PYTHON, "-c", code],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         timeout=timeout,
         env=env,
         cwd=REPO_ROOT,
@@ -67,8 +67,9 @@ class TestProcessIsolation(unittest.TestCase):
         # 不得被加载进同一进程。
         code = (
             "import sys\n"
-            "from module.webui import app as webui_app\n"
-            "application = webui_app.app()\n"
+            "from module.api import app as webui_app\n"
+            "application = webui_app.create_app(password='', manage_runtime=False)\n"
+            "assert 'mcp_server_sse' not in sys.modules, 'clean 不得加载 MCP'\n"
             "assert 'module.ocr.al_ocr' not in sys.modules, 'OCR 不得加载进 WebUI 进程'\n"
             "assert 'rapidocr' not in sys.modules, 'rapidocr 不得加载进 WebUI 进程'\n"
         )

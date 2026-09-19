@@ -13,6 +13,11 @@ REMOVED_NETWORK_MODULES = (
     "deploy/git_over_cdn/client.py",
     "mcp_server_sse.py",
     "module/base/api_client.py",
+    "module/api/update_service.py",
+    "module/runtime/discord_presence.py",
+    "module/runtime/mcp_auth.py",
+    "module/runtime/remote_access.py",
+    "module/runtime/updater.py",
     "module/statistics/cl1_data_submitter.py",
     "module/statistics/daily_summary.py",
     "module/statistics/daily_summary_store.py",
@@ -25,6 +30,12 @@ REMOVED_NETWORK_MODULES = (
 REMOVED_IMPORTS = (
     "deploy.git_over_cdn.client",
     "module.base.api_client",
+    "module.api.update_service",
+    "module.runtime.discord_presence",
+    "module.runtime.mcp_auth",
+    "module.runtime.remote_access",
+    "module.runtime.updater",
+    "mcp_server_sse",
     "module.statistics.cl1_data_submitter",
     "module.statistics.daily_summary",
     "module.statistics.daily_summary_store",
@@ -107,7 +118,14 @@ class TestCleanNetworkPolicy(unittest.TestCase):
 
     def test_removed_public_endpoints_stay_out_of_runtime(self):
         violations = []
-        for path in _runtime_python_files():
+        paths = list(_runtime_python_files())
+        paths.append(PROJECT_ROOT / "frontend/index.html")
+        for root in ("frontend/src", "frontend/public"):
+            paths.extend(
+                path for path in (PROJECT_ROOT / root).rglob("*")
+                if path.suffix in (".ts", ".tsx", ".js", ".css", ".html", ".json")
+            )
+        for path in paths:
             source = path.read_text(encoding="utf-8")
             for token in FORBIDDEN_RUNTIME_TOKENS:
                 if token in source:
@@ -116,6 +134,23 @@ class TestCleanNetworkPolicy(unittest.TestCase):
                     )
 
         self.assertEqual([], violations)
+
+    def test_react_frontend_does_not_restore_update_requests(self):
+        violations = []
+        for path in (PROJECT_ROOT / "frontend/src").rglob("*"):
+            if path.suffix not in (".ts", ".tsx", ".json") or path.name == "i18n.ts":
+                continue
+            source = path.read_text(encoding="utf-8")
+            if re.search(r"['\"]updater\.(?:status|commits|fetch|apply|cancel)['\"]", source):
+                violations.append(str(path.relative_to(PROJECT_ROOT)))
+        self.assertEqual([], violations)
+
+    def test_react_wallpaper_is_local(self):
+        source = (PROJECT_ROOT / "frontend/src/components/Wallpaper.tsx").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotRegex(source, r"https?://")
+        self.assertTrue((PROJECT_ROOT / "frontend/public/wallpaper.jpg").is_file())
 
     def test_time_source_uses_only_the_local_clock(self):
         source = (PROJECT_ROOT / "module/config/time_source.py").read_text(

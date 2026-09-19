@@ -356,8 +356,10 @@
           "uiautomator2",
           "minitouch",
           "Hermit",
-          "MaaTouch"
-        ]
+          "MaaTouch",
+          "nemu_ipc"
+        ],
+        "help": "nemu_ipc 需与截图方式配套使用（截图选 nemu_ipc 时启动会自动联动）。注意：nemu_ipc 触控走模拟器内部 RPC，低性能电脑上滑动易丢步、拖拽易变形，调用偶发挂死会丢失点击；滑动或拖拽异常时请改回 minitouch / MaaTouch。"
       },
       "GameSettings": {
         "type": "checkbox",
@@ -673,6 +675,14 @@
         "type": "input",
         "value": "./screenshots"
       },
+      "RetentionDays": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          3650
+        ]
+      },
       "AzurStatsID": {
         "type": "input",
         "value": null
@@ -703,6 +713,14 @@
           "save",
           "upload",
           "save_and_upload"
+        ]
+      },
+      "CommissionIncomeScreenshot": {
+        "type": "select",
+        "value": "save",
+        "option": [
+          "do_not",
+          "save"
         ]
       },
       "CombatRecord": {
@@ -742,6 +760,20 @@
         ]
       }
     },
+    "Backup": {
+      "Enable": {
+        "type": "checkbox",
+        "value": true
+      },
+      "KeepDays": {
+        "type": "input",
+        "value": 7,
+        "validate": [
+          1,
+          3650
+        ]
+      }
+    },
     "EmulatorManagement": {
       "ScheduledEmulatorRestart": {
         "type": "checkbox",
@@ -757,6 +789,14 @@
         "validate": [
           1,
           24
+        ]
+      },
+      "DeepRestartAfterFailures": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          10
         ]
       }
     },
@@ -910,7 +950,7 @@
     "YukikazeTaskManager": {
       "TaskPriorityAdjustment": {
         "type": "task_priority",
-        "value": "Restart\n> OpsiCrossMonth\n> Commission > Tactical > Research\n> Exercise\n> Dorm > Meowfficer > Guild > Gacha\n> Reward\n> ShopFrequent > ShopOnce > Shipyard > Freebies\n> PrivateQuarters\n> OpsiExplore\n> OpsiPreventActionPointOverflow\n> Minigame > Awaken\n> OpsiAshBeacon\n> OpsiDaily > OpsiShop > OpsiVoucher > EventShop\n> OpsiAbyssal > OpsiStronghold > OpsiObscure > OpsiArchive\n> Daily > Hard > OpsiAshBeacon > OpsiAshAssist > OpsiMonthBoss\n> Sos > EventSp > EventA > EventB > EventC > EventD\n> RaidDaily > CoalitionSp > WarArchives > MaritimeEscort\n> IslandJuuEatery > IslandJuuCoffee > IslandGrill > IslandTeahouse > IslandRestaurant\n> IslandFarm > IslandRancher > IslandMineForest > IslandDailyGather > IslandManufacture\n> IslandAirDrop > IslandBusiness > IslandDailyOrder > IslandDailyInteract > IslandPearlSell > IslandCargoPreparation\n> Event > Event2 > Event3 > Raid > Hospital > HospitalEvent > Coalition > RaidScuttle > Main > Main2 > Main3\n> OpsiScheduling\n> OpsiMeowfficerFarming\n> GemsFarming\n> Ambush11\n> OpsiHazard1Leveling\n> ThreeOilLowCost"
+        "value": "Restart\n> OpsiCrossMonth\n> Commission > Tactical > Research\n> Exercise\n> Dorm > Meowfficer > Guild > Gacha\n> Reward\n> ShopFrequent > ShopOnce > Shipyard > Freebies\n> PrivateQuarters\n> OpsiExplore\n> OpsiPreventActionPointOverflow\n> Minigame > Awaken\n> OpsiAshBeacon\n> OpsiDaily > OpsiShop > OpsiVoucher > EventShop\n> OpsiAbyssal > OpsiStronghold > OpsiObscure > OpsiArchive\n> Daily > Hard > OpsiAshBeacon > OpsiAshAssist > OpsiMonthBoss\n> Sos > EventSp > EventA > EventB > EventC > EventD\n> RaidDaily > CoalitionSp > WarArchives > MaritimeEscort\n> IslandJuuEatery > IslandJuuCoffee > IslandGrill > IslandTeahouse > IslandRestaurant\n> IslandFarm > IslandRancher > IslandMineForest > IslandDailyGather > IslandManufacture\n> IslandAirDrop > IslandBusiness > IslandDailyOrder > IslandDailyInteract > IslandPearlSell > IslandCargoPreparation\n> Event > Event2 > Event3 > Raid > Hospital > HospitalEvent > Coalition > RaidScuttle > Main > Main2 > Main3\n> OpsiScheduling\n> OpsiMeowfficerFarming\n> GemsFarming\n> Ambush11\n> OpsiHazard1Leveling\n> ThreeOilLowCost\n> OperationHandover"
       }
     },
     "Storage": {
@@ -1126,6 +1166,10 @@
       "OilLimit": {
         "type": "input",
         "value": 1000
+      },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
       },
       "CoinLimit": {
         "type": "input",
@@ -1558,6 +1602,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -1988,6 +2036,10 @@
       "OilLimit": {
         "type": "input",
         "value": 1000
+      },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
       },
       "CoinLimit": {
         "type": "input",
@@ -2547,6 +2599,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -3083,6 +3139,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -3605,6 +3665,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -4053,6 +4117,10 @@
       "OilLimit": {
         "type": "input",
         "value": 1000
+      },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
       },
       "CoinLimit": {
         "type": "input",
@@ -4503,6 +4571,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -4951,6 +5023,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -5348,7 +5424,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "raid_20260212",
           "raid_20260827"
         ],
         "option_cn": [
@@ -5361,10 +5436,9 @@
           "raid_20260827"
         ],
         "option_tw": [
-          "raid_20260212"
+          "raid_20260827"
         ],
         "option_bold": [
-          "raid_20260212",
           "raid_20260827"
         ]
       },
@@ -5420,6 +5494,10 @@
       "OilLimit": {
         "type": "input",
         "value": 1000
+      },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
       },
       "CoinLimit": {
         "type": "input",
@@ -5635,7 +5713,6 @@
         "type": "state",
         "value": "campaign_main",
         "option": [
-          "raid_20260212",
           "raid_20260827"
         ],
         "option_cn": [
@@ -5648,10 +5725,9 @@
           "raid_20260827"
         ],
         "option_tw": [
-          "raid_20260212"
+          "raid_20260827"
         ],
         "option_bold": [
-          "raid_20260212",
           "raid_20260827"
         ]
       },
@@ -5702,6 +5778,10 @@
       "OilLimit": {
         "type": "input",
         "value": 1000
+      },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
       },
       "CoinLimit": {
         "type": "input",
@@ -6040,6 +6120,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -6334,6 +6418,10 @@
       "OilLimit": {
         "type": "input",
         "value": 1000
+      },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
       },
       "CoinLimit": {
         "type": "input",
@@ -6635,6 +6723,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -6910,6 +7002,22 @@
       "CustomFilter": {
         "type": "textarea",
         "value": "EquipUR > EquipSSR > Cube > GachaTicket\n> Array > Chip > CatT3 \n> Meta > SkinBox\n> Oil > Coin > Medal > ExpBookT1 > FoodT1\n> DR > PR\n> AugmentCore > AugmentEnhanceT2 > AugmentChangeT2 > AugmentChangeT1\n> CatT2 > CatT1 > PlateGeneralT3 > PlateT3 > BoxT4\n> ShipSSR"
+      }
+    },
+    "ShopAdvanced": {
+      "Mode": {
+        "type": "select",
+        "value": "legacy",
+        "option": [
+          "legacy",
+          "advanced"
+        ]
+      },
+      "Script": {
+        "type": "textarea",
+        "value": "",
+        "mode": "restricted_lua",
+        "preserve_empty": true
       }
     },
     "Storage": {
@@ -7331,6 +7439,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -7368,6 +7480,28 @@
       "DailyRunCount": {
         "type": "input",
         "value": 0
+      },
+      "AutoClear": {
+        "type": "checkbox",
+        "value": false
+      },
+      "AutoSelectEvent": {
+        "type": "checkbox",
+        "value": false
+      },
+      "AutoClearTarget": {
+        "type": "select",
+        "value": "three_star",
+        "option": [
+          "normal_3_star",
+          "three_star",
+          "clear_100"
+        ]
+      },
+      "AutoClearProgress": {
+        "type": "stored",
+        "value": null,
+        "display": "hide"
       },
       "DailyRunCountRemain": {
         "type": "stored",
@@ -7813,6 +7947,10 @@
       "OilLimit": {
         "type": "input",
         "value": 1000
+      },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
       },
       "CoinLimit": {
         "type": "input",
@@ -8280,6 +8418,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -8745,6 +8887,10 @@
       "OilLimit": {
         "type": "input",
         "value": 1000
+      },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
       },
       "CoinLimit": {
         "type": "input",
@@ -9212,6 +9358,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -9668,6 +9818,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -10061,7 +10215,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "raid_20260212",
           "raid_20260827"
         ],
         "option_cn": [
@@ -10074,10 +10227,9 @@
           "raid_20260827"
         ],
         "option_tw": [
-          "raid_20260212"
+          "raid_20260827"
         ],
         "option_bold": [
-          "raid_20260212",
           "raid_20260827"
         ]
       },
@@ -10133,6 +10285,10 @@
       "OilLimit": {
         "type": "input",
         "value": 1000
+      },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
       },
       "CoinLimit": {
         "type": "input",
@@ -10426,6 +10582,10 @@
         "type": "input",
         "value": 1000
       },
+      "OilLimitHardFloor": {
+        "type": "input",
+        "value": 500
+      },
       "CoinLimit": {
         "type": "input",
         "value": 0
@@ -10565,7 +10725,7 @@
     "Scheduler": {
       "Enable": {
         "type": "checkbox",
-        "value": false,
+        "value": true,
         "option": [
           true,
           false
@@ -10669,6 +10829,31 @@
       "CommissionNotifyRewardStatistics": {
         "type": "checkbox",
         "value": true
+      },
+      "DetectShipDrop": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "GemNotify": {
+        "type": "checkbox",
+        "value": true
+      },
+      "GemStatistics": {
+        "type": "checkbox",
+        "value": false
+      },
+      "GemStatisticsPeriod": {
+        "type": "select",
+        "value": "month",
+        "option": [
+          "today",
+          "week",
+          "month"
+        ]
       }
     },
     "Storage": {
@@ -10806,7 +10991,7 @@
     "Scheduler": {
       "Enable": {
         "type": "checkbox",
-        "value": false,
+        "value": true,
         "option": [
           true,
           false
@@ -10908,6 +11093,7 @@
           "series_8_blueprint_305",
           "series_8_blueprint_only",
           "series_8_305_only",
+          "series_8_305_e_first",
           "series_7_blueprint_la9",
           "series_7_blueprint_only",
           "series_7_la9_only",
@@ -11248,7 +11434,7 @@
     "Scheduler": {
       "Enable": {
         "type": "checkbox",
-        "value": false,
+        "value": true,
         "option": [
           true,
           false
@@ -11391,6 +11577,291 @@
       "Favourite": {
         "type": "checkbox",
         "value": false
+      }
+    },
+    "Storage": {
+      "Storage": {
+        "type": "storage",
+        "value": {},
+        "valuetype": "ignore",
+        "display": "disabled"
+      }
+    }
+  },
+  "Secretary": {
+    "Scheduler": {
+      "Enable": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "PushNotification": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "NextRun": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime"
+      },
+      "Command": {
+        "type": "input",
+        "value": "Secretary",
+        "display": "hide"
+      },
+      "SuccessInterval": {
+        "type": "input",
+        "value": 0,
+        "display": "hide"
+      },
+      "FailureInterval": {
+        "type": "input",
+        "value": 120,
+        "display": "hide"
+      },
+      "ServerUpdate": {
+        "type": "input",
+        "value": "00:00",
+        "display": "hide"
+      },
+      "Sensitive": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      }
+    },
+    "Secretary": {
+      "CustomFilter": {
+        "type": "textarea",
+        "value": "ultra > super_rare > elite > rare > common"
+      },
+      "LowFavorabilityPriority": {
+        "type": "checkbox",
+        "value": false
+      },
+      "FavouriteOnly": {
+        "type": "checkbox",
+        "value": true
+      },
+      "BackupEnable": {
+        "type": "checkbox",
+        "value": true
+      },
+      "CheckInterval": {
+        "type": "input",
+        "value": 0
+      },
+      "Notify": {
+        "type": "checkbox",
+        "value": true
+      },
+      "OnePushConfig": {
+        "type": "textarea",
+        "value": "provider: null",
+        "mode": "yaml"
+      }
+    },
+    "Storage": {
+      "Storage": {
+        "type": "storage",
+        "value": {},
+        "valuetype": "ignore",
+        "display": "disabled"
+      }
+    }
+  },
+  "OperationHandover": {
+    "Scheduler": {
+      "Enable": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "PushNotification": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "NextRun": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime"
+      },
+      "Command": {
+        "type": "input",
+        "value": "OperationHandover",
+        "display": "hide"
+      },
+      "SuccessInterval": {
+        "type": "input",
+        "value": 30,
+        "display": "hide"
+      },
+      "FailureInterval": {
+        "type": "input",
+        "value": 30,
+        "display": "hide"
+      },
+      "ServerUpdate": {
+        "type": "input",
+        "value": "00:00",
+        "display": "hide"
+      },
+      "Sensitive": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      }
+    },
+    "Campaign": {
+      "Name": {
+        "type": "input",
+        "value": "12-4"
+      },
+      "Event": {
+        "type": "select",
+        "value": "campaign_main",
+        "option": [
+          "campaign_main"
+        ]
+      },
+      "Mode": {
+        "type": "select",
+        "value": "normal",
+        "option": [
+          "normal",
+          "hard"
+        ],
+        "display": "hide"
+      },
+      "UseClearMode": {
+        "type": "checkbox",
+        "value": true,
+        "display": "hide"
+      },
+      "UseFleetLock": {
+        "type": "checkbox",
+        "value": true,
+        "display": "hide"
+      },
+      "UseAutoSearch": {
+        "type": "checkbox",
+        "value": true,
+        "display": "hide"
+      },
+      "Use2xBook": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
+      },
+      "AmbushEvade": {
+        "type": "checkbox",
+        "value": true,
+        "display": "hide"
+      },
+      "UseRecommendFleet": {
+        "type": "checkbox",
+        "value": false,
+        "display": "hide"
+      },
+      "DefeatWithdraw": {
+        "type": "select",
+        "value": "withdraw_stop",
+        "option": [
+          "withdraw_continue",
+          "switch_fleet",
+          "withdraw_stop"
+        ],
+        "display": "hide"
+      }
+    },
+    "OperationHandover": {
+      "Count": {
+        "type": "input",
+        "value": 1,
+        "validate": [
+          0,
+          999
+        ]
+      },
+      "AutoSupplementTime": {
+        "type": "checkbox",
+        "value": false
+      },
+      "UseHandoverBook": {
+        "type": "checkbox",
+        "value": false
+      },
+      "ConsumeAllBook": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "ConsumeAllBookWeekday": {
+        "type": "select",
+        "value": "sun",
+        "option": [
+          "mon",
+          "tue",
+          "wed",
+          "thu",
+          "fri",
+          "sat",
+          "sun"
+        ]
+      },
+      "ConsumeAllBookTime": {
+        "type": "input",
+        "value": "00:00",
+        "valuetype": "str"
+      },
+      "MaintainOverride": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "OilLimit": {
+        "type": "input",
+        "value": 1000,
+        "validate": [
+          0,
+          999999
+        ]
+      },
+      "ConsumeAllBookRecord": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime"
+      },
+      "CommissionEnd": {
+        "type": "stored",
+        "value": "2020-01-01 00:00:00",
+        "display": "hide"
       }
     },
     "Storage": {
@@ -11886,6 +12357,22 @@
         "value": "BookRedT3 > BookYellowT3 > BookBlueT3 > BookRedT2\n> Cube\n> FoodT6 > FoodT5"
       }
     },
+    "ShopAdvanced": {
+      "Mode": {
+        "type": "select",
+        "value": "legacy",
+        "option": [
+          "legacy",
+          "advanced"
+        ]
+      },
+      "Script": {
+        "type": "textarea",
+        "value": "",
+        "mode": "restricted_lua",
+        "preserve_empty": true
+      }
+    },
     "Storage": {
       "Storage": {
         "type": "storage",
@@ -12183,6 +12670,22 @@
       "Filter": {
         "type": "textarea",
         "value": "Array"
+      }
+    },
+    "ShopAdvanced": {
+      "Mode": {
+        "type": "select",
+        "value": "legacy",
+        "option": [
+          "legacy",
+          "advanced"
+        ]
+      },
+      "Script": {
+        "type": "textarea",
+        "value": "",
+        "mode": "restricted_lua",
+        "preserve_empty": true
       }
     },
     "Storage": {
@@ -12678,6 +13181,22 @@
         ]
       }
     },
+    "ShopAdvanced": {
+      "Mode": {
+        "type": "select",
+        "value": "legacy",
+        "option": [
+          "legacy",
+          "advanced"
+        ]
+      },
+      "Script": {
+        "type": "textarea",
+        "value": "",
+        "mode": "restricted_lua",
+        "preserve_empty": true
+      }
+    },
     "Storage": {
       "Storage": {
         "type": "storage",
@@ -13104,6 +13623,22 @@
         "value": 0
       }
     },
+    "ShopAdvanced": {
+      "Mode": {
+        "type": "select",
+        "value": "legacy",
+        "option": [
+          "legacy",
+          "advanced"
+        ]
+      },
+      "Script": {
+        "type": "textarea",
+        "value": "",
+        "mode": "restricted_lua",
+        "preserve_empty": true
+      }
+    },
     "Storage": {
       "Storage": {
         "type": "storage",
@@ -13169,6 +13704,22 @@
       "Filter": {
         "type": "textarea",
         "value": "LoggerAbyssal > LoggerObscure > Book > Coin > Fragment"
+      }
+    },
+    "ShopAdvanced": {
+      "Mode": {
+        "type": "select",
+        "value": "legacy",
+        "option": [
+          "legacy",
+          "advanced"
+        ]
+      },
+      "Script": {
+        "type": "textarea",
+        "value": "",
+        "mode": "restricted_lua",
+        "preserve_empty": true
       }
     },
     "Storage": {
@@ -13910,13 +14461,8 @@
         "value": 200
       },
       "ExecuteFixedPatrolScan": {
-        "type": "select",
-        "value": 0,
-        "option": [
-          0,
-          1,
-          2
-        ]
+        "type": "checkbox",
+        "value": false
       },
       "SkipHpCheck": {
         "type": "checkbox",
@@ -14162,6 +14708,10 @@
       "TaskPriority": {
         "type": "textarea",
         "value": "OpsiStronghold > OpsiObscure > OpsiAbyssal > OpsiMeowfficerFarming"
+      },
+      "ObscureAbyssalCheckDelayDays": {
+        "type": "input",
+        "value": 0
       },
       "MonthEndActionPointCleanupEnable": {
         "type": "checkbox",
@@ -17750,16 +18300,6 @@
       }
     }
   },
-  "FleetScan": {
-    "Storage": {
-      "Storage": {
-        "type": "storage",
-        "value": {},
-        "valuetype": "ignore",
-        "display": "disabled"
-      }
-    }
-  },
   "FleetInfo": {
     "FleetInfo": {
       "Result": {
@@ -17774,6 +18314,16 @@
         "display": "hide"
       }
     },
+    "Storage": {
+      "Storage": {
+        "type": "storage",
+        "value": {},
+        "valuetype": "ignore",
+        "display": "disabled"
+      }
+    }
+  },
+  "FleetScan": {
     "Storage": {
       "Storage": {
         "type": "storage",

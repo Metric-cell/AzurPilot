@@ -1,6 +1,13 @@
 # docker build -t hgjazhgj/alas:latest -f deploy/docker/Dockerfile .
 # docker run -v ${PWD}:/app/AzurPilot -p 25548:25548 --name AzurPilot -it --rm hgjazhgj/alas
 
+FROM node:24-bookworm-slim AS frontend-build
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.14-slim-bookworm
 
 ARG PYTHON_VERSION=3.14.6
@@ -57,5 +64,8 @@ RUN uv python install "${PYTHON_VERSION}" --no-bin --managed-python && \
     rm -rf /root/.cache/uv
 
 COPY . .
+COPY --from=frontend-build /frontend/dist ./frontend/dist
+# 镜像内已有对应产物，运行时无需 Node 或 npm。
+RUN .venv/bin/python -c "from pathlib import Path; from deploy.frontend import source_fingerprint; p=Path('frontend'); (p/'dist/.source-fingerprint').write_text(source_fingerprint(p))"
 
 CMD [".venv/bin/python", "gui.py"]
