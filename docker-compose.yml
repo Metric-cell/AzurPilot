@@ -5,7 +5,6 @@ services:
         build:
             context: .
             dockerfile: ./deploy/docker/Dockerfile
-            # dockerfile: ./deploy/docker/Dockerfile.cn
             args:
                 UV_INDEX_URL: ${UV_INDEX_URL:-https://pypi.org/simple}
                 UV_EXTRA_INDEX_URL: ${UV_EXTRA_INDEX_URL:-}
@@ -21,15 +20,20 @@ services:
             PYTHONUNBUFFERED: "1"
             ALAS_WEBUI_PORT: ${ALAS_WEBUI_PORT:-22267}
         volumes:
-            # 代码、依赖和前端全部来自镜像；只持久化运行数据。
-            - './config:/app/AzurPilot/config:rw'
-            - './log:/app/AzurPilot/log:rw'
-            - './cache:/app/AzurPilot/cache:rw'
-            - './files:/app/AzurPilot/files:rw'
-            - './AzurPilot_Data_Backup:/app/AzurPilot/AzurPilot_Data_Backup:rw'
+            # 直接使用本地源码及运行数据，编辑后无需重建镜像。
+            - '.:/app/AzurPilot:rw'
+            # 隔离宿主机依赖，Python 环境首次创建时从镜像复制。
+            - 'alas-python:/app/AzurPilot/.venv'
+            - 'alas-node-modules:/app/AzurPilot/frontend/node_modules'
+            - 'alas-frontend:/app/AzurPilot/frontend/dist'
             # - '../MAA:/app/MAA:rw'
             - '/etc/localtime:/etc/localtime:ro'
-        command: [".venv/bin/python", "gui.py", "--port", "${ALAS_WEBUI_PORT:-22267}"]
+        command:
+            - /bin/sh
+            - -ec
+            - |
+                uv sync --frozen --python /usr/local/bin/python
+                exec .venv/bin/python gui.py --port "$$ALAS_WEBUI_PORT"
         logging:
             driver: json-file
             options:
@@ -47,3 +51,8 @@ services:
             timeout: 5s
             retries: 6
             start_period: 90s
+
+volumes:
+    alas-python:
+    alas-node-modules:
+    alas-frontend:

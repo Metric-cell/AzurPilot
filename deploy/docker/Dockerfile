@@ -6,7 +6,7 @@ RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
-FROM python:3.14.6-slim-bookworm
+FROM python:3.14.6-slim-bookworm AS runtime
 
 ARG UV_INDEX_URL=https://pypi.org/simple
 ARG UV_EXTRA_INDEX_URL=
@@ -49,7 +49,14 @@ RUN uv venv --relocatable --python /usr/local/bin/python .venv && \
 
 COPY . .
 COPY --from=frontend-build /frontend/dist ./frontend/dist
-# 标记镜像内产物，启动时无需 Node、npm 或联网构建。
+# 初始化前端卷时复用镜像内产物，源码变化后在容器内重新构建。
 RUN .venv/bin/python -c "from pathlib import Path; from deploy.frontend import source_fingerprint; p=Path('frontend'); (p/'dist/.source-fingerprint').write_text(source_fingerprint(p))"
 
 CMD [".venv/bin/python", "gui.py"]
+
+# 容器直接运行挂载的源码，并提供前端构建与实时调试环境。
+COPY --from=frontend-build /usr/local/bin/node /usr/local/bin/node
+COPY --from=frontend-build /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/npm
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm && \
+    ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx && \
+    git config --global --add safe.directory /app/AzurPilot
