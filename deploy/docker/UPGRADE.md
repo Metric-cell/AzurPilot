@@ -27,6 +27,16 @@ docker compose ps
 - 原虚拟环境卷：`azurlaneautoscript_alas-venv`，保留用于回滚。
 - 原服务继续使用 host 网络与 `22267` 端口。
 
+### 切换验证
+
+新镜像 ID 为 `sha256:4f2d23c273c93ef20557b96adf57495cbd4f3c20eb8dff52199013f0157a8932`，已同时标记为 `alas:py314` 并用于正式容器。运行环境为 Python 3.14.6、uv 0.11.32。
+
+镜像在 `--network none`、`TZ=Asia/Shanghai` 下运行 521 项 Python 测试成功，其中 2 项 Windows 检查跳过。独立隔离容器的首页与健康接口检查通过，预构建前端无需联网即可启动。
+
+正式服务切换后 `/healthz` 返回正常，容器 `healthy` 且重启次数为 0；4 份配置 JSON 与切换前逐字节一致，原密码及 `log/device_id.json` 保持一致。本地时钟状态确认未启用 NTP。配置和日志压缩备份均已完成并验证可读取，SQLite `quick_check` 通过。
+
+宿主机 `/home/dreamydust/alas_py314/restart.sh` 已改为按固定名称 `alas` 重启，避免容器重建后旧 ID 失效。
+
 回滚操作会停止当前服务。先妥善保存升级后的数据，再按需要恢复切换前配置，最后使用备份目录中的 Compose：
 
 ```bash
