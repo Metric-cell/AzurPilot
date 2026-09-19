@@ -11,6 +11,14 @@ docker compose ps
 
 首次创建 Python 卷时复制镜像内的依赖，每次启动执行 `uv sync --frozen` 同步锁文件（含开发依赖）。需要新包时会联网下载；应用的外联裁剪范围仍遵循 [clean 策略](../../CLEAN_POLICY.md)。
 
+## 清理宿主机依赖
+
+仅使用 Docker 时，宿主机原有的 Python 依赖可以清理，但应先停止容器，清理后执行 `docker compose up -d --no-build --force-recreate ALAS` 恢复挂载。不要在容器运行时删除宿主机 `.venv` 目录本身：它也是嵌套依赖卷的挂载点，删除会让运行中的容器无法再访问卷内的 Python 和依赖，即使 Web 服务暂时还能响应。
+
+容器重建后，宿主机可能出现一个仅占几 KB 的空 `.venv` 目录；保留这个挂载点即可，1.3 GB 的原宿主机依赖无需恢复。`frontend/node_modules` 和 `frontend/dist` 同样是嵌套卷挂载点，清理时也应先停止容器。
+
+若删除目录后已经出现 `unhealthy`，并且健康检查记录为 `.venv/bin/python: no such file or directory`，使用上述重建命令恢复现有依赖卷，不需要重新构建镜像或删除卷。恢复后应同时检查 Python 依赖导入和 `/healthz`。
+
 ## 修改 Python
 
 编辑本地文件后重启即可，无需重建镜像：
