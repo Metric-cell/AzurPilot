@@ -29,7 +29,8 @@ ENV UV_INDEX_URL=${UV_INDEX_URL} \
     UV_PYTHON_DOWNLOADS=never \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH=/app/AzurPilot/.venv/bin:${PATH}
+    UV_PROJECT_ENVIRONMENT=/opt/venv \
+    PATH=/opt/venv/bin:${PATH}
 
 WORKDIR /app/AzurPilot
 COPY --from=ghcr.io/astral-sh/uv:0.11.32 /uv /usr/local/bin/uv
@@ -40,19 +41,19 @@ RUN apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 -o Acquire::https
     rm -rf /var/lib/apt/lists/*
 
 COPY pyproject.toml uv.lock ./
-RUN uv venv --relocatable --python /usr/local/bin/python .venv && \
+RUN uv venv --relocatable --python /usr/local/bin/python /opt/venv && \
     uv sync --frozen --no-dev --no-install-project && \
-    cp /usr/local/bin/uv .venv/bin/uv && \
-    cp /usr/bin/adb .venv/bin/adb && \
-    cp /usr/bin/git .venv/bin/git && \
+    cp /usr/local/bin/uv /opt/venv/bin/uv && \
+    cp /usr/bin/adb /opt/venv/bin/adb && \
+    cp /usr/bin/git /opt/venv/bin/git && \
     rm -rf /root/.cache/uv
 
 COPY . .
 COPY --from=frontend-build /frontend/dist ./frontend/dist
 # 初始化前端卷时复用镜像内产物，源码变化后在容器内重新构建。
-RUN .venv/bin/python -c "from pathlib import Path; from deploy.frontend import source_fingerprint; p=Path('frontend'); (p/'dist/.source-fingerprint').write_text(source_fingerprint(p))"
+RUN /opt/venv/bin/python -c "from pathlib import Path; from deploy.frontend import source_fingerprint; p=Path('frontend'); (p/'dist/.source-fingerprint').write_text(source_fingerprint(p))"
 
-CMD [".venv/bin/python", "gui.py"]
+CMD ["/opt/venv/bin/python", "gui.py"]
 
 # 容器直接运行挂载的源码，并提供前端构建与实时调试环境。
 COPY --from=frontend-build /usr/local/bin/node /usr/local/bin/node

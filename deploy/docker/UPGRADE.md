@@ -7,17 +7,17 @@ docker compose up -d ALAS
 docker compose ps
 ```
 
-整个仓库挂载到 `/app/AzurPilot`，包括源码、配置和日志。容器使用 Python 3.14.6、uv 0.11.32 和 Node 24；`.venv`、`frontend/node_modules`、`frontend/dist` 分别存放在三个 Docker 卷中，与宿主机依赖隔离。已有配置、登录密码和设备身份继续使用本地文件。
+整个仓库挂载到 `/app/AzurPilot`，包括源码、配置和日志。容器使用 Python 3.14.6、uv 0.11.32 和 Node 24；`/opt/venv`、`frontend/node_modules`、`frontend/dist` 分别存放在三个 Docker 卷中，与宿主机依赖隔离。已有配置、登录密码和设备身份继续使用本地文件。
 
 首次创建 Python 卷时复制镜像内的依赖，每次启动执行 `uv sync --frozen` 同步锁文件（含开发依赖）。需要新包时会联网下载；应用的外联裁剪范围仍遵循 [clean 策略](../../CLEAN_POLICY.md)。
 
-## 清理宿主机依赖
+## Python 环境与本地清理
 
-仅使用 Docker 时，宿主机原有的 Python 依赖可以清理，但应先停止容器，清理后执行 `docker compose up -d --no-build --force-recreate ALAS` 恢复挂载。不要在容器运行时删除宿主机 `.venv` 目录本身：它也是嵌套依赖卷的挂载点，删除会让运行中的容器无法再访问卷内的 Python 和依赖，即使 Web 服务暂时还能响应。
+容器通过 `UV_PROJECT_ENVIRONMENT=/opt/venv` 使用源码目录之外的 Python 环境，`PATH`、启动命令、健康检查和程序内依赖同步均使用该路径。宿主机 `.venv` 不再作为容器挂载点，也不会被容器加载，可以独立删除或重建；不需要保留空目录。
 
-容器重建后，宿主机可能出现一个仅占几 KB 的空 `.venv` 目录；保留这个挂载点即可，1.3 GB 的原宿主机依赖无需恢复。`frontend/node_modules` 和 `frontend/dist` 同样是嵌套卷挂载点，清理时也应先停止容器。
+从旧配置迁移时，`docker compose build` 后执行 `docker compose up -d --no-build ALAS` 即可。已有 `alas-python` 卷会挂到 `/opt/venv`，启动时同步锁文件，不需要删除依赖卷。
 
-若删除目录后已经出现 `unhealthy`，并且健康检查记录为 `.venv/bin/python: no such file or directory`，使用上述重建命令恢复现有依赖卷，不需要重新构建镜像或删除卷。恢复后应同时检查 Python 依赖导入和 `/healthz`。
+前端 `frontend/node_modules` 和 `frontend/dist` 仍是源码目录内的嵌套卷挂载点；若要删除宿主机这两个目录，应先停止容器，清理后执行 `docker compose up -d --no-build --force-recreate ALAS` 恢复挂载。
 
 ## 修改 Python
 
@@ -33,10 +33,10 @@ docker compose logs -f --tail 100 ALAS
 测试和交互调试直接使用容器环境：
 
 ```bash
-docker compose exec ALAS .venv/bin/python -m unittest tests.test_clean_network_policy
+docker compose exec ALAS python -m unittest tests.test_clean_network_policy
 docker compose exec ALAS bash
 # 在容器 shell 中运行：
-.venv/bin/python -m pdb 你的脚本.py
+python -m pdb 你的脚本.py
 ```
 
 ## 修改 React 前端
@@ -52,7 +52,7 @@ docker compose exec ALAS sh -ec 'cd frontend; npm ci --no-audit --no-fund; npm r
 需要在日常使用的 `22267` 页面看到静态前端更新时：
 
 ```bash
-docker compose exec ALAS .venv/bin/python -m deploy.frontend
+docker compose exec ALAS python -m deploy.frontend
 ```
 
 后端启动时也会检查前端源文件变化并自动构建；源码未变时复用卷中的产物。Vite 运行期间不要同时安装依赖或执行静态构建，以免打断开发服务器。
@@ -77,19 +77,19 @@ docker compose up -d --no-build ALAS
 
 ## 本机迁移记录
 
-2026-09-19 将默认 Compose 改为源码挂载，取消额外开发 Compose 和切换脚本。源码合并基线为 `b84d53afe`，包含上游 dev `6e8b93c7b`。本次运行环境镜像标签为 `alas:source-20260919`，同时用于 `alas:py314`。
+2026-09-19 将默认 Compose 改为源码挂载，取消额外开发 Compose 和切换脚本。源码合并基线为 `b84d53afe`，包含上游 dev `6e8b93c7b`。最初源码挂载镜像标签为 `alas:source-20260919`。后续将 Python 环境移到 `/opt/venv`，镜像标签为 `alas:opt-venv-20260919`，同时用于 `alas:py314`。
 
-本次切换前的 Compose、配置及日志备份位于 `/home/dreamydust/alas_py314/backups/20260919-source-mounted-docker/`。此前升级的完整回滚资料位于 `/home/dreamydust/alas_py314/backups/20260919-clean-dev-docker/`。旧镜像和历史虚拟环境卷保留供回滚。
+本次切换前的 Compose、配置及日志备份位于 `/home/dreamydust/alas_py314/backups/20260919-source-mounted-docker/`。此前升级的完整回滚资料位于 `/home/dreamydust/alas_py314/backups/20260919-clean-dev-docker/`。`/opt/venv` 迁移前的 Compose、配置、日志和验证记录位于 `/home/dreamydust/alas_py314/backups/20260919-opt-venv/`。旧镜像和历史虚拟环境卷保留供回滚。
 
-切换后容器为 `healthy`、重启次数为 0，首页及 `/healthz` 正常；已验证本地文件修改实时出现在容器中。4 份配置 JSON、密码和设备身份均与备份一致。镜像中 11 项 clean／前端构建检查通过（1 项 Windows 检查跳过），容器内 Python、uv、Node、npm 和 Ruff 可用。
+切换后容器为 `healthy`、重启次数为 0，首页及 `/healthz` 正常；已验证本地文件修改实时出现在容器中。4 份配置 JSON、密码和设备身份均与备份一致。迁移到 `/opt/venv` 后，镜像在禁网条件下运行 524 项 Python 测试通过（2 项 Windows 检查跳过），并验证了离线依赖同步、`uv run` 和 ADB 路径。已实际删除宿主机 `.venv`，容器继续保持 `healthy`，原先运行的 `alas` 任务曾恢复运行；随后收到 WebUI 手动停止请求，现保留停止状态。
 
 ### 发现的问题
 
-仅运行镜像内源码不方便本地调试；另设开发模式会增加切换负担。直接挂载仓库又会遮蔽镜像中的依赖。
+仅运行镜像内源码不方便本地调试；另设开发模式会增加切换负担。直接挂载仓库又会遮蔽镜像中的依赖，嵌套挂载 Python 卷还会受到宿主机删除 `.venv` 目录的影响。
 
 ### 建议修正
 
-统一默认 Compose 为源码挂载，三个独立卷保存容器依赖和前端产物，启动时同步锁文件，镜像提供 Node/npm 以支持前端调试。
+统一默认 Compose 为源码挂载，Python 卷挂在 `/opt/venv`，依赖同步尊重 `UV_PROJECT_ENVIRONMENT`；前端卷及 Node/npm 继续支持本地调试。
 
 ### 是否需要继续修改
 

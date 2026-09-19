@@ -19,11 +19,12 @@ services:
             PYTHONDONTWRITEBYTECODE: "1"
             PYTHONUNBUFFERED: "1"
             ALAS_WEBUI_PORT: ${ALAS_WEBUI_PORT:-22267}
+            UV_PROJECT_ENVIRONMENT: /opt/venv
         volumes:
             # 直接使用本地源码及运行数据，编辑后无需重建镜像。
             - '.:/app/AzurPilot:rw'
             # 隔离宿主机依赖，Python 环境首次创建时从镜像复制。
-            - 'alas-python:/app/AzurPilot/.venv'
+            - 'alas-python:/opt/venv'
             - 'alas-node-modules:/app/AzurPilot/frontend/node_modules'
             - 'alas-frontend:/app/AzurPilot/frontend/dist'
             # - '../MAA:/app/MAA:rw'
@@ -33,7 +34,7 @@ services:
             - -ec
             - |
                 uv sync --frozen --python /usr/local/bin/python
-                exec .venv/bin/python gui.py --port "$$ALAS_WEBUI_PORT"
+                exec /opt/venv/bin/python gui.py --port "$$ALAS_WEBUI_PORT"
         logging:
             driver: json-file
             options:
@@ -43,7 +44,7 @@ services:
             test:
                 [
                     "CMD",
-                    ".venv/bin/python",
+                    "/opt/venv/bin/python",
                     "-c",
                     "import json, os, urllib.request; port = os.environ['ALAS_WEBUI_PORT']; response = urllib.request.urlopen(f'http://127.0.0.1:{port}/healthz', timeout=3); assert json.load(response)['status'] == 'ok'",
                 ]
