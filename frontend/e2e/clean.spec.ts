@@ -9,7 +9,7 @@ test('clean 页面只加载本地资源并且不提供更新入口', async ({pag
   })
   await page.goto('/')
   await expect(page.locator('.instance-card')).toBeVisible()
-  await expect(page.locator('a[href*="updater"]')).toHaveCount(0)
+  await expect(page.locator('a[href*="updater"], a[href*="remote"]')).toHaveCount(0)
   await expect(page.locator('.wallpaper img')).toHaveJSProperty('complete', true)
   expect(await page.locator('.wallpaper img').evaluate(image => (image as HTMLImageElement).naturalWidth)).toBeGreaterThan(0)
   expect(externalRequests).toEqual([])

@@ -1,4 +1,4 @@
-import copy
+from deploy.config_transaction import DeployConfigTransaction
 import sys
 from typing import Optional, Union
 
@@ -54,7 +54,7 @@ class ConfigModel:
     Run: Optional[str] = None
 
 
-class DeployConfig(ConfigModel):
+class DeployConfig(DeployConfigTransaction, ConfigModel):
     def __init__(self, file=DEPLOY_CONFIG):
         """初始化部署配置。
 
@@ -65,7 +65,6 @@ class DeployConfig(ConfigModel):
         self.template_file = get_deploy_template()
         self.config = {}
         self.config_template = {}
-        self._github_location_checked = False
         self.read()
 
         self.show_config()
@@ -81,25 +80,6 @@ class DeployConfig(ConfigModel):
 
         logger.info(f"Rest of the configs are the same as default")
 
-    def read(self):
-        """读取并更新部署配置，将配置值复制到属性。"""
-        self.config = poor_yaml_read(self.template_file)
-        self.config_template = copy.deepcopy(self.config)
-        origin = poor_yaml_read(self.file)
-        self.config.update(origin)
-
-        for key, value in self.config.items():
-            if hasattr(self, key):
-                super().__setattr__(key, value)
-
-        self.config_redirect()
-
-        if self.config != origin:
-            self.write()
-
-    def write(self):
-        poor_yaml_write(self.config, self.file, template_file=self.template_file)
-
     def config_redirect(self):
         """部署配置重定向，处理旧配置到新配置的迁移。
 
@@ -108,7 +88,7 @@ class DeployConfig(ConfigModel):
         if self.PypiMirror in [
             'https://pypi.tuna.tsinghua.edu.cn/simple'
         ]:
-            self.PypiMirror = 'https://mirrors.aliyun.com/pypi/simple'
+            object.__setattr__(self, 'PypiMirror', 'https://mirrors.aliyun.com/pypi/simple')
             self.config['PypiMirror'] = 'https://mirrors.aliyun.com/pypi/simple'
 
         if self.Repository in ['global']:

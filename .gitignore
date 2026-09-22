@@ -35,7 +35,8 @@ test/*
 debug_ocr/
 PaddleOCR
 .trae
-docs/
+docs/*
+!docs/modules/
 .claude
 # Created by .ignore support plugin (hsz.mobi)
 

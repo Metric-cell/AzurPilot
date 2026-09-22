@@ -27,8 +27,7 @@ class ApiLifecycleTests(unittest.TestCase):
                     executed.set()
                     yield
 
-            settings = SimpleNamespace(Run='', StartOcrServer=False, EnableRemoteAccess=False,
-                                       DiscordRichPresence=False)
+            settings = SimpleNamespace(Run='', StartOcrServer=False)
             tasks = TaskHandler()
             stack.enter_context(patch.object(State, '_deploy_config_', settings, create=True))
             stack.enter_context(patch.multiple(State, _init=False, _clearup=False, manager=None,

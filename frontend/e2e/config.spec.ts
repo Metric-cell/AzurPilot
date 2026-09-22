@@ -100,4 +100,51 @@ test('非法数字、日期和 YAML 保留草稿，其他字段仍即时保存',
   await expect(date).toHaveValue('2026-02-30 12:00:00')
   await date.fill('2099-01-01 12:00:00')
   await expect(page.locator('[id="Main.Scheduler.NextRun-status"]')).toHaveText('已保存')
+  // 清空时间要回落到参数默认值：它落在过去，调度器下一轮就把任务当作待运行。
+  await date.fill('')
+  await expect(date).toHaveValue('2020-01-01 00:00:00')
+  await expect(page.locator('[id="Main.Scheduler.NextRun-status"]')).toHaveText('已保存')
+  await page.reload()
+  await expect(date).toHaveValue('2020-01-01 00:00:00')
+})
+
+test('遗留的空时间草稿在恢复时被丢弃，字段回到配置里的值', async ({page}) => {
+  // 旧版本拒绝空时间后把空值留在草稿里：字段已空时再清空不会触发输入事件，
+  // 草稿永远换不掉。恢复草稿时丢弃它，字段回到配置里的值。
+  await page.addInitScript(() => sessionStorage.setItem('azurpilot.edits.config:testpilot', JSON.stringify({
+    'Main.Scheduler.NextRun': {
+      value: '', payload: '', sequence: 1, status: 'error', retryable: false,
+      error: '日期格式应为 YYYY-MM-DD HH:mm:ss：Main.Scheduler.NextRun',
+    },
+  })))
+  await page.goto('/#/i/testpilot/task/Main')
+  await expect(page.locator('[id="Main.Scheduler.NextRun"]')).toHaveValue('2020-01-01 00:00:00')
+  await expect(page.locator('[id="Main.Scheduler.NextRun-status"]')).toHaveCount(0)
+})
+
+test('立刻运行按钮把调度时间改成可立即运行', async ({page}) => {
+  await page.goto('/#/i/testpilot/task/Main')
+  const date = page.locator('[id="Main.Scheduler.NextRun"]')
+  const status = page.locator('[id="Main.Scheduler.NextRun-status"]')
+  await date.fill('2099-01-01 12:00:00')
+  await expect(status).toHaveText('已保存')
+  // 按钮等同清空该字段：提交参数默认值，它落在过去，调度器下一轮即运行。
+  await page.getByRole('button', {name: '立刻运行', exact: true}).click()
+  await expect(date).toHaveValue('2020-01-01 00:00:00')
+  await expect(status).toHaveText('已保存')
+  await page.reload()
+  await expect(date).toHaveValue('2020-01-01 00:00:00')
+})
+
+test('清空数字字段回落到参数默认值，不再提示格式错误', async ({page}) => {
+  await page.goto('/#/i/testpilot/task/Main')
+  const value = page.locator('[id="Main.Emotion.Fleet1Value"]')
+  const status = page.locator('[id="Main.Emotion.Fleet1Value-status"]')
+  await value.fill('95')
+  await expect(status).toHaveText('已保存')
+  await value.fill('')
+  await expect(value).toHaveValue('119')
+  await expect(status).toHaveText('已保存')
+  await page.reload()
+  await expect(value).toHaveValue('119')
 })

@@ -73,10 +73,36 @@
 .breadcrumb a:hover {color: var(--accent)}
 .breadcrumb a strong {color: var(--text); font-weight: 500; transition: color .15s}
 .breadcrumb a:hover strong {color: var(--accent)}
+/* 顶栏模式开关：开着时所有实例铺成一行分页，关着时仍收在下拉里。 */
+.topbar-mode-toggle {flex-shrink: 0}
+.breadcrumb.with-tabs {min-width: 0; flex: 1}
+.instance-tabs {display: flex; align-items: center; gap: 2px; min-width: 0; overflow-x: auto; scrollbar-width: none}
+.instance-tabs::-webkit-scrollbar {display: none}
+.instance-tab {display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--theme-muted); font-size: 11px; white-space: nowrap; cursor: pointer; transition: color .15s, background .15s, border-color .15s}
+.instance-tab:hover {background: var(--theme-surface-muted); color: var(--theme-text)}
+.instance-tab.current {background: var(--theme-accent-soft); border-color: var(--theme-accent); color: var(--theme-accent); animation: instance-tab-in .22s ease-out}
+.instance-tab.running {color: var(--theme-success)}
+.instance-tab.error {color: var(--theme-danger)}
+.instance-tab-name {max-width: 9rem; overflow: hidden; text-overflow: ellipsis}
+.instance-tab-icon {flex-shrink: 0}
+.instance-tab.running .instance-tab-icon {animation: instance-tab-pulse 1.6s ease-in-out infinite}
+.instance-tab.updating .instance-tab-icon {animation: instance-tab-spin 1.1s linear infinite}
+.instance-tab-create {display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 22px; height: 22px; border-radius: 5px; background: transparent; color: var(--theme-muted); cursor: pointer}
+.instance-tab-create:hover {background: var(--theme-surface-muted); color: var(--theme-accent)}
+@keyframes instance-tab-in {from {opacity: .4; transform: scale(.94)} to {opacity: 1; transform: none}}
+@keyframes instance-tab-pulse {0%, 100% {opacity: 1} 50% {opacity: .35}}
+@keyframes instance-tab-spin {to {transform: rotate(360deg)}}
+/* 动效只是强化：关掉后状态仍靠图标形状与颜色区分。 */
+@media (prefers-reduced-motion: reduce) {
+  .instance-tab.current, .instance-tab.running .instance-tab-icon, .instance-tab.updating .instance-tab-icon {animation: none}
+}
+@media (max-width: 950px) {
+  .instance-tab-name {max-width: 5rem}
+}
 .topbar-right {display: flex; align-items: center; gap: 20px; color: var(--muted); font-size: 10px}
 .connection-label {display: flex; align-items: center; gap: 6px; color: var(--accent)}
 .topbar-divider {width: 1px; height: 14px; background: var(--border)}
-main {padding: 32px 32px 16px; max-width: 1600px; width: 100%; margin: 0 auto; flex: 1}
+main {padding: 32px 32px 16px; flex: 1}
 .page-title {display: flex; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 26px}
 .page-title h1 {font-size: 34px; font-weight: 700; letter-spacing: -.9px; line-height: 1.25}
 .title-actions {display: flex; gap: 10px; flex-wrap: wrap}
@@ -114,7 +140,7 @@ main {padding: 32px 32px 16px; max-width: 1600px; width: 100%; margin: 0 auto; f
 .mobile-toggle, .mobile-close, .mobile-rail-toggle, .mobile-rail-close {display: none !important}
 .login-page {min-height: var(--viewport-height); display: grid; grid-template-columns: 1fr 1fr; background: var(--surface)}
 .login-art {background: #142d3a; color: #72c6b4; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 60px; position: relative; overflow: hidden}
-.login-art::before {content: ''; position: absolute; inset: -50%; opacity: .14; background: repeating-radial-gradient(circle at center, transparent 0, transparent 70px, #77d8c0 71px, transparent 72px)}
+
 .login-art > span {font-size: 15px; letter-spacing: 4px; color: #bdd2d8}
 .login-card {width: 360px; max-width: calc(100% - 40px); margin: auto; display: flex; flex-direction: column; gap: 18px}
 .login-card .brand-mark {background: var(--navy); border-radius: 10px; margin-bottom: 20px; width: 48px; height: 48px}
@@ -127,5 +153,5 @@ main {padding: 32px 32px 16px; max-width: 1600px; width: 100%; margin: 0 auto; f
 @media (min-width: 2000px) {main {padding: 40px 44px 20px}.page-title {margin-bottom: 32px}.page-title h1 {font-size: 38px}}
 @media (max-width: 1562.5px) {:root {--sidebar-width: 194px; --right-rail-width: 292px}main {padding: 25px 24px 15px}.topbar {padding: 0 24px}.sidebar {padding: 0 11px}.resource-value {font-size: 23px !important}.page-title h1 {font-size: 29px}}
 @media (max-width: 1275px) {.overview-grid {grid-template-columns: 1fr !important}.preview-screen {max-height: 360px}.page-title {align-items: flex-start}.title-actions {justify-content: flex-end}.config-layout {grid-template-columns: 1fr !important}.group-nav {display: none !important}.resource-grid {gap: 7px !important}.resource-card {padding: 8px 14px 7px !important}.resource-foot {font-size: 8px !important}}
-@media (max-width: 950px) {.app-shell {display: block}.sidebar {position: fixed; width: 220px; left: -230px; transition: left .2s; box-shadow: 20px 0 60px #10243730}.mobile-open .sidebar {left: 0}.right-rail {position: fixed; top: 0; right: calc(-1 * min(360px, 92vw)); width: min(360px, 92vw); height: var(--viewport-height); transition: right .2s; box-shadow: -20px 0 60px #10243730; z-index: 30}.rail-open .right-rail {right: 0}.mobile-toggle, .mobile-close, .mobile-rail-toggle, .mobile-rail-close {display: inline-flex !important}.mobile-close {position: absolute; right: 12px; top: 26px}.topbar {height: 58px; padding: 0 15px; gap: 12px}.breadcrumb {margin-right: auto; font-size: 10px; gap: 7px}.topbar-right .version, .topbar-divider {display: none}main {padding: 24px 17px 12px}.page-title {flex-wrap: wrap; gap: 17px}.page-title h1 {font-size: 26px}.title-actions {justify-content: flex-start}.resource-grid {grid-template-columns: 1fr 1fr !important}.field-row {flex-wrap: wrap; gap: 16px !important}.field-label {min-width: 100% !important}.field-control {width: 100% !important}.panel-heading {padding: 16px !important}.login-page {grid-template-columns: 1fr}.login-art {display: none}.config-toolbar > span {display: none}.task-row {grid-template-columns: 22px 1fr 50px 80px 10px !important}.log-filters {flex-wrap: wrap}.chart-metrics strong {font-size: 22px !important}.panel-heading > div {gap: 8px !important}.task-submenu-flyout {width: min(200px, calc(100vw - 235px)); box-shadow: 0 10px 30px #0c1c2e40}}
+@media (max-width: 950px) {.app-shell {display: block}.sidebar {position: fixed; width: 220px; left: -230px; transition: left .2s; box-shadow: 20px 0 60px #10243730}.mobile-open .sidebar {left: 0}.right-rail {position: fixed; top: 0; right: calc(-1 * min(360px, 92vw)); width: min(360px, 92vw); height: var(--viewport-height); transition: right .2s; box-shadow: -20px 0 60px #10243730; z-index: 30}.rail-open .right-rail {right: 0}.mobile-toggle, .mobile-close, .mobile-rail-toggle, .mobile-rail-close {display: inline-flex !important}.sidebar-brand {height: var(--topbar-height, 58px); padding: 0; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 6px}.sidebar-brand-left {display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1}.sidebar-brand .brand-title {font-size: 16px; gap: 6px; min-width: 0; letter-spacing: -.3px}.sidebar-brand .brand-title .brand-logo {width: 22px; height: 22px; flex-shrink: 0}.sidebar-brand .brand-title span {overflow: hidden; text-overflow: ellipsis; white-space: nowrap}.update-notice.sidebar-update-notice {padding: 2px 6px; font-size: 10px; flex-shrink: 0}.sidebar-brand .mobile-close {position: static; margin-left: auto; flex-shrink: 0; width: 30px; height: 30px}.topbar {height: 58px; padding: 0 15px; gap: 12px}.breadcrumb {margin-right: auto; font-size: 10px; gap: 7px}.topbar-right .version, .topbar-divider {display: none}main {padding: 24px 17px 12px}.page-title {flex-wrap: wrap; gap: 17px}.page-title h1 {font-size: 26px}.title-actions {justify-content: flex-start}.resource-grid {grid-template-columns: 1fr 1fr !important}.field-row {flex-wrap: wrap; gap: 16px !important}.field-label {min-width: 100% !important}.field-control {width: 100% !important}.panel-heading {padding: 16px !important}.login-page {grid-template-columns: 1fr}.login-art {display: none}.config-toolbar > span {display: none}.task-row {grid-template-columns: 22px 1fr 50px 80px 10px !important}.log-filters {flex-wrap: wrap}.chart-metrics strong {font-size: 22px !important}.panel-heading > div {gap: 8px !important}.task-submenu-flyout {width: min(200px, calc(100vw - 235px)); box-shadow: 0 10px 30px #0c1c2e40}}
 @media (max-width: 480px) {.task-submenu-flyout {left: 8px; right: 8px; width: auto; top: auto !important; bottom: 12px; max-height: 60vh; box-shadow: 0 10px 40px #00000050}}

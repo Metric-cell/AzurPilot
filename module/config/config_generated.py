@@ -268,6 +268,7 @@ class GeneratedConfig:
 
     # 配置组 `Emotion`
     Emotion_Mode = 'calculate'  # calculate, ignore, calculate_ignore
+    Emotion_IgnoreShipwreck = False
     Emotion_Fleet1Value = 119
     Emotion_Fleet1Record = datetime.datetime(2020, 1, 1, 0, 0)
     Emotion_Fleet1Control = 'prevent_green_face'  # keep_exp_bonus, prevent_green_face, prevent_yellow_face, prevent_red_face
@@ -309,6 +310,7 @@ class GeneratedConfig:
     C124LargeLeveling_PickupAmmo = 3  # 3, 4, 5
 
     # 配置组 `GemsFarming`
+    GemsFarming_EventFallbackStage = '2-4'
     GemsFarming_ChangeFlagship = 'ship_equip'  # ship, ship_equip
     GemsFarming_CommonCV = 'any'  # custom, any, eagle, langley, bogue, ranger, hermes
     GemsFarming_CommonCVFilter = 'bogue > ranger > langley > hermes'
@@ -439,6 +441,8 @@ class GeneratedConfig:
     MeowfficerTrain_Mode = 'seamlessly'  # seamlessly, once_a_day
     MeowfficerTrain_RetainTalentedGold = True
     MeowfficerTrain_RetainTalentedPurple = True
+    MeowfficerTrain_ScoreTalents = False
+    MeowfficerTrain_ScoreThreshold = 0
     MeowfficerTrain_EnhanceIndex = 1
     MeowfficerTrain_MaxFeedLevel = 5
 
@@ -1069,6 +1073,16 @@ class GeneratedConfig:
     EmulatorManager_RemoteSSHPublicKey = None
     EmulatorManager_RemoteStartCommand = None
     EmulatorManager_RemoteStopCommand = None
+
+    # 配置组 `MeowfficerScore`
+    MeowfficerScore_Source = 'screenshot'  # screenshot, device, scan
+    MeowfficerScore_Folder = './screenshots/meowfficer_talent'
+    MeowfficerScore_MaxImages = 50
+    MeowfficerScore_ReportPath = './log/meowfficer_score.md'
+    MeowfficerScore_DeviceShots = 1
+    MeowfficerScore_DeviceInterval = 2
+    MeowfficerScore_ScanLimit = 0
+    MeowfficerScore_ScanPasses = 12
 
     # 配置组 `OpsiSimulatorParameters`
     OpsiSimulatorParameters_Samples = 100000

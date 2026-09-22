@@ -421,6 +421,10 @@
     "EmulatorManager": {
       "name": "Emulator Manager",
       "help": "Provides an entry point for manually restarting the emulator."
+    },
+    "MeowfficerScore": {
+      "name": "Meowfficer Score",
+      "help": "Read meowfficer talents and score them with public guide rules"
     }
   },
   "Scheduler": {
@@ -1083,7 +1087,7 @@
     },
     "TaskPriorityAdjustment": {
       "name": "Task priority adjustment",
-      "help": "Drag task rows to adjust scheduler priority. Tasks closer to the top run first. New tasks are automatically inserted into suitable positions according to the built-in default priority."
+      "help": "Enter task names in order from top to bottom; tasks closer to the top run first. One task per line, or separate them with >. New tasks are automatically inserted into suitable positions according to the built-in default priority."
     }
   },
   "OneClickRetire": {
@@ -1633,6 +1637,10 @@
       "ignore": "Ignore low morale warning",
       "calculate_ignore": "Calculate morale + ignore low morale warning"
     },
+    "IgnoreShipwreck": {
+      "name": "Ignore shipwreck morale penalty",
+      "help": "When enabled, the extra 10 morale penalty for sinking ships in battle (non-S rating) is no longer counted. Only effective when the morale mode includes \"Calculate morale consumption\"."
+    },
     "Fleet1Value": {
       "name": "Fleet 1 morale value",
       "help": ""
@@ -1814,6 +1822,10 @@
       "name": "Urgent Commission Farming",
       "help": "Warning: This feature allows players to earn a small amount of Gems, but it is not an efficient way to farm Gems\nNew Azur Lane players often overvalue limit break avoidance and low oil cost, while neglecting ship development\nRunning this feature only makes you feel productive, while your account actually makes zero progress\nPlease press the return button"
     },
+    "EventFallbackStage": {
+      "name": "Stage after event",
+      "help": "When the event PT limit or time limit is reached, or the event is unavailable, continue on this main campaign stage. Default: 2-4. Enter 0 to disable the task and keep the event stage. Only applies to tasks currently farming an event stage."
+    },
     "ChangeFlagship": {
       "name": "Change flagship",
       "help": "White-rarity light carriers and white-rarity carriers will be treated as retirement targets\nOnly 0 limit break, no equipment, white-rarity light carriers will be used as replacement\nControls: When to replace the flagship",
@@ -1909,11 +1921,11 @@
     },
     "PtLimit": {
       "name": "Stop when event PT reaches X",
-      "help": "When accumulated PT reaches the given value, all event tasks are disabled. 0 means no limit. Cannot trigger immediately when using auto-search.\nAfter enabling, you only need to open all event tasks without counting total runs."
+      "help": "When accumulated PT reaches the given value, all event tasks are disabled. 0 means no limit. Cannot trigger immediately when using auto-search.\nAfter enabling, you only need to open all event tasks without counting total runs.\nGems farming and Three-oil low-cost farming follow their own Stage after event setting: continue on a main campaign stage, or stop if set to 0."
     },
     "TimeLimit": {
       "name": "Event time limit",
-      "help": "When local time exceeds the given value, all event tasks are disabled. '2020-01-01 00:00:00' means no limit. Timer resets after triggering once.\nAfter setting, prevents forgetting to close tasks after an event ends."
+      "help": "When local time exceeds the given value, all event tasks are disabled. '2023-01-01 00:00:00' means no limit. Timer resets after triggering once.\nAfter setting, prevents forgetting to close tasks after an event ends.\nGems farming and Three-oil low-cost farming follow their own Stage after event setting: continue on a main campaign stage, or stop if set to 0."
     }
   },
   "TaskBalancer": {
@@ -2405,6 +2417,14 @@
     "RetainTalentedPurple": {
       "name": "Lock purple Meowfficers with special talents",
       "help": "Lock Meowfficers with special talents when collecting. Locked Meowfficers will not be used for enhancement. Users need to manually check and unlock unnecessary ones."
+    },
+    "ScoreTalents": {
+      "name": "Score talents while collecting",
+      "help": "Also identify talent names and score them with public guide rules when collecting meowfficers; opens every talent detail, a bit slower"
+    },
+    "ScoreThreshold": {
+      "name": "Score threshold to keep",
+      "help": "0 disables the check; when greater than 0, cats scoring below it are not locked (only when scoring is enabled)"
     },
     "EnhanceIndex": {
       "name": "Use Meowfficers without special talents to enhance the Xth Meowfficer",
@@ -6250,6 +6270,47 @@
     "RemoteStopCommand": {
       "name": "Remote stop command",
       "help": "SSH command to stop the emulator/service (e.g., docker stop)."
+    }
+  },
+  "MeowfficerScore": {
+    "_info": {
+      "name": "Meowfficer Talent Score",
+      "help": "Read talents from a screenshot and rate them with public guide rules, including tier and re-roll advice"
+    },
+    "Source": {
+      "name": "Score Source",
+      "help": "Local screenshots: scan a folder in batch; Auto follow: keep capturing and score whenever a new talent panel shows up - just flip cats in game; Scan all: walks the cattery list and reads every cat's talents (drives the game automatically, CN client only)",
+      "screenshot": "Local screenshots",
+      "device": "Auto follow current screen",
+      "scan": "Scan all meowfficers"
+    },
+    "Folder": {
+      "name": "Screenshot Folder",
+      "help": "Folder holding talent panel screenshots; defaults to the talent drop-record folder ./screenshots/meowfficer_talent"
+    },
+    "MaxImages": {
+      "name": "Max Images",
+      "help": "Score at most N most recently modified screenshots"
+    },
+    "ReportPath": {
+      "name": "Report Path",
+      "help": "Where to write the Markdown report; leave empty to skip"
+    },
+    "DeviceShots": {
+      "name": "Auto follow target cats",
+      "help": "How many distinct cats to score before the auto-follow loop stops"
+    },
+    "DeviceInterval": {
+      "name": "Follow poll interval",
+      "help": "Seconds between captures in auto follow; unchanged screens skip recognition"
+    },
+    "ScanLimit": {
+      "name": "Max cats to scan",
+      "help": "How many cats to scan at most in scan-all mode; 0 means no limit"
+    },
+    "ScanPasses": {
+      "name": "Max list pages",
+      "help": "How many pages of the cattery list to walk in scan-all mode (12 cats per page); stops early at the end of the list"
     }
   },
   "OpsiSimulatorParameters": {

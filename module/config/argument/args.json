@@ -1361,6 +1361,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -1795,6 +1799,10 @@
           "ignore",
           "calculate_ignore"
         ]
+      },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
       },
       "Fleet1Value": {
         "type": "input",
@@ -2231,6 +2239,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -2413,6 +2425,10 @@
       }
     },
     "GemsFarming": {
+      "EventFallbackStage": {
+        "type": "input",
+        "value": "2-4"
+      },
       "ChangeFlagship": {
         "type": "select",
         "value": "ship_equip",
@@ -2798,6 +2814,10 @@
         ],
         "display": "hide"
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -2840,14 +2860,13 @@
       },
       "Fleet2Value": {
         "type": "input",
-        "value": 119,
-        "display": "hide"
+        "value": 119
       },
       "Fleet2Record": {
         "type": "datetime",
         "value": "2020-01-01 00:00:00",
         "validate": "datetime",
-        "display": "hide"
+        "display": "disabled"
       },
       "Fleet2Control": {
         "type": "select",
@@ -2953,6 +2972,10 @@
       }
     },
     "GemsFarming": {
+      "EventFallbackStage": {
+        "type": "input",
+        "value": "2-4"
+      },
       "ChangeFlagship": {
         "type": "select",
         "value": "ship_equip",
@@ -3337,6 +3360,10 @@
           "calculate_ignore"
         ],
         "display": "hide"
+      },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
       },
       "Fleet1Value": {
         "type": "input",
@@ -3492,6 +3519,11 @@
       }
     },
     "GemsFarming": {
+      "EventFallbackStage": {
+        "type": "input",
+        "value": "0",
+        "display": "hide"
+      },
       "ChangeFlagship": {
         "type": "select",
         "value": "ship_equip",
@@ -3861,6 +3893,10 @@
           "ignore",
           "calculate_ignore"
         ]
+      },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
       },
       "Fleet1Value": {
         "type": "input",
@@ -4311,6 +4347,10 @@
           "ignore",
           "calculate_ignore"
         ]
+      },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
       },
       "Fleet1Value": {
         "type": "input",
@@ -4765,6 +4805,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -5217,6 +5261,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -5546,6 +5594,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -5585,12 +5637,12 @@
         "value": false
       },
       "Fleet2Value": {
-        "type": "input",
+        "type": "stored",
         "value": 119,
         "display": "hide"
       },
       "Fleet2Record": {
-        "type": "datetime",
+        "type": "stored",
         "value": "2020-01-01 00:00:00",
         "validate": "datetime",
         "display": "hide"
@@ -5973,6 +6025,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -6172,6 +6228,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -6214,12 +6274,12 @@
         "display": "hide"
       },
       "Fleet2Value": {
-        "type": "input",
+        "type": "stored",
         "value": 119,
         "display": "hide"
       },
       "Fleet2Record": {
-        "type": "datetime",
+        "type": "stored",
         "value": "2020-01-01 00:00:00",
         "validate": "datetime",
         "display": "hide"
@@ -6470,6 +6530,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -6508,12 +6572,12 @@
         "value": false
       },
       "Fleet2Value": {
-        "type": "input",
+        "type": "stored",
         "value": 119,
         "display": "hide"
       },
       "Fleet2Record": {
-        "type": "datetime",
+        "type": "stored",
         "value": "2020-01-01 00:00:00",
         "validate": "datetime",
         "display": "hide"
@@ -6773,6 +6837,10 @@
           "ignore",
           "calculate_ignore"
         ]
+      },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
       },
       "Fleet1Value": {
         "type": "input",
@@ -7677,6 +7745,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -8146,6 +8218,10 @@
           "ignore",
           "calculate_ignore"
         ]
+      },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
       },
       "Fleet1Value": {
         "type": "input",
@@ -8617,6 +8693,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -9086,6 +9166,10 @@
           "ignore",
           "calculate_ignore"
         ]
+      },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
       },
       "Fleet1Value": {
         "type": "input",
@@ -9557,6 +9641,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -10018,6 +10106,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -10338,6 +10430,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -10376,12 +10472,12 @@
         "value": false
       },
       "Fleet2Value": {
-        "type": "input",
+        "type": "stored",
         "value": 119,
         "display": "hide"
       },
       "Fleet2Record": {
-        "type": "datetime",
+        "type": "stored",
         "value": "2020-01-01 00:00:00",
         "validate": "datetime",
         "display": "hide"
@@ -10633,6 +10729,10 @@
           "calculate_ignore"
         ]
       },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
       "Fleet1Value": {
         "type": "input",
         "value": 119
@@ -10671,12 +10771,12 @@
         "value": false
       },
       "Fleet2Value": {
-        "type": "input",
+        "type": "stored",
         "value": 119,
         "display": "hide"
       },
       "Fleet2Record": {
-        "type": "datetime",
+        "type": "stored",
         "value": "2020-01-01 00:00:00",
         "validate": "datetime",
         "display": "hide"
@@ -11310,6 +11410,18 @@
       "RetainTalentedPurple": {
         "type": "checkbox",
         "value": true
+      },
+      "ScoreTalents": {
+        "type": "checkbox",
+        "value": false
+      },
+      "ScoreThreshold": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          100
+        ]
       },
       "EnhanceIndex": {
         "type": "input",
@@ -18595,6 +18707,75 @@
       "RemoteStopCommand": {
         "type": "input",
         "value": ""
+      }
+    },
+    "Storage": {
+      "Storage": {
+        "type": "storage",
+        "value": {},
+        "valuetype": "ignore",
+        "display": "disabled"
+      }
+    }
+  },
+  "MeowfficerScore": {
+    "MeowfficerScore": {
+      "Source": {
+        "type": "select",
+        "value": "screenshot",
+        "option": [
+          "screenshot",
+          "device",
+          "scan"
+        ]
+      },
+      "Folder": {
+        "type": "input",
+        "value": "./screenshots/meowfficer_talent"
+      },
+      "MaxImages": {
+        "type": "input",
+        "value": 50,
+        "validate": [
+          1,
+          999
+        ]
+      },
+      "ReportPath": {
+        "type": "input",
+        "value": "./log/meowfficer_score.md"
+      },
+      "DeviceShots": {
+        "type": "input",
+        "value": 1,
+        "validate": [
+          1,
+          99
+        ]
+      },
+      "DeviceInterval": {
+        "type": "input",
+        "value": 2,
+        "validate": [
+          0,
+          60
+        ]
+      },
+      "ScanLimit": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ]
+      },
+      "ScanPasses": {
+        "type": "input",
+        "value": 12,
+        "validate": [
+          1,
+          60
+        ]
       }
     },
     "Storage": {

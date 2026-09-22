@@ -3,50 +3,44 @@ import { createRoot } from 'react-dom/client'
 import { createHashRouter, RouterProvider, Navigate } from 'react-router-dom'
 import { App } from './app/App'
 import { AppProvider } from './app/context'
-import { Wallpaper } from './components/Wallpaper'
+import { ThemeWallpaper } from './components/GlassMaterial'
+import { applyTheme, getThemePreference } from './app/theme'
 import { Overview } from './pages/Overview'
 import { TaskConfig } from './pages/TaskConfig'
 import { Statistics } from './pages/Statistics'
 import { Home } from './pages/Home'
+import { InterfaceSettings } from './pages/InterfaceSettings'
 import { Settings } from './pages/Settings'
 import { DevControls } from './pages/DevControls'
+import { ConfigManager } from './pages/ConfigManager'
 import { translateCurrentUi } from './i18n'
-import './styles/tokens.css'
-import './styles/layout.css'
-import './styles/components.css'
-import './styles/insights.css'
-import './styles/home.css'
-import './styles/apple.css'
-import './styles/dev.css'
-import './styles/theme-system.css'
-import './styles/forms.css'
 
-function mountUserTheme() {
-  if (document.querySelector('link[data-azurpilot-theme]')) return
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href = `${import.meta.env.BASE_URL}theme.css`
-  link.dataset.azurpilotTheme = 'user'
-  document.head.appendChild(link)
+/* 顶层兜底与路由级兜底共用同一页：路由渲染出错时 React Router 会先接住，
+   没有 errorElement 就落到它自带的崩溃页（带堆栈），所以两级都要挂上。 */
+function ErrorPage() {
+  return <div className="welcome"><h1>{translateCurrentUi('error.pageTitle')}</h1><p>{translateCurrentUi('error.pageHint')}</p><button className="button primary" onClick={() => location.reload()}>{translateCurrentUi('error.reload')}</button></div>
 }
-
-mountUserTheme()
-
 class ErrorBoundary extends Component<{children: ReactNode}, {failed: boolean}> {
   state = {failed: false}
   static getDerivedStateFromError() { return {failed: true} }
   render() {
-    if (this.state.failed) return <div className="welcome"><h1>{translateCurrentUi('error.pageTitle')}</h1><p>{translateCurrentUi('error.pageHint')}</p><button className="button primary" onClick={() => location.reload()}>{translateCurrentUi('error.reload')}</button></div>
+    if (this.state.failed) return <ErrorPage/>
     return this.props.children
   }
 }
 const router = createHashRouter([
-  {path: '/', element: <App/>, children: [{index: true, element: <Home/>}, {path: 'settings', element: <Settings/>}, {path: 'dev', element: <DevControls/>}]},
-  {path: '/i/:instance', element: <App/>, children: [
+  {path: '/', element: <App/>, errorElement: <ErrorPage/>, children: [{index: true, element: <Home/>}, {path: 'interface', element: <InterfaceSettings/>}, {path: 'settings', element: <Settings/>}, {path: 'configs', element: <ConfigManager/>}, {path: 'dev', element: <DevControls/>}]},
+  {path: '/i/:instance', element: <App/>, errorElement: <ErrorPage/>, children: [
     {index: true, element: <Navigate to="overview" replace/>},
     {path: 'overview', element: <Overview/>}, {path: 'task/:task', element: <TaskConfig/>},
     {path: 'logs', element: <Navigate to="../overview" replace/>}, {path: 'statistics', element: <Statistics/>}, {path: 'settings', element: <Navigate to="/settings" replace/>},
   ]},
   {path: '*', element: <Navigate to="/" replace/>},
 ])
-createRoot(document.getElementById('root')!).render(<ErrorBoundary><AppProvider><Wallpaper/><RouterProvider router={router}/></AppProvider></ErrorBoundary>)
+// 先读取偏好并加载当前主题，再挂载页面，避免简约首屏短暂请求壁纸或玻璃库。
+void applyTheme(getThemePreference()).then(() => {
+  createRoot(document.getElementById('root')!).render(<ErrorBoundary><AppProvider><ThemeWallpaper/><RouterProvider router={router}/></AppProvider></ErrorBoundary>)
+}).catch(() => {
+  const root = document.getElementById('root')!
+  root.textContent = '主题加载失败，请刷新页面重试。'
+})

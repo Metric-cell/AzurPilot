@@ -12,6 +12,7 @@ REMOVED_NETWORK_MODULES = (
     "deploy/geo.py",
     "deploy/git_over_cdn/client.py",
     "mcp_server_sse.py",
+    "module/mcp",
     "module/base/api_client.py",
     "module/api/update_service.py",
     "module/runtime/discord_presence.py",
@@ -36,6 +37,7 @@ REMOVED_IMPORTS = (
     "module.runtime.remote_access",
     "module.runtime.updater",
     "mcp_server_sse",
+    "module.mcp",
     "module.statistics.cl1_data_submitter",
     "module.statistics.daily_summary",
     "module.statistics.daily_summary_store",
@@ -62,6 +64,7 @@ FORBIDDEN_RUNTIME_TOKENS = (
     "ip9.com.cn/get",
     "microsoft-clarity-script",
     "www.clarity.ms",
+    "api.yppp.net",
 )
 
 
@@ -150,6 +153,8 @@ class TestCleanNetworkPolicy(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertNotRegex(source, r"https?://")
+        background = (PROJECT_ROOT / "frontend/src/app/background.ts").read_text(encoding="utf-8")
+        self.assertIn("DEFAULT_BACKGROUND_URL = '/wallpaper.jpg'", background)
         self.assertTrue((PROJECT_ROOT / "frontend/public/wallpaper.jpg").is_file())
 
     def test_time_source_uses_only_the_local_clock(self):

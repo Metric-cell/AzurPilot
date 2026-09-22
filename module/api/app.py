@@ -36,18 +36,17 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
 
     @asynccontextmanager
     async def lifespan(application):
-        if manage_runtime:
-            from module.api.lifecycle import startup, clearup
-            from module.runtime.deploy_settings import parse_run_config
-            runs = args.run or parse_run_config(State.deploy_config.Run)
-            # 初始化失败也要回收已建立的 Manager 与后台服务。
-            try:
+        try:
+            if manage_runtime:
+                from module.api.lifecycle import startup
+                from module.runtime.deploy_settings import parse_run_config
+                runs = args.run or parse_run_config(State.deploy_config.Run)
                 await asyncio.to_thread(startup, runs)
-                yield
-            finally:
-                await asyncio.to_thread(clearup)
-        else:
             yield
+        finally:
+            if manage_runtime:
+                from module.api.lifecycle import clearup
+                await asyncio.to_thread(clearup)
 
     dist = root / 'frontend/dist'
 
@@ -59,7 +58,16 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
     async def health(request):
         return JSONResponse({'status': 'ok', 'protocolVersion': 1})
 
-    routes = [Route('/healthz', health), WebSocketRoute('/api/v1/ws', gateway.endpoint)]
+    async def meowfficer_score_report(request):
+        """指挥喵评分报告（自包含 HTML），供浏览器直接打开查看。"""
+        path = root / 'log' / 'meowfficer_score.html'
+        if not path.is_file():
+            return PlainTextResponse('评分报告尚未生成，请先运行「指挥喵评分」任务。', status_code=404)
+        return FileResponse(path, media_type='text/html', headers={'Cache-Control': 'no-cache'})
+
+    routes = [Route('/healthz', health),
+              Route('/reports/meowfficer_score', meowfficer_score_report),
+              WebSocketRoute('/api/v1/ws', gateway.endpoint)]
     if (dist / 'assets').is_dir():
         routes.append(Mount('/assets', StaticFiles(directory=dist / 'assets')))
     if (dist / 'index.html').is_file():

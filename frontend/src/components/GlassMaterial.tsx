@@ -1,23 +1,17 @@
-import { useSyncExternalStore } from 'react'
-import LiquidGlass from 'liquid-glass-react'
+import { lazy, Suspense } from 'react'
+import { useApp } from '../app/context'
+import { usesMaterial } from '../app/theme'
 
-const reducedEffects = '(prefers-reduced-motion: reduce), (prefers-reduced-transparency: reduce), (forced-colors: active)'
-function subscribe(callback: () => void) {
-  const query = window.matchMedia(reducedEffects)
-  query.addEventListener('change', callback)
-  return () => query.removeEventListener('change', callback)
-}
-const getSnapshot = () => window.matchMedia(reducedEffects).matches
+const ClassicGlass = lazy(() => import('./ClassicGlass').then(module => ({default: module.ClassicGlass})))
+const Wallpaper = lazy(() => import('./Wallpaper').then(module => ({default: module.Wallpaper})))
 
-/** 独立的装饰层，避免玻璃容器裁切菜单、焦点轮廓和可交互内容。 */
+/** 朴素主题不挂载装饰层，也不触发玻璃库和壁纸模块的网络请求。 */
 export function GlassMaterial() {
-  const reduced = useSyncExternalStore(subscribe, getSnapshot, () => true)
-  return <div className="glass-material" aria-hidden="true">
-    {!reduced && <LiquidGlass className="glass-material-lens" padding="0" cornerRadius={22}
-      displacementScale={24} blurAmount={0.16} saturation={125}
-      aberrationIntensity={0.5} elasticity={0} mode="standard"
-      style={{position: 'absolute', inset: 0, width: '100%', height: '100%'}}>
-      <span />
-    </LiquidGlass>}
-  </div>
+  const {theme} = useApp()
+  return usesMaterial(theme) ? <Suspense fallback={null}><ClassicGlass/></Suspense> : null
+}
+
+export function ThemeWallpaper() {
+  const {theme} = useApp()
+  return usesMaterial(theme) ? <Suspense fallback={null}><Wallpaper/></Suspense> : null
 }

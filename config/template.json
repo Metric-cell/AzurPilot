@@ -271,6 +271,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -355,6 +356,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -439,6 +441,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -481,6 +484,7 @@
       "Sensitive": false
     },
     "GemsFarming": {
+      "EventFallbackStage": "2-4",
       "ChangeFlagship": "ship_equip",
       "CommonCV": "any",
       "CommonCVFilter": "bogue > ranger > langley > hermes",
@@ -542,6 +546,7 @@
     },
     "Emotion": {
       "Mode": "calculate_ignore",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_red_face",
@@ -574,6 +579,7 @@
       "Sensitive": false
     },
     "GemsFarming": {
+      "EventFallbackStage": "2-4",
       "ChangeFlagship": "ship_equip",
       "CommonCV": "any",
       "CommonCVFilter": "bogue > ranger > langley > hermes",
@@ -635,6 +641,7 @@
     },
     "Emotion": {
       "Mode": "calculate_ignore",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_red_face",
@@ -667,6 +674,7 @@
       "Sensitive": false
     },
     "GemsFarming": {
+      "EventFallbackStage": 0,
       "ChangeFlagship": "ship_equip",
       "CommonCV": "any",
       "CommonCVFilter": "bogue > ranger > langley > hermes",
@@ -728,6 +736,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -813,6 +822,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -897,6 +907,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -981,6 +992,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1050,6 +1062,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_yellow_face",
@@ -1125,6 +1138,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1168,6 +1182,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_yellow_face",
@@ -1224,6 +1239,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1283,6 +1299,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1407,6 +1424,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1495,6 +1513,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1583,6 +1602,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1671,6 +1691,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1759,6 +1780,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1843,6 +1865,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1911,6 +1934,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -1967,6 +1991,7 @@
     },
     "Emotion": {
       "Mode": "calculate",
+      "IgnoreShipwreck": false,
       "Fleet1Value": 119,
       "Fleet1Record": "2020-01-01 00:00:00",
       "Fleet1Control": "prevent_green_face",
@@ -2120,6 +2145,8 @@
       "Mode": "seamlessly",
       "RetainTalentedGold": true,
       "RetainTalentedPurple": true,
+      "ScoreTalents": false,
+      "ScoreThreshold": 0,
       "EnhanceIndex": 1,
       "MaxFeedLevel": 5
     },
@@ -3619,6 +3646,21 @@
       "RemoteSSHPublicKey": null,
       "RemoteStartCommand": null,
       "RemoteStopCommand": null
+    },
+    "Storage": {
+      "Storage": {}
+    }
+  },
+  "MeowfficerScore": {
+    "MeowfficerScore": {
+      "Source": "screenshot",
+      "Folder": "./screenshots/meowfficer_talent",
+      "MaxImages": 50,
+      "ReportPath": "./log/meowfficer_score.md",
+      "DeviceShots": 1,
+      "DeviceInterval": 2,
+      "ScanLimit": 0,
+      "ScanPasses": 12
     },
     "Storage": {
       "Storage": {}

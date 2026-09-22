@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 from starlette.testclient import TestClient
 from starlette.websockets import WebSocketDisconnect
@@ -44,6 +44,53 @@ class ConfigApiTests(unittest.TestCase):
         self.configs.get('testpilot')
         self.assertEqual(before, path.stat().st_mtime_ns)
 
+    def test_importable_lists_configs_in_import_folder(self):
+        """可导入列表只来自导入目录；解不开的 JSON、符号链接、以及实例目录里的文件都不算。"""
+        imports = self.configs.import_directory
+        imports.mkdir()
+        shutil.copyfile(self.configs.directory / 'testpilot.json', imports / 'shared.json')
+        (imports / 'broken.json').write_text('{ not json', encoding='utf-8')
+        (imports / 'link.json').symlink_to(imports / 'shared.json')
+
+        names = [entry['name'] for entry in self.configs.importable()]
+        self.assertIn('shared', names)
+        self.assertNotIn('broken', names)     # 解不开的 JSON
+        self.assertNotIn('link', names)       # 符号链接
+        self.assertNotIn('testpilot', names)  # 实例目录里的不会被当作导入源
+
+        # 文件名不合规的不能被列出来：read_import 会拒掉它，列出来就是一个选不了的选项
+        shutil.copyfile(self.configs.directory / 'testpilot.json', imports / 'bad#name.json')
+        self.assertNotIn('bad#name', [entry['name'] for entry in self.configs.importable()])
+        # 导入创建：从导入目录取内容写到实例目录，导入源保持不动
+        self.configs.create('imported', import_file='shared')
+        self.assertIn('imported', self.configs.names())
+        self.assertTrue((imports / 'shared.json').is_file())
+
+    def test_importable_path_traversal_and_bad_json_are_rejected(self):
+        imports = self.configs.import_directory
+        imports.mkdir()
+        (imports / 'broken.json').write_text('{ not json', encoding='utf-8')
+        for name in ['../testpilot', 'a/b', 'a\\b', 'c:foo', 'a*b', '']:
+            with self.subTest(name=name), self.assertRaises(ApiError):
+                self.configs.read_import(name)
+        with self.assertRaises(ApiError):
+            self.configs.read_import('broken')
+
+    def test_save_import_accepts_config_and_rejects_junk(self):
+        """上传只收「有 Alas 段的 JSON」；坏 JSON、缺 Alas 段、非法名都不落盘。"""
+        good = (self.configs.directory / 'testpilot.json').read_text(encoding='utf-8')
+        self.configs.save_import('uploaded', good)
+        self.assertIn('uploaded', [entry['name'] for entry in self.configs.importable()])
+
+        bad = [('nobody', '{"Other": {}}'), ('notjson', '{ not json'), ('../escape', good),
+               ('c:foo', good), ('template', good)]
+        for name, content in bad:
+            with self.subTest(name=name), self.assertRaises(ApiError):
+                self.configs.save_import(name, content)
+        self.assertFalse((self.configs.import_directory / 'nobody.json').exists())
+        self.assertFalse((self.configs.import_directory / 'notjson.json').exists())
+        self.assertFalse((self.configs.directory.parent / 'escape.json').exists())
+
     def test_schema_language_is_request_local(self):
         original = self.configs.schema()
         english = self.configs.schema('en-US')
@@ -53,7 +100,33 @@ class ConfigApiTests(unittest.TestCase):
             self.configs.schema('../deploy')
 
     def test_rejects_path_traversal_and_reserved_names(self):
-        for name in ['../template', 'a/b', 'a\\b', 'template', 'CON', 'c:foo', 'bad.name', '']:
+        for name in ['../template', 'a/b', 'a\\b', 'template', 'template.fpy', 'CON', 'c:foo', '']:
+            with self.subTest(name=name), self.assertRaises(ApiError):
+                self.configs.path(name, exists=False)
+
+    def test_accepts_names_upstream_treats_as_configs(self):
+        """数字开头、点号、空格都要能用 —— 这些名字在上游就是合法的配置文件名。"""
+        # 真实落盘一个汉字实例名，确认创建、列举、读取都按原样往返。
+        self.configs.create('测试实例')
+        self.assertIn('测试实例', self.configs.names())
+        self.assertEqual('测试实例', self.configs.get('测试实例')['instance'])
+        for name in ['测试', 'alas测试', '测试-2', '测试.1', '1测试', '2ap', 'zz.v2', 'ap 2',
+                     'テスト', 'テスト2', 'アズール', 'ひらがな', 'ｱｽﾞｰﾙ']:
+            with self.subTest(name=name):
+                self.configs.path(name, exists=False)
+
+    def test_create_returns_the_normalized_name(self):
+        """首尾空白与尾点会被归一化，返回的实例名要与落盘名一致 —— 客户端拿它做路由。"""
+        for given in ['zztrim ', 'zztrim.', ' zztrim ']:
+            with self.subTest(given=given):
+                (self.configs.directory / 'zztrim.json').unlink(missing_ok=True)
+                result = self.configs.create(given)
+                self.assertEqual('zztrim', result['instance'])
+                self.assertEqual('zztrim', self.configs.get('zztrim')['instance'])
+                (self.configs.directory / 'zztrim.json').unlink(missing_ok=True)
+
+    def test_still_rejects_unsafe_names(self):
+        for name in ['-测试', '测试#1', '.隐藏', '测试/实例', ' ']:
             with self.subTest(name=name), self.assertRaises(ApiError):
                 self.configs.path(name, exists=False)
 
@@ -97,6 +170,15 @@ class ConfigApiTests(unittest.TestCase):
             with self.subTest(path=path), self.assertRaises(ApiError) as context:
                 self.configs.validate(path, True)
             self.assertEqual('READ_ONLY', context.exception.code)
+
+    def test_display_fields_are_editable_within_options(self):
+        for path in ['GemsFarming.Fleet.FleetOrder', 'ThreeOilLowCost.Fleet.FleetOrder']:
+            with self.subTest(path=path):
+                parts = self.configs.validate(path, 'fleet1_standby_fleet2_all')
+                self.assertEqual(path.split('.'), parts)
+                with self.assertRaises(ApiError) as context:
+                    self.configs.validate(path, 'fleet1_mob_fleet2_boss')
+                self.assertEqual('INVALID_PARAMS', context.exception.code)
 
     def test_storage_can_only_be_cleared(self):
         import json
@@ -216,6 +298,29 @@ class SocketApiTests(unittest.TestCase):
             with self.client.websocket_connect('/api/v1/ws', headers={'origin': 'https://evil.example'}):
                 pass
 
+    def test_local_connection_skips_password(self):
+        """本机浏览器与启动器内嵌窗口直接进入，不再要求输入密码。"""
+        client = TestClient(self.app, client=('127.0.0.1', 55555))
+        with client.websocket_connect('/api/v1/ws', headers={'host': '127.0.0.1:22267',
+                                                             'origin': 'http://127.0.0.1:22267'}) as ws:
+            self.assertFalse(ws.receive_json()['data']['authRequired'])
+            self.assertEqual('testpilot', self.call(ws, 'instances.list')['result'][0]['name'])
+
+    def test_remote_connection_still_requires_password(self):
+        """局域网与远程访问入口仍受密码保护。"""
+        client = TestClient(self.app, client=('203.0.113.7', 55555))
+        with client.websocket_connect('/api/v1/ws', headers={'host': 'app.hk1.azurlane.cloud'}) as ws:
+            self.assertTrue(ws.receive_json()['data']['authRequired'])
+            self.assertEqual('UNAUTHORIZED', self.call(ws, 'instances.list')['error']['code'])
+
+    def test_tunnel_forwarded_request_keeps_password(self):
+        """远程访问隧道同样来自回环地址，靠标记头避免被当成免密的本机直连。"""
+        client = TestClient(self.app, client=('127.0.0.1', 55555))
+        with client.websocket_connect('/api/v1/ws', headers={'host': '127.0.0.1:22267',
+                                                             'x-azurpilot-remote-access': '1'}) as ws:
+            self.assertTrue(ws.receive_json()['data']['authRequired'])
+            self.assertEqual('UNAUTHORIZED', self.call(ws, 'instances.list')['error']['code'])
+
     def test_missing_parameter_returns_correlated_error_and_connection_survives(self):
         with self.client.websocket_connect('/api/v1/ws') as ws:
             self.login(ws)
@@ -274,6 +379,27 @@ class SocketApiTests(unittest.TestCase):
             self.assertEqual('overview', event['topic'])
             self.assertEqual('testpilot', event['data']['instance'])
             self.assertTrue(self.call(ws, 'events.subscribe', {'topics': []})['ok'])
+
+    def test_log_arrival_pushes_websocket_event_without_polling(self):
+        from rich.text import Text
+        from module.runtime.log_hub import hub
+        from module.runtime.process_manager import ProcessManager
+
+        manager = SimpleNamespace(renderables=[])
+        with patch.dict(ProcessManager._processes, {'testpilot': manager}, clear=True), \
+                self.client.websocket_connect('/api/v1/ws') as ws:
+            self.login(ws)
+            self.assertTrue(self.call(ws, 'events.subscribe', {
+                'instance': 'testpilot', 'topics': ['logs'],
+            })['ok'])
+            manager.renderables.append(Text('INFO 到达即推送'))
+            hub.publish('testpilot')
+
+            for _ in range(2):
+                event = ws.receive_json()
+                if event.get('topic') == 'logs' and event['data']['entries']:
+                    break
+            self.assertEqual(['INFO 到达即推送'], [entry['text'] for entry in event['data']['entries']])
 
     def test_demo_mode_rejects_mutation(self):
         with patch.dict('os.environ', {'DEMO': '1'}), self.client.websocket_connect('/api/v1/ws') as ws:
@@ -337,6 +463,64 @@ class LogCursorTests(unittest.TestCase):
             self.assertEqual(1, len(second['entries']))
             self.assertEqual('ERROR', second['entries'][0]['level'])
             self.assertEqual([], runtime.logs('test', second['cursor'])['entries'])
+
+
+
+class ProducerCadenceTests(unittest.IsolatedAsyncioTestCase):
+    """日志按到达事件即时推送，重主题继续按各自节奏采样。"""
+
+    async def test_heavy_topics_keep_independent_cadence(self):
+        counts = {'overview': 0, 'instances': 0}
+        runtime = SimpleNamespace(
+            overview=lambda instance: counts.__setitem__('overview', counts['overview'] + 1) or {'instance': instance},
+            instances=lambda: counts.__setitem__('instances', counts['instances'] + 1) or [],
+        )
+        session = Session(SimpleNamespace(router=SimpleNamespace(runtime=runtime), workers=asyncio.Semaphore(1)), ws=None, local=True)
+        session.subscription = SimpleNamespace(topics=['overview', 'instances'], instance='testpilot')
+        session.event = AsyncMock()
+        task = asyncio.create_task(session.producer())
+        await asyncio.sleep(2.2)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertGreater(counts['overview'], counts['instances'])
+        self.assertGreater(counts['instances'], 0, '重主题也必须被轮询到')
+
+    async def test_logs_wake_immediately_and_new_entries_are_sent_one_by_one(self):
+        from module.api.protocol import SubscribeParams
+        from module.runtime.log_hub import LogHub
+
+        calls = 0
+
+        def logs(instance, after):
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                return {'instance': instance, 'cursor': 1, 'reset': False,
+                        'entries': [{'id': 1, 'level': 'INFO', 'text': '历史'}]}
+            return {'instance': instance, 'cursor': 3, 'reset': False, 'entries': [
+                {'id': 2, 'level': 'INFO', 'text': '新增一'},
+                {'id': 3, 'level': 'INFO', 'text': '新增二'},
+            ]}
+
+        runtime = SimpleNamespace(logs=logs)
+        session = Session(SimpleNamespace(router=SimpleNamespace(runtime=runtime), workers=asyncio.Semaphore(1)), ws=None, local=True)
+        session.subscription = SubscribeParams(instance='testpilot', topics=['logs'])
+        hub = LogHub()
+        with patch('module.runtime.log_hub.hub', hub):
+            task = asyncio.create_task(session.log_producer())
+            session.logs_changed.set()
+            first = await asyncio.wait_for(session.queue.get(), timeout=.5)
+            self.assertEqual(['历史'], [entry['text'] for entry in first['data']['entries']])
+
+            hub.publish('testpilot')
+            second = await asyncio.wait_for(session.queue.get(), timeout=.5)
+            third = await asyncio.wait_for(session.queue.get(), timeout=.5)
+            self.assertEqual(['新增一'], [entry['text'] for entry in second['data']['entries']])
+            self.assertEqual(['新增二'], [entry['text'] for entry in third['data']['entries']])
+            task.cancel()
+            await asyncio.gather(task, return_exceptions=True)
+            self.assertEqual(set(), hub.listeners)
 
 
 if __name__ == '__main__':
