@@ -35,7 +35,17 @@ OCR_OS_ADAPTABILITY = Digit([
 
 
 class ActionPointBuyCounter(DigitCounter):
+    """行动力购买次数计数器。"""
+
     def after_process(self, result):
+        """后处理识别结果，修正常见误识别。
+
+        Args:
+            result (str): 识别出的原始字符串。
+
+        Returns:
+            str: 修正后的购买次数格式字符串。
+        """
         result = super().after_process(result)
 
         # 可能的结果: 0/5, 05
@@ -57,16 +67,33 @@ else:
 
 class ActionPointItem(Item):
     """大世界行动力物品。"""
+
     def predict_valid(self):
+        """预测当前物品是否有效。
+
+        Returns:
+            bool: 恒返回 True。
+        """
         return True
 
 
 ACTION_POINT_GRID = ButtonGrid(
     origin=(323, 274), delta=(173, 0), button_shape=(115, 115), grid_shape=(4, 1), name='ACTION_POINT_GRID')
 
+
 class GridSlice:
-    """网格切片，用于构建物品网格。"""
+    """网格切片，用于构建物品网格。
+
+    Attributes:
+        buttons (list[Button]): 切片包含的按钮列表。
+    """
+
     def __init__(self, buttons):
+        """初始化网格切片。
+
+        Args:
+            buttons (list[Button]): 按钮列表。
+        """
         self.buttons = buttons
 
 OIL_ITEM = ItemGrid(GridSlice([ACTION_POINT_GRID.buttons[0]]), templates={}, amount_area=(43, 91, 111, 113))
@@ -114,12 +141,26 @@ ACTION_POINT_BOX = {
 
 
 class ActionPointLimit(Exception):
-    """
-    行动力不足异常。
+    """行动力不足异常。
 
     当行动力不足以进入目标海域时抛出。
+
+    Attributes:
+        current (int | None): 当前行动力。
+        total (int | None): 总行动力（含药剂）。
+        cost (int | None): 目标海域消耗。
+        preserve (int | None): 保留行动力设定值。
     """
+
     def __init__(self, current=None, total=None, cost=None, preserve=None):
+        """初始化行动力不足异常。
+
+        Args:
+            current (int, optional): 当前行动力。
+            total (int, optional): 总行动力。
+            cost (int, optional): 需要消耗的行动力。
+            preserve (int, optional): 保留行动力限制。
+        """
         super().__init__()
         self.current = current
         self.total = total
@@ -128,8 +169,7 @@ class ActionPointLimit(Exception):
 
     @property
     def delay_minutes(self):
-        """
-        获取需要延迟的分钟数。
+        """获取需要延迟的分钟数。
 
         Returns:
             int | None: 需要延迟的分钟数，如果无需延迟则返回 None。
@@ -145,6 +185,8 @@ class ActionPointLimit(Exception):
 
 
 class ActionPointHandler(UI, MapEventHandler):
+    """大世界行动力操作处理器。"""
+
     _action_point_box = [0, 0, 0, 0]
     _action_point_current = 0
     _action_point_total = 0
@@ -152,8 +194,7 @@ class ActionPointHandler(UI, MapEventHandler):
 
     @staticmethod
     def _is_in_month_end_purchase_block_week():
-        """
-        判断当前是否处于月末购买封锁周。
+        """判断当前是否处于月末购买封锁周。
 
         在包含下个服务器月第一天的自然周（周一至周日）内，封锁每周行动力购买。
         进入下个服务器月后，购买将重新可用。
@@ -172,12 +213,26 @@ class ActionPointHandler(UI, MapEventHandler):
         return current_week_start == next_month_week_start
 
     def _is_in_action_point(self):
+        """判断是否处于行动力使用弹窗。
+
+        Returns:
+            bool: 是否出现行动力使用弹窗。
+        """
         return self.appear(ACTION_POINT_USE, offset=(20, 20))
 
     def is_current_ap_visible(self):
+        """判断当前行动力数值区域是否可见。
+
+        Returns:
+            bool: 是否可见。
+        """
         return self.match_template_color(CURRENT_AP_CHECK, offset=(40, 5), threshold=15)
 
     def action_point_use(self):
+        """执行一次行动力道具使用或购买操作。
+
+        点击使用按钮并确认，直到当前行动力数值增加。
+        """
         prev = self._action_point_current
         self.interval_clear(ACTION_POINT_USE)
         for _ in self.loop():
@@ -431,6 +486,13 @@ class ActionPointHandler(UI, MapEventHandler):
             # 处理行动力弹窗上方的强制地图事件
             if self.handle_map_event():
                 continue
+
+        # 「打开弹窗读行动力 → 取消关闭」是设计内的成对操作，一轮里会被连续调用多次
+        # （智能调度+ 决策、短猫前置检查、统计快照），点击记录（最近 15 次）会攒出
+        # 两个按钮各 ≥6 次，被「两个按钮交替点击次数过多」规则误判成卡死。
+        # 只在弹窗确实关闭后清理：真卡死时上面的循环不会跳出，仍由单按钮 ≥12 次兜底。
+        self.device.click_record_remove(ACTION_POINT_REMAIN_OS)
+        self.device.click_record_remove(ACTION_POINT_CANCEL)
 
     def handle_action_point(self, zone, pinned, cost=None, keep_current_ap=True, check_rest_ap=False, avoid_ap_overflow=False):
         """

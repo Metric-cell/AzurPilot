@@ -1,3 +1,7 @@
+/**
+ * @fileoverview 全局配置与部署设置编辑器单例及各类型字段草稿维护。
+ */
+
 import { api } from '../api/client'
 import type { Field, Value } from '../api/types'
 import { EditQueue } from './EditQueue'
@@ -16,7 +20,9 @@ export function editor(scope: string) {
     send: (path, value) => scope === 'deploy'
       ? api.request('settings.patch', {values: {[path]: value}})
       : scope.startsWith('startup:')
-        ? api.request('startup.set', {instance: scope.slice(8), enabled: value as boolean})
+        ? api.request('startup.set', path === 'remember'
+          ? {instance: scope.slice(8), remember: value as boolean}
+          : {instance: scope.slice(8), enabled: value as boolean})
         : api.request('config.patch', {instance: scope.slice(7), changes: [{path, value}]}),
   }, storage)
   queues.set(scope, queue)

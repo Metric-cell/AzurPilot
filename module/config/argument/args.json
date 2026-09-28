@@ -345,7 +345,8 @@
           "DroidCast",
           "DroidCast_raw",
           "nemu_ipc",
-          "ldopengl"
+          "ldopengl",
+          "azurpilot_android"
         ]
       },
       "ControlMethod": {
@@ -357,7 +358,8 @@
           "minitouch",
           "Hermit",
           "MaaTouch",
-          "nemu_ipc"
+          "nemu_ipc",
+          "azurpilot_android"
         ],
         "help": "nemu_ipc 需与截图方式配套使用（截图选 nemu_ipc 时启动会自动联动）。注意：nemu_ipc 触控走模拟器内部 RPC，低性能电脑上滑动易丢步、拖拽易变形，调用偶发挂死会丢失点击；滑动或拖拽异常时请改回 minitouch / MaaTouch。"
       },
@@ -457,14 +459,45 @@
         "type": "checkbox",
         "value": false
       },
-      "SaveErrorCount": {
+      "SaveErrorRetentionDays": {
         "type": "input",
-        "value": 30
+        "value": 30,
+        "validate": [
+          0,
+          3650
+        ]
+      },
+      "SaveErrorBackUpMethod": {
+        "type": "select",
+        "value": "zip",
+        "option": [
+          "delete",
+          "zip",
+          "copy"
+        ]
+      },
+      "SaveErrorZipMethod": {
+        "type": "select",
+        "value": "zip",
+        "option": [
+          "bz2",
+          "gzip",
+          "xz",
+          "zip"
+        ]
       },
       "OnePushConfig": {
         "type": "textarea",
         "value": "provider: null",
         "mode": "yaml"
+      },
+      "LowPushMode": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
       },
       "ScreenshotLength": {
         "type": "input",
@@ -524,7 +557,7 @@
       },
       "LlmAnalysis": {
         "type": "checkbox",
-        "value": true
+        "value": false
       },
       "LlmApiKey": {
         "type": "textarea",
@@ -628,7 +661,7 @@
       },
       "CloseEmulatorDuringLongWait": {
         "type": "checkbox",
-        "value": true,
+        "value": false,
         "option": [
           true,
           false
@@ -683,6 +716,25 @@
           3650
         ]
       },
+      "BackUpMethod": {
+        "type": "select",
+        "value": "zip",
+        "option": [
+          "delete",
+          "zip",
+          "copy"
+        ]
+      },
+      "ZipMethod": {
+        "type": "select",
+        "value": "zip",
+        "option": [
+          "bz2",
+          "gzip",
+          "xz",
+          "zip"
+        ]
+      },
       "AzurStatsID": {
         "type": "input",
         "value": null
@@ -731,7 +783,77 @@
           "save"
         ]
       },
-      "OpsiRecord": {
+      "OpsiHazard1Leveling": {
+        "type": "select",
+        "value": "upload",
+        "option": [
+          "do_not",
+          "save",
+          "upload",
+          "save_and_upload"
+        ]
+      },
+      "OpsiMeowfficerFarming": {
+        "type": "select",
+        "value": "upload",
+        "option": [
+          "do_not",
+          "save",
+          "upload",
+          "save_and_upload"
+        ]
+      },
+      "OpsiDaily": {
+        "type": "select",
+        "value": "upload",
+        "option": [
+          "do_not",
+          "save",
+          "upload",
+          "save_and_upload"
+        ]
+      },
+      "OpsiObscure": {
+        "type": "select",
+        "value": "upload",
+        "option": [
+          "do_not",
+          "save",
+          "upload",
+          "save_and_upload"
+        ]
+      },
+      "OpsiAbyssal": {
+        "type": "select",
+        "value": "upload",
+        "option": [
+          "do_not",
+          "save",
+          "upload",
+          "save_and_upload"
+        ]
+      },
+      "OpsiStronghold": {
+        "type": "select",
+        "value": "upload",
+        "option": [
+          "do_not",
+          "save",
+          "upload",
+          "save_and_upload"
+        ]
+      },
+      "OpsiExplore": {
+        "type": "select",
+        "value": "upload",
+        "option": [
+          "do_not",
+          "save",
+          "upload",
+          "save_and_upload"
+        ]
+      },
+      "OpsiOther": {
         "type": "select",
         "value": "upload",
         "option": [
@@ -2543,7 +2665,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ],
         "option_cn": [
@@ -2556,10 +2677,9 @@
           "event_20260908_cn"
         ],
         "option_tw": [
-          "event_20260813_cn"
+          "event_20260908_cn"
         ],
         "option_bold": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ]
       },
@@ -3090,7 +3210,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ],
         "option_cn": [
@@ -3103,10 +3222,9 @@
           "event_20260908_cn"
         ],
         "option_tw": [
-          "event_20260813_cn"
+          "event_20260908_cn"
         ],
         "option_bold": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ]
       },
@@ -3990,7 +4108,7 @@
       },
       "TimeLimit": {
         "type": "datetime",
-        "value": "2020-01-01 00:00:00",
+        "value": "2023-01-01 00:00:00",
         "validate": "datetime"
       }
     },
@@ -4085,7 +4203,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ],
         "option_cn": [
@@ -4098,10 +4215,9 @@
           "event_20260908_cn"
         ],
         "option_tw": [
-          "event_20260813_cn"
+          "event_20260908_cn"
         ],
         "option_bold": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ]
       },
@@ -4542,7 +4658,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ],
         "option_cn": [
@@ -4555,10 +4670,9 @@
           "event_20260908_cn"
         ],
         "option_tw": [
-          "event_20260813_cn"
+          "event_20260908_cn"
         ],
         "option_bold": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ]
       },
@@ -4999,7 +5113,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ],
         "option_cn": [
@@ -5012,10 +5125,9 @@
           "event_20260908_cn"
         ],
         "option_tw": [
-          "event_20260813_cn"
+          "event_20260908_cn"
         ],
         "option_bold": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ]
       },
@@ -7950,7 +8062,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ],
         "option_cn": [
@@ -7963,10 +8074,9 @@
           "event_20260908_cn"
         ],
         "option_tw": [
-          "event_20260813_cn"
+          "event_20260908_cn"
         ],
         "option_bold": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ]
       },
@@ -8424,7 +8534,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ],
         "option_cn": [
@@ -8437,10 +8546,9 @@
           "event_20260908_cn"
         ],
         "option_tw": [
-          "event_20260813_cn"
+          "event_20260908_cn"
         ],
         "option_bold": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ]
       },
@@ -8898,7 +9006,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ],
         "option_cn": [
@@ -8911,10 +9018,9 @@
           "event_20260908_cn"
         ],
         "option_tw": [
-          "event_20260813_cn"
+          "event_20260908_cn"
         ],
         "option_bold": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ]
       },
@@ -9372,7 +9478,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ],
         "option_cn": [
@@ -9385,10 +9490,9 @@
           "event_20260908_cn"
         ],
         "option_tw": [
-          "event_20260813_cn"
+          "event_20260908_cn"
         ],
         "option_bold": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ]
       },
@@ -9836,7 +9940,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ],
         "option_cn": [
@@ -9849,10 +9952,9 @@
           "event_20260908_cn"
         ],
         "option_tw": [
-          "event_20260813_cn"
+          "event_20260908_cn"
         ],
         "option_bold": [
-          "event_20260813_cn",
           "event_20260908_cn"
         ]
       },
@@ -14422,7 +14524,8 @@
       },
       "TargetZone": {
         "type": "input",
-        "value": 0
+        "value": "0",
+        "mode": "text"
       },
       "StayInZone": {
         "type": "checkbox",

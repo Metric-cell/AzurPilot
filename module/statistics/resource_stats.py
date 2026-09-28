@@ -19,7 +19,7 @@ _table_ensured = False
 
 
 def _ensure_table():
-    """确保 resource_snapshots 表存在（仅首次调用时执行）"""
+    """确保 resource_snapshots 表存在（仅首次调用时执行）。"""
     global _table_ensured
     if _table_ensured:
         return

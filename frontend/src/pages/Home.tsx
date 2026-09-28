@@ -1,3 +1,7 @@
+/**
+ * @fileoverview 主页仪表盘与实例列表导航卡片视图。
+ */
+
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, ExternalLink, History, Plus, Server } from 'lucide-react'
@@ -41,11 +45,11 @@ export function Home() {
   return <>
     <div className="home-editorial">
       <aside className="home-deck">
-        <div className="home-deck-copy">
-          <p className="home-deck-eyebrow">{ui('home.commandCenter')}</p>
-          <h1 className="home-deck-greeting">{getGreeting(ui)}</h1>
-          <p className="home-deck-subtitle">{ui('home.subtitle')}</p>
-        </div>
+          <div className="home-deck-copy">
+            <p className="home-deck-eyebrow">{ui('home.commandCenter')}</p>
+            <h1 className="home-deck-greeting">{getGreeting(ui)}</h1>
+            <p className="home-deck-subtitle">{ui('home.subtitle')}</p>
+          </div>
         <div className="home-deck-foot">
           <dl className="home-stats" aria-label={ui('home.summary')}>
             <div className="home-stat"><dt>{ui('home.allInstances')}</dt><dd>{instances.length}</dd></div>

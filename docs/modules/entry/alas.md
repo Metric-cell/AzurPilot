@@ -68,12 +68,26 @@
 
 | 入口 | 用途 |
 | --- | --- |
-| `AzurLaneAutoScript(config_name).loop()` | 主入口。WebUI 经 `ProcessManager` 创建 worker 进程后调用；直接运行 `python alas.py` 也走这里（默认配置 `alas`） |
+| `uv run python alas.py [实例名]` | 命令行入口。不传实例名时用 `DEFAULT_CONFIG_NAME`（`ap`）；实例名经 `parse_config_name()` 校验，非法或不存在时以退出码 2 失败，不会回退到默认实例 |
+| `AzurLaneAutoScript(config_name).loop()` | 主入口。WebUI 经 `ProcessManager` 创建 worker 进程后调用；`uv run python alas.py` 也走这里 |
 | `AzurLaneAutoScript(config_name).run(command, skip_first_screenshot=True)` | 单任务入口。WebUI「立即执行」某任务时跳过调度循环直接运行 |
 | `config.task_call('Restart')` | 跨任务注入入口。业务模块以此请求恢复，效果是把目标任务 `NextRun` 置为现在并强制启用 |
 | `AzurLaneAutoScript.stop_event` | 类属性。WebUI 注入由 `State.manager.Event()` 创建的跨进程事件代理，调度器在轮询点响应停止信号 |
 
 追代码建议从 `loop()` 开始读，它是全部生命周期的汇聚点；单次任务的行为再看 `run()`。
+
+### 外部调度器接入契约
+
+AUTO-MAS 一类外部调度器把 AzurPilot 当黑箱驱动，只用以下四个面，不触碰内部状态：
+
+| 面 | 约定 |
+| --- | --- |
+| 启动 | `uv run python alas.py <实例名>`（或在已配置的环境中 `python alas.py <实例名>`），在 AzurPilot 根目录下创建且已配置的实例 |
+| 配置 | 读写 `./config/<实例名>.json`，字段语义归配置系统所有 |
+| 日志 | `get_log_file_path(实例名)` → `./log/{日期}_{实例名}.txt`，当天追加；`[Alas] 调度器: 开始任务/结束任务` 可作任务边界标记 |
+| 停止 | 外部工具终止进程树。调度器不主动退出，也没有停止文件；长跑与卡死恢复由自身机制负责 |
+
+`module/logger.py` 在导入时把工作目录切到项目根，因此外部工具无需设置工作目录，但一个实例必须独占一个进程。
 
 ## 5. 核心组件
 
@@ -170,6 +184,8 @@ flowchart TD
 
 异常分级（详见第 11 节）的本质是一根「恢复力度」的标尺：重启游戏最轻（秒级），重启模拟器最重（分钟级）。多数异常走轻端；`GameStuckError` 与未预期异常带独立连续计数，连续超过 `Error_GameStuckThreshold` 才升级到模拟器重启。恢复动作完成后统一返回 `'recoverable'`。
 
+推送策略与恢复力度解耦：可恢复分支统一走 `_notify_recoverable()`（OnePush + WebUI 双通道），开启 `Error_LowPushMode` 时整体跳过、只在日志留痕，避免无人值守时被「游戏未运行」「模拟器离线」这类会自动重试恢复的错误刷屏；需要人工介入或不依赖自动恢复的路径（`_check_sensitive_exit`、`ScriptError` 满 3 次退出、调度循环判定任务连续失败）直接调用 `handle_notify`，不受该模式影响。
+
 ### 全局异常兜底
 
 `loop()` 的最外层 `except` 是最后一道防线：上报错误日志（仅首次）、可选触发 LLM 错误分析、尽力重启模拟器、注入 `Restart`，然后按 `min(300, 20 × 2^(连续失败-1))` 秒指数退避后重试。调度器**永不因连续失败而退出**，退出只保留给代码 bug 与敏感任务。
@@ -192,7 +208,7 @@ flowchart TD
 | `module/server_checker.py` | 维护检测 |
 | `module/research` 等约 90 个业务模块 | 任务方法的实际实现，全部方法内惰性导入 |
 | `module/handler/login.py`、`module/ui/ui.py` | `restart` / `start` / `goto_main` 三个基础任务 |
-| `module/notify` | onepush 推送与 WebUI 通知，所有告警双通道发出 |
+| `module/notify` | onepush 推送与 WebUI 通知；可恢复告警经 `_notify_recoverable()` 双通道发出，可被 `Error_LowPushMode` 抑制 |
 | `module/llm.py` | 可选的异常 AI 分析（`Error_LlmAnalysis`） |
 | `module/base/backup.py` | 每日备份 |
 | `module/statistics/daily_summary.py` | 日报生成与推送 |
@@ -258,6 +274,7 @@ stateDiagram-v2
 | `<Task>.Scheduler.Sensitive` | checkbox | false | 敏感任务标记；`OpsiCrossMonth`/`OpsiObscure`/`OpsiAbyssal` 默认 true |
 | `<Task>.Scheduler.PushNotification` | checkbox | false | 该任务每次结束后推送结果 |
 | `Error.HandleError` | bool | true | 关闭后非可恢复失败将终止调度而非继续 |
+| `Error.LowPushMode` | checkbox | false | 低推送量模式；可恢复错误（游戏未运行、模拟器离线、卡死等）只记日志不推送 |
 | `Error.StrictRestart` | bool | false | 严格重启总开关（配合 `Sensitive` 生效） |
 | `Error.GameStuckRestart` / `GameStuckThreshold` | bool/int | false / 3 | 卡死是否允许升级到模拟器重启及阈值 |
 | `Error.AdbOfflineThreshold` | int | 3 | 模拟器重启超过该次数后拉长等待间隔（不放弃） |
@@ -331,7 +348,7 @@ stateDiagram-v2
 | `_warmup_measured_cold_seconds` / `_warmup_measured_game_only_seconds` | 实例属性 | 每次预热成功后覆盖，用于动态计算提前量 |
 | `_i18n_task_names` | 模块级缓存 | 进程内一次加载，供推送通知使用本地化任务名 |
 | `_daily_summary_settings` | 实例属性 + 文件 mtime 比对 | 配置文件变更后重读 |
-| 错误现场 | `./log/error/<config>/<时间戳>/` | 截图与日志均经敏感信息遮罩后落盘，按 `Error_SaveErrorCount` 清理旧目录 |
+| 错误现场 | `./log/error/<config>/<时间戳>/` | 截图与日志均经敏感信息遮罩后落盘，按 `Error_SaveErrorRetentionDays` 过期后删除或备份到 `bak/` |
 
 缓存失效是本模块的「配置热重载」机制：**不做增量合并，直接丢弃整个 `config` 缓存让下轮任务重新加载**。这保证每次任务绑定参数时拿到的是磁盘最新值，代价是任务之间才生效、任务执行中途不切换（任务中途的配置感知由配置系统的 `check_task_switch` 负责，见 [配置系统](../config.md)）。注意：`module/config/deep.py` 中的 `deep_iter_diff` 目前没有调用方，热重载并不基于字典差异比较，而是基于 mtime 检查 + 整体重建。
 
@@ -405,7 +422,7 @@ get_next() 选中 MyFeature（Enable=true，NextRun 已过期）
 ## 19. 调试方法
 
 - **日志文件**：`loop()` 启动即按实例名设置文件日志；任务边界用 `logger.hr(task)` 分隔，全文检索 `[Alas]` 可看到调度决策链（等待、注入 Restart、重启模拟器、看门狗触发）。
-- **错误现场**：`./log/error/<config_name>/<时间戳>/` 内含最近截图与裁剪后的 `log.txt`，已做敏感信息遮罩；保留数量由 `Error_SaveErrorCount` 控制。
+- **错误现场**：`./log/error/<config_name>/<时间戳>/` 内含最近截图与裁剪后的 `log.txt`，已做敏感信息遮罩；保留天数由 `Error_SaveErrorRetentionDays` 控制（0 = 不清理），过期现场按 `Error_SaveErrorBackUpMethod` 删除、拷贝备份或压缩备份到 `log/error/<实例名>/bak/`。
 - **常见问题排查顺序**：模拟器反复离线先看 `连续次数 X/阈值` 与 `_try_restart_emulator` 的退避日志；任务反复失败看 `failure_record` 相关的「连续失败 N 次」日志；任务卡住但日志还在动，怀疑逻辑死循环，开 `Error.WatchdogEnable` + `WatchdogTaskEnable` 验证；服务器相关看 `[服务器检查]` 前缀日志。
 - **WebUI 侧**：worker 通过日志队列与 `set_task()` 向父进程发布实时日志与当前任务名，前端「日志」页即来源于此。
 - **本地调试服务**：环境变量 `ALAS_DEBUG_SERVER=1` 时启动仅监听本机的调试服务，用于向统计库注入测试数据，默认关闭。

@@ -9,7 +9,19 @@ from deploy.Windows.utils import cached_property
 
 
 class GitConfigParser(configparser.ConfigParser):
+    """Git 配置文件解析器，提供配置值检查功能。"""
+
     def check(self, section, option, value):
+        """检查指定配置小节下的配置项是否与期望值一致。
+
+        Args:
+            section (str): 配置小节名称。
+            option (str): 配置选项名称。
+            value (str | None): 期望的配置值。
+
+        Returns:
+            bool: 配置项是否存在且与期望值相等。
+        """
         result = self.get(section, option, fallback=None)
         if result == value:
             logger.info(f'Git config {section}.{option} = {value}')
@@ -19,8 +31,15 @@ class GitConfigParser(configparser.ConfigParser):
 
 
 class GitManager(DeployConfig):
+    """Windows 下 Git 仓库初始化与分支同步管理类。"""
+
     @staticmethod
     def remove(file):
+        """安全删除指定文件。
+
+        Args:
+            file (str): 待删除的文件路径。
+        """
         try:
             os.remove(file)
             logger.info(f'Removed file: {file}')
@@ -29,6 +48,11 @@ class GitManager(DeployConfig):
 
     @cached_property
     def git_config(self):
+        """获取当前仓库的 .git/config 解析器对象。
+
+        Returns:
+            GitConfigParser: 配置文件解析实例。
+        """
         conf = GitConfigParser()
         conf.read('./.git/config')
         return conf
@@ -42,6 +66,9 @@ class GitManager(DeployConfig):
         版本号（避免一眼假的 git/3.x 或五段式 UA 被按特征封禁），同时把采样
         空间撑到约 4×10³ 种（minor 24~63、patch 0~9、build 1~9 的笛卡尔积），
         每次取值都不重复，任何单一 UA 都难以累积成可封禁的固定指纹。
+
+        Returns:
+            str: 伪装的 Git User-Agent 字符串。
         """
         while True:
             minor = random.randint(24, 63)
@@ -86,6 +113,15 @@ class GitManager(DeployConfig):
     def git_repository_init(
             self, repo, source='origin', branch='master', proxy='', ssl_verify=True
     ):
+        """初始化或更新本地 Git 仓库并拉取指定分支。
+
+        Args:
+            repo (str): 远端仓库地址。
+            source (str): 远端源名称，默认为 'origin'。
+            branch (str): 分支名称，默认为 'master'。
+            proxy (str): HTTP/HTTPS 代理地址。
+            ssl_verify (bool): 是否校验 SSL 证书。
+        """
         # 所有 git 命令统一带随机 UA，绕过 gitcode 等仓库对特定 UA 的 418 封禁
         git = f'"{self.git}" -c http.userAgent={self.git_user_agent()}'
 
@@ -152,6 +188,7 @@ class GitManager(DeployConfig):
         Progress.GitShowVersion()
 
     def git_install(self):
+        """执行 Git 仓库的更新或完整初始化流程。"""
         logger.hr('Update AzurPilot', 0)
 
         self.git_repository_init(

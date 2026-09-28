@@ -36,6 +36,8 @@ function createMockContext(): AppContextValue {
     setDevMode: () => {},
     theme: 'light',
     setTheme: () => {},
+    material: 'glass',
+    setMaterial: () => {},
     palette: 'ocean',
     setPalette: () => {},
     colorMode: 'auto',

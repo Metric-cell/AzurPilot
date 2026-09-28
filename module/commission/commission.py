@@ -77,6 +77,14 @@ class CommissionAmount(AmountOcr):
     remove_fragments = True
 
     def pre_process(self, image):
+        """图像预处理：放大2倍后进行基类预处理。
+
+        Args:
+            image (np.ndarray): 输入图像。
+
+        Returns:
+            np.ndarray: 放大并预处理后的图像。
+        """
         import cv2
 
         image = cv2.resize(image, (0, 0), fx=2, fy=2, interpolation=2)
@@ -1088,28 +1096,34 @@ class RewardCommission(UI, InfoHandler):
         return paths
 
     @staticmethod
-    def _prune_commission_reward_screenshots(instance, max_keep=None):
+    def _prune_commission_reward_screenshots(instance, max_keep=None, base=None):
         """清理实例目录下超量的委托收益截图，仅保留最近 max_keep 张。
 
         截图保留张数与统计页「最近委托记录」的 50 条上限对应：
         超过保留数量的旧截图按修改时间排序删除，并移除清空后的
         空月份目录。清理在每次保存截图后顺带执行。
+        ``bak/`` 下的备份不计入张数上限，也不会被删除。
 
         Args:
             instance: 配置实例名称。
             max_keep: 保留的截图张数上限，默认使用模块级常量
                 COMMISSION_REWARD_SCREENSHOT_KEEP。
+            base: 实例截图目录，默认按实例名推导；测试可注入临时目录。
         """
         import os
+
+        from module.statistics.drop_cleanup import BAK_FOLDER
 
         if max_keep is None:
             max_keep = COMMISSION_REWARD_SCREENSHOT_KEEP
 
-        base = os.path.join('.', 'log', 'commission_rewards', instance)
+        if base is None:
+            base = os.path.join('.', 'log', 'commission_rewards', instance)
         if not os.path.isdir(base):
             return
         files = []
-        for folder, _, names in os.walk(base):
+        for folder, dirs, names in os.walk(base):
+            dirs[:] = [d for d in dirs if d != BAK_FOLDER]
             for name in names:
                 if not name.endswith('.png'):
                     continue
@@ -1125,6 +1139,8 @@ class RewardCommission(UI, InfoHandler):
             except OSError:
                 continue
         for folder, _, _ in os.walk(base, topdown=False):
+            if os.path.basename(os.path.normpath(folder)) == BAK_FOLDER:
+                continue
             try:
                 os.rmdir(folder)
             except OSError:
@@ -1242,7 +1258,7 @@ class RewardCommission(UI, InfoHandler):
                     # 可在配置中关闭，避免识别错误；其他场景的舰船检测不受影响
                     if self.config.Commission_DetectShipDrop:
                         for button in [GET_SHIP]:
-                            if click_timer.reached() and self.appear(button, interval=1):
+                            if click_timer.reached() and self.appear(button, offset=(20, 20), interval=1):
                                 self.ensure_no_info_bar(timeout=1)
                                 drop.add(self.device.image)
 
@@ -1402,6 +1418,14 @@ class RewardCommission(UI, InfoHandler):
         }.get(hour, '未知')
 
     def _get_remaining_time(self, comm):
+        """计算委托对象的剩余完成时间文本。
+
+        Args:
+            comm (Commission): 目标委托对象。
+
+        Returns:
+            str: 格式化的剩余时间字符串（如 '1小时30分钟' 或 '已完成'）。
+        """
         remaining = comm.finish_time - current_time()
 
         if remaining.total_seconds() <= 0:
@@ -1415,6 +1439,14 @@ class RewardCommission(UI, InfoHandler):
         return f'{minutes}分钟'
 
     def _get_remaining_time_str(self, finish_time_str):
+        """根据 ISO 格式的完成时间字符串计算剩余时间文本。
+
+        Args:
+            finish_time_str (str): ISO 格式时间字符串。
+
+        Returns:
+            str: 格式化的剩余时间字符串。
+        """
         finish_time = datetime.fromisoformat(finish_time_str)
         remaining = finish_time - current_time()
 
@@ -1429,6 +1461,14 @@ class RewardCommission(UI, InfoHandler):
         return f'{minutes}分钟'
 
     def _get_gem_reward_str(self, duration_hour):
+        """根据时长小时数获取预计钻石收益描述。
+
+        Args:
+            duration_hour (int): 委托耗时（小时）。
+
+        Returns:
+            str: 收益描述文本，如 '钻石 10~20'。
+        """
         return {
             2: '钻石 10~20',
             4: '钻石 25~40',

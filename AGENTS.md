@@ -23,10 +23,12 @@ AzurPilot 是面向安卓模拟器的碧蓝航线自动化框架，支持 CN/EN/
 | 同步 Python 依赖 | `uv sync --frozen` |
 | 安装前端锁定依赖 | `npm ci --prefix frontend` |
 | 启动 WebUI | `uv run python gui.py` |
+| 启动终端交互界面 (TUI) | `uv run python tui.py` |
 | 启动游戏调度器 | `uv run python alas.py` |
 | 启动独立 MCP SSE 服务 | `uv run python mcp_server_sse.py` |
 | Python 单个测试模块（示例） | `uv run python -m unittest tests.test_api` |
 | Python 全量单元测试 | `uv run python -m unittest discover -s tests` |
+| Python pytest 测试（含 shop_event 等） | `uv run pytest tests/shop_event` |
 | Python 基础 CI lint | `uv run ruff check . --select E9,F63,F7,F82 --ignore F821,F722` |
 | 前端类型检查 | `npm run typecheck --prefix frontend` |
 | 前端单元测试 | `npm test --prefix frontend` |
@@ -120,6 +122,8 @@ def some_function(self, skip_first_screenshot=True):
 交付前审阅本次差异，重点检查需求完整性、兼容性、并发与状态、隐私及无关修改。可修复的问题直接修复；报告实际发现和验证结果，不要求每次输出固定审查模板。
 
 提交前查看全部 staged、unstaged 和 untracked 修改，区分本次变更与已有工作，按功能目的组织提交。独立的格式、依赖或工程调整应分开；实现、必要配置、生成产物和回归测试可在同一功能提交中。排除缓存、构建产物和调试残留。提交信息采用中文 Conventional Commits，例如 `fix(config): 避免热重载覆盖并发配置更新`，说明为什么修改。
+
+AI 自行创建 PR 或执行任何涉及提 PR 的操作时，必须按 [.github/PULL_REQUEST_TEMPLATE.md](.github/PULL_REQUEST_TEMPLATE.md) 模板填写：如实勾选变更类型与代码质量确认项（未执行的检查不勾选），并在描述中说明变更原因、验证结果与相关 Issue。
 
 ## 维护这些指令
 

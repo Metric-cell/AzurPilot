@@ -7,7 +7,7 @@ clean 版本只读取操作系统时钟，不进行 DNS 查询、NTP 请求或�
 
 import time as time_
 from datetime import datetime, timezone
-
+from typing import Any, Dict, List, Optional
 
 class LocalTimeSource:
     """提供与旧时间源兼容的纯本机时间接口。"""

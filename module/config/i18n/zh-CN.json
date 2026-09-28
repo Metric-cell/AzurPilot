@@ -626,7 +626,8 @@
       "DroidCast": "DroidCast",
       "DroidCast_raw": "DroidCast_raw",
       "nemu_ipc": "nemu_ipc",
-      "ldopengl": "ldopengl"
+      "ldopengl": "ldopengl",
+      "azurpilot_android": "AzurPilot Android 虚拟屏"
     },
     "ControlMethod": {
       "name": "选择控制方案",
@@ -636,7 +637,8 @@
       "minitouch": "minitouch",
       "Hermit": "Hermit",
       "MaaTouch": "MaaTouch",
-      "nemu_ipc": "nemu_ipc"
+      "nemu_ipc": "nemu_ipc",
+      "azurpilot_android": "AzurPilot Android 虚拟屏"
     },
     "GameSettings": {
       "name": "自动应用推荐游戏设置",
@@ -736,13 +738,34 @@
       "name": "敏感任务出错时禁止重启",
       "help": "运行敏感任务出错时停止AzurPilot，而不是重启游戏\n敏感任务包含隐秘海域、深渊坐标、跨月每日"
     },
-    "SaveErrorCount": {
-      "name": "最多保存 X 个错误日志",
-      "help": "超出上限的错误日志将被删除，若为0或负值则没有限制"
+    "SaveErrorRetentionDays": {
+      "name": "错误日志过期天数",
+      "help": "超过天数的错误现场按下面的方式处理\n0 = 不清理"
+    },
+    "SaveErrorBackUpMethod": {
+      "name": "过期错误日志处理方式",
+      "help": "备份目录为./log/error/<实例名>/bak",
+      "delete": "删除",
+      "zip": "压缩备份",
+      "copy": "拷贝备份"
+    },
+    "SaveErrorZipMethod": {
+      "name": "压缩格式",
+      "help": "",
+      "bz2": "bz2",
+      "gzip": "gzip",
+      "xz": "xz",
+      "zip": "zip"
     },
     "OnePushConfig": {
       "name": "错误推送设置",
       "help": "发生无法处理的异常后，使用 Onepush 推送一条错误信息。配置方法见文档：https://github.com/LmeSzinc/AzurLaneAutoScript/wiki/Onepush-configuration-%5BCN%5D"
+    },
+    "LowPushMode": {
+      "name": "低推送量模式",
+      "help": "只推送需要人工介入的错误。游戏未运行、模拟器离线、游戏卡住等能自动恢复的错误只记录日志，不再推送",
+      "True": "开启",
+      "False": "关闭"
     },
     "ScreenshotLength": {
       "name": "出错时，保留最后 X 张截图",
@@ -920,7 +943,22 @@
     },
     "RetentionDays": {
       "name": "截图保留天数",
-      "help": "掉落记录截图超过该天数的自动删除\n0 = 不按天数清理（委托收益截图仍只保留最近 50 张）"
+      "help": "掉落记录截图超过该天数后按下面的方式处理\n0 = 不按天数清理（委托收益截图仍只保留最近 50 张）"
+    },
+    "BackUpMethod": {
+      "name": "过期截图处理方式",
+      "help": "备份目录为保存目录下的 bak 文件夹（委托收益截图为各自实例目录下的 bak）",
+      "delete": "删除",
+      "zip": "压缩备份",
+      "copy": "拷贝备份"
+    },
+    "ZipMethod": {
+      "name": "压缩格式",
+      "help": "",
+      "bz2": "bz2",
+      "gzip": "gzip",
+      "xz": "xz",
+      "zip": "zip"
     },
     "AzurStatsID": {
       "name": "AzurStat ID",
@@ -960,9 +998,65 @@
       "do_not": "无操作",
       "save": "保存"
     },
-    "OpsiRecord": {
-      "name": "大世界掉落截图",
-      "help": "",
+    "OpsiHazard1Leveling": {
+      "name": "侵蚀一掉落截图",
+      "help": "侵蚀1练级不进「大世界掉落」统计（收益看「大世界总结」页）；「保存」只落盘截图，「上传」对它不生效",
+      "do_not": "无操作",
+      "save": "保存",
+      "upload": "上传",
+      "save_and_upload": "保存并上传"
+    },
+    "OpsiMeowfficerFarming": {
+      "name": "短猫掉落截图",
+      "help": "「保存」与「上传」都会把掉落解析进统计页「大世界掉落」分类，区别只是要不要把截图落盘",
+      "do_not": "无操作",
+      "save": "保存",
+      "upload": "上传",
+      "save_and_upload": "保存并上传"
+    },
+    "OpsiDaily": {
+      "name": "大世界每日掉落截图",
+      "help": "「保存」与「上传」都会把掉落解析进统计页「大世界掉落」分类，区别只是要不要把截图落盘\n跨月每日共用此开关",
+      "do_not": "无操作",
+      "save": "保存",
+      "upload": "上传",
+      "save_and_upload": "保存并上传"
+    },
+    "OpsiObscure": {
+      "name": "隐秘海域掉落截图",
+      "help": "「保存」与「上传」都会把掉落解析进统计页「大世界掉落」分类，区别只是要不要把截图落盘\n档案坐标共用此开关",
+      "do_not": "无操作",
+      "save": "保存",
+      "upload": "上传",
+      "save_and_upload": "保存并上传"
+    },
+    "OpsiAbyssal": {
+      "name": "深渊海域掉落截图",
+      "help": "「保存」与「上传」都会把掉落解析进统计页「大世界掉落」分类，区别只是要不要把截图落盘\n月度Boss共用此开关",
+      "do_not": "无操作",
+      "save": "保存",
+      "upload": "上传",
+      "save_and_upload": "保存并上传"
+    },
+    "OpsiStronghold": {
+      "name": "塞壬要塞掉落截图",
+      "help": "「保存」与「上传」都会把掉落解析进统计页「大世界掉落」分类，区别只是要不要把截图落盘",
+      "do_not": "无操作",
+      "save": "保存",
+      "upload": "上传",
+      "save_and_upload": "保存并上传"
+    },
+    "OpsiExplore": {
+      "name": "每月开荒掉落截图",
+      "help": "每月开荒Plus 自己的掉落记录开关，不跟其它任务共用\n「保存」与「上传」都会把掉落解析进统计页「大世界掉落」分类，区别只是要不要把截图落盘",
+      "do_not": "无操作",
+      "save": "保存",
+      "upload": "上传",
+      "save_and_upload": "保存并上传"
+    },
+    "OpsiOther": {
+      "name": "其他大世界任务掉落截图",
+      "help": "兜底没有单独开关的大世界任务\n「保存」与「上传」都会把掉落解析进统计页「大世界掉落」分类，区别只是要不要把截图落盘",
       "do_not": "无操作",
       "save": "保存",
       "upload": "上传",
@@ -1598,7 +1692,7 @@
     },
     "Mode": {
       "name": "选择潜艇出击方案",
-      "help": "仅在自律寻敌关闭的情况下生效，提醒: '狩猎及BOSS战'为'仅狩猎'与'仅BOSS战'的混合，它会在道中进行狩猎打击，并在BOSS战尝试召唤潜艇。",
+      "help": "仅在自律寻敌关闭的情况下生效，提醒: '狩猎及BOSS战'为'仅狩猎'与'仅BOSS战'的混合，它会在道中进行狩猎打击，并在BOSS战尝试召唤潜艇。\n注意: 在BOSS点召唤潜艇必须使用默认战斗界面主题（UI），否则无法召唤。",
       "do_not_use": "不使用",
       "hunt_only": "仅狩猎",
       "boss_only": "仅BOSS战",

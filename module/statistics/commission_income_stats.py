@@ -32,6 +32,14 @@ COMMISSION_ITEM_NAME_MAP = {
 
 
 def _parse_ts(ts_str: str) -> Optional[datetime]:
+    """解析 ISO 格式时间戳字符串。
+
+    Args:
+        ts_str (str): ISO 格式时间戳字符串。
+
+    Returns:
+        Optional[datetime]: 解析出的 naive datetime 对象，失败返回 None。
+    """
     try:
         timestamp = datetime.fromisoformat(ts_str)
     except (TypeError, ValueError):
@@ -61,7 +69,15 @@ def _iter_months(start: datetime, end: datetime):
 
 
 def _build_income_summary(entries: List[Dict[str, Any]], period: str) -> Dict[str, Any]:
-    """将已过滤的委托条目聚合为与既有统计页兼容的摘要。"""
+    """将已过滤的委托条目聚合为与既有统计页兼容的摘要。
+
+    Args:
+        entries (List[Dict[str, Any]]): 委托记录字典列表。
+        period (str): 统计周期标识 ('day', 'week', 'month', 'interval')。
+
+    Returns:
+        Dict[str, Any]: 聚合摘要字典。
+    """
     totals: Dict[str, int] = {}
     counts: Dict[str, int] = {}
     total_commissions = 0
@@ -204,6 +220,14 @@ def get_commission_income_interval_summary(
     原始委托条目按月份分库保存，因此会枚举 ``[start, end)`` 涵盖的
     每个月并按时间戳二次过滤。返回结构沿用
     :func:`get_commission_income_summary`，额外带上区间和原始结算条目数。
+
+    Args:
+        instance (str): 实例名称。
+        start (datetime): 区间开始时间（包含）。
+        end (datetime): 区间结束时间（不包含）。
+
+    Returns:
+        Dict[str, Any]: 委托收益聚合摘要字典。
     """
     _validate_interval(start, end)
     entries: List[Dict[str, Any]] = []

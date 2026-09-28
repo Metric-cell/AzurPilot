@@ -68,8 +68,8 @@
 | `statistics.refreshLoot` | instance | 重新聚合本设备已有本地短猫掉落记录，不访问游戏 |
 | `settings.get` | 无 | 部署设置定义及值，密码只写不读 |
 | `settings.patch` | values | 校验并保存部署设置，重启生效 |
-| `startup.get` | instance | 当前实例是否启动时自动运行 |
-| `startup.set` | instance、enabled | 修改启动时自动运行 |
+| `startup.get` | instance | 当前实例是否启动时自动运行、是否启动时记忆运行 |
+| `startup.set` | instance、enabled?、remember? | 修改启动时自动运行 / 启动时记忆运行 |
 | `events.subscribe` | topics、可选 instance | 原子替换当前连接的订阅集合 |
 
 `instance` 必须指向 config 目录内已存在的实例，禁止路径分隔符、符号链接和系统保留名称。创建实例名称以字母或汉字开头，可包含字母、数字、汉字、短横线和下划线，总长不超过 64。运行实例禁止删除，已有运行实例禁止重复启动。
