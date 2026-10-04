@@ -26,4 +26,3 @@ export function MaterialDetailModal({onClose, onChange}: {onClose: () => void; o
     />
   </Modal>
 }
-

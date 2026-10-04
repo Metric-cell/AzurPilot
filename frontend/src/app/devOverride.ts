@@ -46,4 +46,3 @@ export function simulateStatus(status: Status | null, seconds = 10) {
 export function previewUpdate(active: boolean) {
   publish({...snapshot, updatePreview: active})
 }
-

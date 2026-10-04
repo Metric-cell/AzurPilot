@@ -394,4 +394,3 @@ export function disableBackground() {
   savePreference(preference)
   publish({...preference, assetUrl: '', loading: false})
 }
-
