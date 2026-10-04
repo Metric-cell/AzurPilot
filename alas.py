@@ -112,6 +112,9 @@ class AzurLaneAutoScript:
         self.is_first_task = True
         # 任务失败计数器，key 为任务名，value 为连续失败次数
         self.failure_record = {}
+        # 按任务累计恢复次数；成功的 Restart 不代表原任务故障已解决。
+        self.task_restart_record = {}
+        self.task_restart_delays = {}
         # 连续卡死/ADB 离线计数，用于判断是否需要重启模拟器
         self.consecutive_game_stuck = 0
         self.consecutive_adb_offline = 0
@@ -620,6 +623,10 @@ class AzurLaneAutoScript:
     def config(self):
         try:
             config = AzurLaneConfig(config_name=self.config_name)
+            runtime = self.__dict__.get('_program_runtime')
+            if runtime is not None:
+                # 维护恢复发生在选任务之前，重载后的配置也必须接入系统通道。
+                runtime.attach(config)
             return config
         except RequestHumanTakeover:
             logger.error_context(
@@ -809,6 +816,7 @@ class AzurLaneAutoScript:
         """
         from module.runtime.preview import set_task
         command = inflection.underscore(command)
+        self._storage_statistics_failed = False
         set_task(inflection.camelize(command))
         try:
             # Restart 的职责就是把游戏从“未运行/未出首帧”恢复起来。
@@ -825,6 +833,10 @@ class AzurLaneAutoScript:
                 self.handle_channel_float()
             self.__getattribute__(command)()
             return True
+        except StorageStatisticsError as e:
+            logger.error(str(e))
+            self._storage_statistics_failed = True
+            return False
         except TaskEnd:
             return True
         except GameNotRunningError as e:
@@ -1474,6 +1486,10 @@ class AzurLaneAutoScript:
         from module.campaign.os_run import OSCampaignRun
         OSCampaignRun(config=self.config, device=self.device).opsi_explore()
 
+    def opsi_explore_cleanup(self):
+        from module.campaign.os_run import OSCampaignRun
+        OSCampaignRun(config=self.config, device=self.device).opsi_explore_cleanup()
+
     def opsi_shop(self):
         from module.campaign.os_run import OSCampaignRun
         OSCampaignRun(config=self.config, device=self.device).opsi_shop()
@@ -1632,6 +1648,10 @@ class AzurLaneAutoScript:
     def box_disassemble(self):
         from module.storage.box_disassemble import StorageBox
         StorageBox(config=self.config, device=self.device, task="BoxDisassemble").run()
+
+    def storage_statistics(self):
+        from module.storage.statistics import StorageStatistics
+        StorageStatistics(config=self.config, device=self.device, task='StorageStatistics').run()
 
     def auto_equip(self):
         from module.auto_equip.auto_equip import AutoEquip
@@ -1807,8 +1827,62 @@ class AzurLaneAutoScript:
 
             time.sleep(5)
 
+            runtime = self.__dict__.get('_program_runtime')
+            if runtime and runtime.program_changed():
+                return False
             if self.config.should_reload():
                 return False
+
+    def scheduler_refresh(self):
+        """在任务边界只读取卡片要求的资源，异常复用已有恢复入口。"""
+        from module.scheduler.resources import refresh_resources
+        runtime = self.__dict__['_program_runtime']
+        runtime.refresh_result = refresh_resources(self.config, self.device, runtime.refresh_names)
+
+    def _record_task_restart(self, task, success):
+        """重复恢复达到上限时，延后故障任务并发送错误推送。"""
+        if task == 'Restart':
+            # 恢复入口不能进入故障冷却，否则游戏未运行时会拖累整个任务队列。
+            self.task_restart_record.pop(task, None)
+            self.task_restart_delays.pop(task, None)
+            return False
+        if success is True:
+            self.task_restart_record.pop(task, None)
+            return False
+        limit = int(self.config.Error_TaskRestartLimit)
+        if limit <= 0:
+            self.task_restart_record.pop(task, None)
+            return False
+        count = self.task_restart_record.get(task, 0) + 1
+        self.task_restart_record[task] = count
+        if count < limit:
+            return False
+
+        # 使用服务器每日零点，避免带有多个日内触发点的任务当天再次运行。
+        next_run = get_server_next_update('00:00')
+        if next_run <= current_time():
+            next_run += timedelta(days=1)
+        self.config.task_delay(target=next_run, task=task)
+        self.task_restart_delays[task] = next_run
+        self.task_restart_record.pop(task, None)
+        self.failure_record.pop(task, None)
+        display = _get_task_display_name(task)
+        content = (
+            f'<{self.config_name}> 任务 {display}（{task}）连续恢复 {count} 次仍未成功，'
+            f'已延后至 {next_run:%Y-%m-%d %H:%M:%S}。请检查错误日志和截图。'
+        )
+        logger.warning(f'[Alas] {content}')
+        # 达到上限需要人工关注，即使开启低推送量模式也发送通知。
+        try:
+            handle_notify(self.config.Error_OnePushConfig,
+                          title=f'AzurPilot <{self.config_name}> 任务恢复次数已达上限', content=content)
+        except Exception as exc:
+            logger.warning(f'[Alas] 任务延后错误推送失败：{exc}')
+        try:
+            notify_webui(self.config_name, title='任务已延后至次日', content=content)
+        except Exception as exc:
+            logger.warning(f'[Alas] 任务延后 WebUI 通知失败：{exc}')
+        return True
 
     def get_next_task(self):
         """
@@ -1820,7 +1894,17 @@ class AzurLaneAutoScript:
         Returns:
             str: 下一个任务的方法名（如 'Restart'、'Commission'）。
         """
+        from module.scheduler.runtime import SchedulerRuntime
+        from module.config.config import name_to_function
+        runtime = self.__dict__.get('_program_runtime')
+        if runtime is None:
+            runtime = self.__dict__['_program_runtime'] = SchedulerRuntime(self)
         while 1:
+            selected = runtime.next_task()
+            if selected is not None:
+                self.config.task = name_to_function(selected)
+                self.config.bind(self.config.task)
+                return selected
             task = self.config.get_next()
             self.config.task = task
             self.config.bind(task)
@@ -2046,6 +2130,7 @@ class AzurLaneAutoScript:
         LONG_WAIT = 300
 
         while 1:
+            task = None
             try:
                 # 检查来自GUI的更新事件
                 if self.stop_event is not None:
@@ -2078,11 +2163,26 @@ class AzurLaneAutoScript:
 
                 # 获取任务
                 task = self.get_next_task()
+                if task == 'Restart':
+                    # 即使存在旧的冷却记录，也必须放行重启；敏感任务检查仍由恢复入口执行。
+                    self.task_restart_delays.pop(task, None)
+                deadline = self.task_restart_delays.get(task)
+                if deadline is not None:
+                    if deadline > current_time():
+                        # 自定义调度卡片或任务调用也不能绕过本轮故障冷却。
+                        self.config.task_delay(target=deadline, task=task)
+                        runtime = self.__dict__.get('_program_runtime')
+                        if runtime is not None:
+                            runtime.task_finished(task, False)
+                        self.wait_until(min(deadline, current_time() + timedelta(seconds=4)))
+                        continue
+                    self.task_restart_delays.pop(task, None)
                 # 初始化设备并更改服务器
                 _ = self.device
                 self.device.config = self.config
                 # 跳过第一次重启
-                if self.is_first_task and task == 'Restart':
+                runtime = self.__dict__.get('_program_runtime')
+                if self.is_first_task and task == 'Restart' and (runtime is None or runtime.mode == 'native'):
                     logger.info('[Alas] 调度器启动时跳过任务 `Restart`')
                     self.delay_next_restart()
                     del_cached_property(self, 'config')
@@ -2098,12 +2198,16 @@ class AzurLaneAutoScript:
                 self._watchdog_active = True
                 self._watchdog_task_start = time.monotonic()
                 self._watchdog_task_name = task
+                success = None
                 try:
                     success = self.run(inflection.underscore(task))
                 finally:
                     self._watchdog_active = False
                     self._watchdog_task_start = 0.0
                     self._watchdog_task_name = ''
+                    runtime = self.__dict__.get('_program_runtime')
+                    if runtime is not None:
+                        runtime.task_finished(task, success)
                 logger.info(f'[Alas] 调度器: 结束任务 `{task}`')
                 self.is_first_task = False
 
@@ -2125,6 +2229,12 @@ class AzurLaneAutoScript:
                             )
                     except Exception:
                         logger.warning('[Alas] 每任务推送通知异常，已跳过')
+
+                # 仓库识别不确定已由任务设置失败间隔；重启无法修复模板或数字。
+                if success is False and getattr(self, '_storage_statistics_failed', False):
+                    logger.info('[Alas] 仓库统计已延后，继续其他任务，保留上次完整快照')
+                    del_cached_property(self, 'config')
+                    continue
 
                 # 检查失败
                 # 任务失败次数统计：可恢复错误 (success == 'recoverable') 不计入失败次数。
@@ -2162,6 +2272,11 @@ class AzurLaneAutoScript:
                         content=f"因为 {task} 任务失败次数过多喵！",
                     )
                     exit(1)
+
+                deferred = self._record_task_restart(task, success)
+                if deferred:
+                    del_cached_property(self, 'config')
+                    continue
 
                 if failed >= 3:
                     # 非敏感任务连续失败：不退出，强制重启模拟器+游戏后继续调度
@@ -2221,6 +2336,10 @@ class AzurLaneAutoScript:
                     action='关注下方堆栈；若连续发生，请检查设备连接、配置和最近更新的资源。',
                 )
 
+                if task is not None:
+                    # 任务初始化和收尾异常也须遵守敏感任务保护，先检查再执行恢复。
+                    self._check_sensitive_exit(task, e)
+
                 # 即使没有达到重启或失败上限，也第一时间自动请求分析崩溃原因
                 try:
                     if hasattr(self, 'config') and getattr(self.config, 'Error_LlmAnalysis', False):
@@ -2243,7 +2362,7 @@ class AzurLaneAutoScript:
                     except Exception as save_e:
                         logger.warning(f'[Alas] 本地错误日志保存失败: {save_e}')
 
-                # 尝试重启模拟器（始终尝试，永不放弃）
+                # 尝试重启模拟器
                 logger.warning("[Alas] 尝试通过重启模拟器 + 强制执行 RESTART 任务来恢复...")
                 try:
                     self._try_restart_emulator()
@@ -2263,6 +2382,11 @@ class AzurLaneAutoScript:
                         impact='调度器将继续重试，但本轮循环可能再次失败。',
                         action='检查配置是否可读、Restart 任务是否启用，以及设备是否仍在线。',
                     )
+
+                # 故障任务可以冷却，但必须先安排系统恢复，不能因达到上限跳过重启。
+                if task is not None and self._record_task_restart(task, False):
+                    del_cached_property(self, 'config')
+                    continue
 
                 # 指数退避：失败次数越多，等待时间越长，但上限 300 秒
                 wait_seconds = min(LONG_WAIT, RESTART_DELAY * (2 ** min(consecutive_global_failures - 1, 4)))

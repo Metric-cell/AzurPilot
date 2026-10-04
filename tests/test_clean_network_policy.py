@@ -9,6 +9,9 @@ from module.config.time_source import LocalTimeSource
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 REMOVED_NETWORK_MODULES = (
+    "module/api/android_update.py",
+    "module/api/stock_exchange_service.py",
+    "module/api/stock_exchange_history.py",
     "deploy/geo.py",
     "deploy/git_over_cdn/client.py",
     "mcp_server_sse.py",
@@ -30,6 +33,9 @@ REMOVED_NETWORK_MODULES = (
 )
 
 REMOVED_IMPORTS = (
+    "module.api.android_update",
+    "module.api.stock_exchange_service",
+    "module.api.stock_exchange_history",
     "deploy.git_over_cdn.client",
     "module.base.api_client",
     "module.api.update_service",
@@ -62,6 +68,8 @@ REMOVED_CONFIG_FIELDS = (
 )
 
 FORBIDDEN_RUNTIME_TOKENS = (
+    "stock.nanoda.work",
+    "challenges.cloudflare.com/turnstile",
     "alas-apiv2.nanoda.work",
     "ip9.com.cn/get",
     "microsoft-clarity-script",
@@ -78,6 +86,44 @@ def _runtime_python_files():
 
 
 class TestCleanNetworkPolicy(unittest.TestCase):
+    def test_android_routes_do_not_restore_updates(self):
+        from module.api.android import routes
+        with patch.dict('os.environ', {'AZURPILOT_ANDROID': '1', 'AZURPILOT_ANDROID_TOKEN': 'test-token'}):
+            paths = [route.path for route in routes(None, None)]
+        self.assertIn('/android/status', paths)
+        self.assertFalse(any('/update/' in path for path in paths))
+
+    def test_saved_stock_binding_does_not_start_upload_service(self):
+        import tempfile
+        from starlette.testclient import TestClient
+        from module.api.app import create_app
+        from tests.test_api import fixture
+        with tempfile.TemporaryDirectory() as directory:
+            root = fixture(directory)
+            binding = root / 'cache/stock-exchange/bindings.json'
+            binding.parent.mkdir(parents=True)
+            binding.write_text('{"testpilot": {"uploadToken": "test-token"}}')
+            with patch('urllib.request.urlopen', side_effect=AssertionError('禁止自动上传')) as outbound:
+                with TestClient(create_app(root=root, password='', manage_runtime=False)) as client:
+                    self.assertEqual(200, client.get('/healthz').status_code)
+                    router = client.app.state.gateway.router
+                    self.assertFalse(hasattr(router, 'stock_exchange'))
+                    self.assertNotIn('stock.status', router.methods)
+                    self.assertNotIn('stock.request', router.methods)
+                outbound.assert_not_called()
+
+    def test_android_frontend_does_not_download_updates(self):
+        import tempfile
+        from deploy.frontend import ensure_frontend
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.dict('os.environ', {'AZURPILOT_ANDROID': '1'}), \
+                patch('urllib.request.urlopen') as download, \
+                patch('subprocess.run') as build:
+            with self.assertRaisesRegex(RuntimeError, '预构建前端'):
+                ensure_frontend(directory)
+            download.assert_not_called()
+            build.assert_not_called()
+
     def test_removed_network_modules_stay_removed(self):
         restored = [
             relative_path

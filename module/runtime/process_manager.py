@@ -42,6 +42,19 @@ from module.submodule.utils import (
 _STOP_ACTION_UNSET = object()
 
 
+def memory_governs(instance: str) -> bool:
+    """该实例是否由「记忆运行」接管。
+
+    读取失败时按未开启处理，保持原有的缓存清单恢复行为。
+    """
+    try:
+        from module.runtime.startup_memory import get_startup_remember
+        return get_startup_remember(instance)
+    except Exception:
+        logger.warning(f'[WebUI-进程管理] 读取 [{instance}] 的记忆运行开关失败，按缓存清单恢复')
+        return False
+
+
 class ProcessManager:
     """单个 Alas 配置实例的进程生命周期管理器。
 
@@ -73,6 +86,8 @@ class ProcessManager:
         self.config_name = config_name
         self._renderable_queue: queue.Queue[ConsoleRenderable | TaskEvent | ExitEvent] = State.manager.Queue()
         self._preview_queue = None
+        self._program_queue = None
+        self.program_state = None
         self.current_task = None
         self.started_func = None
         self.run_id = None
@@ -188,10 +203,12 @@ class ProcessManager:
                         self.current_task = None
                         self.run_id = uuid.uuid4().hex
                         self.exit_result = None
+                        self.program_state = None
                         # 每轮独立队列，旧读线程不会消费新 worker 的事件。
                         self._renderable_queue = State.manager.Queue()
                         self._queue_lock = threading.Lock()
                     self._preview_queue = State.manager.Queue(maxsize=2)
+                    self._program_queue = State.manager.Queue(maxsize=2)
                     from module.runtime.preview import hub
                     hub.publish(self.config_name, {"instance": self.config_name, "image": None, "capturedAt": None})
                     args = (
@@ -202,6 +219,7 @@ class ProcessManager:
                         self._preview_queue,
                         self.run_id,
                         account_key,
+                        self._program_queue,
                     )
                     process = Process(
                         target=ProcessManager.run_process,
@@ -228,6 +246,8 @@ class ProcessManager:
         """启动后台线程监听并分发工作进程的日志和截图队列。"""
         threading.Thread(target=self._thread_preview_queue_handler,
                          args=(self._preview_queue, self.run_id), daemon=True).start()
+        threading.Thread(target=self._thread_program_queue_handler,
+                         args=(self._program_queue, self.run_id, self._process), daemon=True).start()
         self.thd_log_queue_handler = threading.Thread(
             target=self._thread_log_queue_handler,
             args=(self._renderable_queue, self._process, self.run_id, self._queue_lock),
@@ -525,6 +545,22 @@ class ProcessManager:
             State.process_registry.pop(self.config_name, None)
         return True
 
+    def _thread_program_queue_handler(self, output, run_id, process):
+        """只消费本轮卡片状态，旧轮消息不能覆盖新的调度轨迹。"""
+        if output is None:
+            return
+        while self.run_id == run_id:
+            try:
+                message = output.get(timeout=0.5)
+                with self._runtime_lock:
+                    if self.run_id == run_id and message.get('runId') == run_id:
+                        self.program_state = message['state']
+            except queue.Empty:
+                if not self._is_process_alive(process):
+                    return
+            except (EOFError, OSError):
+                return
+
     def _thread_preview_queue_handler(self, output, run_id):
         """从子进程接收已编码截图并通知浏览器，不访问设备。
 
@@ -731,6 +767,7 @@ class ProcessManager:
         preview_queue=None,
         run_id: str = None,
         account_key=None,
+        program_queue=None,
     ) -> None:
         """工作子进程的主入口点函数。
 
@@ -748,6 +785,8 @@ class ProcessManager:
         from module.runtime.worker_events import initialize
 
         initialize(q.put, run_id)
+        from module.scheduler.state_channel import initialize as initialize_program_channel
+        initialize_program_channel(program_queue, run_id)
         if account_key is not None:
             from module.runtime.account_vault import vault
             vault.keys[config_name] = account_key
@@ -925,6 +964,10 @@ class ProcessManager:
             with open("./config/reloadalas", mode="r", encoding="utf-8") as f:
                 for line in f.readlines():
                     line = line.strip()
+                    if line and memory_governs(line):
+                        # 开了记忆运行的实例由启动清单按记忆决定，不由这份更新前缓存恢复
+                        logger.info(f'[WebUI-进程管理] [{line}] 已开启记忆运行，交由启动清单恢复')
+                        continue
                     _instances.add(ProcessManager.get_manager(line))
         except FileNotFoundError:
             pass

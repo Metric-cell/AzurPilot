@@ -35,3 +35,4 @@ frontend/dist
 frontend/test-results
 frontend/playwright-report
 AzurPilot_Data_Backup
+config/stock-exchange

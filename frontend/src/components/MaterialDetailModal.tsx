@@ -1,6 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Palette } from 'lucide-react'
-
 import { useApp } from '../app/context'
 import { applyCustomLayer, familyOf } from '../app/theme'
 import { clearFamilyKnob, clearFamilyRegion, readFamilyCustom, resetFamilyCustom, writeFamilyCustom, type FamilyCustom } from '../app/themeCustom'
@@ -29,24 +27,3 @@ export function MaterialDetailModal({onClose, onChange}: {onClose: () => void; o
   </Modal>
 }
 
-/** 侧栏里的低调入口：挂在「运行总览 / 资源统计」下面，图标与它们对齐（同一个调色盘图标）。
-    常态隐藏，鼠标移到这一行或键盘聚焦时才出现；只在有区域材质的家族 + 玻璃材质下渲染。 */
-export function MaterialQuickButton() {
-  const {ui, theme, material} = useApp()
-  const [open, setOpen] = useState(false)
-  if (material !== 'glass' || !familyRegions[familyOf(theme)].length) return null
-  return <>
-    <div className="material-quick-slot">
-      <button
-        type="button"
-        className="material-quick-button"
-        title={ui('settings.materialDetail')}
-        aria-label={ui('settings.materialDetail')}
-        onClick={() => setOpen(true)}
-      >
-        <Palette size={17} aria-hidden="true"/>
-      </button>
-    </div>
-    {open && <MaterialDetailModal onClose={() => setOpen(false)}/>}
-  </>
-}

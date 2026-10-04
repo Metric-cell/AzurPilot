@@ -18,13 +18,44 @@ _LOCAL_DB = './config/azurstats_local.db'
 _table_ensured = False
 
 
+class _ClosingConnection(sqlite3.Connection):
+    """事务结束后立即释放连接，避免资源快照库在 Windows 上残留文件锁。"""
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            return super().__exit__(exc_type, exc_value, traceback)
+        finally:
+            self.close()
+
+
+def _connect() -> sqlite3.Connection:
+    return sqlite3.connect(_LOCAL_DB, factory=_ClosingConnection)
+
+
+# Dashboard 使用的资源名称与数据库列名保持在同一处，供区间聚合复用。
+RESOURCE_COLUMNS = {
+    'Oil': 'oil',
+    'Coin': 'coin',
+    'Gem': 'gem',
+    'Pt': 'pt',
+    'Cube': 'cube',
+    'Core': 'core',
+    'Medal': 'medal',
+    'Merit': 'merit',
+    'GuildCoin': 'guild_coin',
+    'ActionPoint': 'action_point',
+    'YellowCoin': 'yellow_coin',
+    'PurpleCoin': 'purple_coin',
+}
+
+
 def _ensure_table():
     """确保 resource_snapshots 表存在（仅首次调用时执行）。"""
     global _table_ensured
     if _table_ensured:
         return
     os.makedirs(os.path.dirname(_LOCAL_DB), exist_ok=True)
-    with sqlite3.connect(_LOCAL_DB) as conn:
+    with _connect() as conn:
         conn.execute('''
             CREATE TABLE IF NOT EXISTS resource_snapshots (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -86,7 +117,7 @@ def record_resource_snapshot(instance: str, resources: Dict[str, Any]) -> bool:
         }
 
         with _local_lock:
-            with sqlite3.connect(_LOCAL_DB) as conn:
+            with _connect() as conn:
                 conn.execute('''
                     INSERT INTO resource_snapshots (
                         instance, ts,
@@ -110,12 +141,14 @@ def record_resource_snapshot(instance: str, resources: Dict[str, Any]) -> bool:
 def get_resource_timeline(
     instance: str = 'default',
     limit: int = 500,
+    since: str = None,
 ) -> List[Dict[str, Any]]:
     """获取资源快照时间序列数据，用于绘制资源变化曲线。
 
     Args:
         instance: 实例名称
         limit: 最大返回条数
+        since: 起始时间（ISO 文本，含）。为空表示不限
 
     Returns:
         list[dict]: 按时间排序的快照列表，每个包含:
@@ -125,16 +158,16 @@ def get_resource_timeline(
     """
     try:
         _ensure_table()
-        with sqlite3.connect(_LOCAL_DB) as conn:
+        with _connect() as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 '''
                 SELECT * FROM resource_snapshots
-                WHERE instance = ?
+                WHERE instance = ? AND (? IS NULL OR ts >= ?)
                 ORDER BY id DESC
                 LIMIT ?
                 ''',
-                (instance, limit),
+                (instance, since, since, limit),
             ).fetchall()
             result = [dict(row) for row in rows]
             result.reverse()
@@ -144,4 +177,4 @@ def get_resource_timeline(
         return []
 
 
-__all__ = ['record_resource_snapshot', 'get_resource_timeline']
+__all__ = ['RESOURCE_COLUMNS', 'record_resource_snapshot', 'get_resource_timeline']

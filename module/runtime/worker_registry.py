@@ -348,21 +348,23 @@ def _write_registry(registry: dict, registry_file: Path) -> None:
 
 
 def _process_created_at(pid: int) -> float:
+    """读取进程身份；当前进程沿用首次结果，避免系统校时使自己丢失登记所有权。"""
     global _current_process_created_at
 
-    if pid == os.getpid() and _current_process_created_at is not None:
-        cached_pid, cached_created_at = _current_process_created_at
-        if cached_pid == pid:
-            return cached_created_at
+    with _registry_lock:
+        if pid == os.getpid() and _current_process_created_at is not None:
+            cached_pid, cached_created_at = _current_process_created_at
+            if cached_pid == pid:
+                return cached_created_at
 
-    try:
-        created_at = process_created_at(pid)
-    except Exception as exc:
-        raise RuntimeError(f"无法读取 worker PID {pid} 的创建时间: {exc}") from exc
+        try:
+            created_at = process_created_at(pid)
+        except Exception as exc:
+            raise RuntimeError(f"无法读取 worker PID {pid} 的创建时间: {exc}") from exc
 
-    if pid == os.getpid():
-        _current_process_created_at = (pid, created_at)
-    return created_at
+        if pid == os.getpid():
+            _current_process_created_at = (pid, created_at)
+        return created_at
 
 
 def _owner_record(registry: dict) -> Optional[dict]:

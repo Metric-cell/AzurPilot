@@ -41,7 +41,7 @@ class OSStatus(UI):
 
     @property
     def is_in_task_explore(self) -> bool:
-        return self.config.task.command == 'OpsiExplore'
+        return self.config.task.command in ('OpsiExplore', 'OpsiExploreCleanup')
 
     @property
     def is_in_task_cl1_leveling(self) -> bool:
@@ -66,7 +66,7 @@ class OSStatus(UI):
 
     @property
     def is_cl1_mode_enabled(self) -> bool:
-        """判断侵蚀1相关策略是否启用，包括智能调度+代理模式。"""
+        """判断侵蚀1相关策略是否启用，包括智能调度代理模式。"""
         is_smart_scheduling_enabled = getattr(self, 'is_smart_scheduling_enabled', None)
         return self.is_cl1_enabled or (
             is_smart_scheduling_enabled is not None
@@ -169,6 +169,7 @@ class OSStatus(UI):
                     self.device.sleep(0.2)
         
         # 如果最终仍未获取到有效数值，使用上次缓存的值（线程安全）
+        observed = yellow_coins > 0
         with self._cache_lock:
             if yellow_coins == 0:
                 logger.info(f'[大世界处理-状态] 使用缓存的黄币值: {self._last_yellow_coins}')
@@ -177,7 +178,7 @@ class OSStatus(UI):
             # 缓存当前值用于降级
             self._last_yellow_coins = yellow_coins
         
-        LogRes(self.config).YellowCoin = yellow_coins
+        LogRes(self.config).record('YellowCoin', yellow_coins, observed=observed)
         logger.info(f'[大世界处理-状态] 黄币: {yellow_coins}')
 
         return yellow_coins
@@ -190,10 +191,11 @@ class OSStatus(UI):
             int: 紫币数量。
         """
         if self.appear(OS_SHOP_CHECK):
-            purple_coins = OCR_OS_SHOP_PURPLE_COINS.ocr(self.device.image)
+            ocr = OCR_OS_SHOP_PURPLE_COINS
         else:
-            purple_coins = OCR_SHOP_PURPLE_COINS.ocr(self.device.image)
-        LogRes(self.config).PurpleCoin = purple_coins
+            ocr = OCR_SHOP_PURPLE_COINS
+        purple_coins = ocr.ocr(self.device.image)
+        LogRes(self.config).record('PurpleCoin', purple_coins, observed=bool(getattr(ocr, 'last_valid', False)))
         return purple_coins
 
     def os_shop_get_coins(self):

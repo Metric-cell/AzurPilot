@@ -12,7 +12,7 @@
 {"v":1,"type":"event","topic":"session","seq":1,"data":{"authRequired":true,"protocolVersion":1}}
 ```
 
-若需要认证，先调用 `auth.login`。认证前不能调用业务方法或订阅。密码来自现有 `--key` 或部署文件的 Password；通配地址监听且未设置密码时延用随机密码生成策略。认证材料只通过消息体传输，不放在 URL 或日志中。按用户要求恢复密码记忆：登录成功后访问密码保存在当前浏览器同源 localStorage，刷新、重新打开页面和断线重连自动登录；密码失效时删除旧值并重新显示登录页。浏览器禁止存储时仅保留本页登录。
+若需要认证，先调用 `auth.login`。认证前不能调用业务方法或订阅。密码来自现有 `--key` 或部署文件的 Password；通配地址监听且未设置密码时延用随机密码生成策略。访问密码只通过消息体传输，不放在 URL 或日志中。按用户要求恢复密码记忆：登录成功后访问密码保存在当前浏览器同源 localStorage，刷新、重新打开页面和断线重连自动登录；密码失效时删除旧值并重新显示登录页。浏览器禁止存储时仅保留本页登录。
 
 ```json
 {"v":1,"type":"request","id":"login-1","method":"auth.login","params":{"password":"访问密码"}}
@@ -49,6 +49,7 @@
 | 方法 | 参数 | 结果/作用 |
 | --- | --- | --- |
 | `auth.login` | password | 当前连接通过认证 |
+| `background.access` | 无 | 已授权会话获取仅用于背景 HTTP 接口的随机令牌，服务重启后失效 |
 | `system.ping` | 无 | pong |
 | `schema.get` | 可选 language | 任务菜单、参数定义与指定语言翻译；默认 zh-CN |
 | `instances.list` | 无 | 实例名称、状态、序列号、服务器、currentTask（停止时为 null） |
@@ -62,9 +63,13 @@
 | `scheduler.stop` | instance | 停止调度器并执行配置的收尾动作 |
 | `tasks.run` | instance、task | 运行允许单独执行的工具 |
 | `logs.get` | instance、可选 after | 游标之后的日志，有界保留 |
+| `opsi.simulator.status` | instance、可选 after | 离线模拟状态、进度、结果、图表标识及独立日志增量 |
+| `opsi.simulator.start` | instance | 按当前实例配置快照启动后台模拟，返回模拟状态 |
+| `opsi.simulator.stop` | instance | 请求中断模拟，返回模拟状态；等待当前计算批次结束 |
+| `opsi.simulator.figure` | instance | 最近生成的 PNG 图表，image 为 data URL；无图时为 null |
 | `preview.capture` | instance | 读取最近一张缓存 JPEG；不主动截图，无缓存时 image/capturedAt 为 null |
 | `statistics.resources` | instance、days、resource | 兼容资源时间线，支持全部 12 种资源，最多 5,000 点 |
-| `statistics.report` | instance、category、month、days、period | 六类统计，返回 metrics、series、tables 和 notes |
+| `statistics.report` | instance、category、month、days、period | 分类统计，含只读仓库快照，返回 metrics、series、tables 和 notes |
 | `statistics.refreshLoot` | instance | 重新聚合本设备已有本地短猫掉落记录，不访问游戏 |
 | `settings.get` | 无 | 部署设置定义及值，密码只写不读 |
 | `settings.patch` | values | 校验并保存部署设置，重启生效 |
@@ -72,9 +77,17 @@
 | `startup.set` | instance、enabled?、remember? | 修改启动时自动运行 / 启动时记忆运行 |
 | `events.subscribe` | topics、可选 instance | 原子替换当前连接的订阅集合 |
 
+仓库统计使用 `category: 'storage'` 查询最近完整扫描，`days` 限定成功扫描历史的时间窗口。`series` 提供各物品已确认数量的趋势与原始记录，复用资源趋势控件；未扫描或未发现的数量在最新清单中为 `null`，历史序列不补零。序列可选 `icon` 在逐点和共用时间轴格式中均保留，例如 `storage:opsi_items/PrototypeGearPartsT5`，从 `/storage-items/opsi_items/PrototypeGearPartsT5.png` 加载。`tasks.run` 的 `task: 'StorageStatistics'` 主动进入材料仓库扫描，沿用实例运行互斥；刷新报告不启动扫描。
+
 `instance` 必须指向 config 目录内已存在的实例，禁止路径分隔符、符号链接和系统保留名称。创建实例名称以字母或汉字开头，可包含字母、数字、汉字、短横线和下划线，总长不超过 64。运行实例禁止删除，已有运行实例禁止重复启动。
 
 状态枚举：`running`、`stopped`、`error`、`updating`。枚举表示工作进程状态，不能据此推断游戏中的具体画面。
+
+大世界模拟器沿用原蒙特卡洛收益模型，独立于游戏进程。启动不修改实例配置，也不调用调度器。
+模拟状态为 `idle`、`running`、`stopping`、`completed`、`interrupted`、`failed`；`completedSamples/totalSamples` 为采样进度，
+`runId` 随每次启动递增，防止旧响应覆盖新模拟；`result` 包含刷图次数、坠机概率、总时长（秒）、最终行动力与黄币，未汇总时为 null。
+日志结构与 `logs.get` 一致但缓冲独立，重跑或游标过旧时返回 reset；页面每 500 毫秒查询状态，图表标识变化后单独读取图片。
+刷新或切换页面不终止模拟；启动和中断受认证及 DEMO 只读限制，模拟运行期间禁止删除对应实例。
 
 
 `schema.get.language` 支持 `zh-CN`、`zh-TW`、`en-US`、`ja-JP`、`zh-MIAO`，只影响本次返回的翻译，不修改运行器或其他浏览器的语言。参数定义保留 `mode: yaml`，供前端选择多行 YAML 编辑器。
@@ -109,7 +122,7 @@ API 和核心运行器共用跨进程事务锁。API 只合并请求指定的字
 
 每个字段显示保存中、已保存或错误状态。格式错误只阻止该字段写入，原文保留用于修正；其他字段照常保存。连接和临时服务错误自动重试；页面切换不停止队列。未确认的输入保存在当前标签页的 sessionStorage，刷新并重新认证后恢复所有作用域的待提交项，已确认项不再重放。浏览器禁用或耗尽存储时明确提示，并继续在内存中保留输入。关闭标签页前应确认已保存；离线期间无法使服务端立即生效。游戏任务在下一次读取或绑定配置时使用新值，部署设置仍按各项既有规则在重启服务后生效。直接绕开配置服务的外部脚本不受事务锁约束。
 
-隐藏、固定和只读字段由服务端强制拒绝修改；`storage` 的唯一例外是通过 `config.patch` 将值清空为 `{}`，用于恢复旧版清除内部任务状态的按钮，其他状态内容仍禁止写入。布尔值必须是真正的 JSON boolean；数值范围来自参数定义；日期格式为 `YYYY-MM-DD HH:mm:ss`；多选值必须来自声明的候选项。YAML 字段使用安全解析器校验语法和顶层映射结构，并返回可定位的行列错误；保留原始文本存储。受限 Lua 字段在写入时会再次静态校验，不能通过只调用前端检查接口来绕过；同一事务合并后的 `ShopAdvanced.Mode=advanced` 必须配套非空且有效的 `ShopAdvanced.Script`。简单模式允许清空脚本。
+隐藏、固定和只读字段由服务端强制拒绝修改；`storage` 允许通过 `config.patch` 将值清空为 `{}`，用于清除内部任务状态，其他状态内容仍禁止写入。另允许将 `OpsiExplore.OpsiExplore.ExploreProgress` 和 `OpsiScheduling.OpsiSmartExplore.Progress` 清空为 `""`，同一事务重置对应开荒断点；不允许写入任意进度，不清除本月行动力购买记录或另一种开荒进度。清空前应停止正在运行的任务，调度时间保持原值。布尔值必须是真正的 JSON boolean；数值范围来自参数定义；日期格式为 `YYYY-MM-DD HH:mm:ss`；多选值必须来自声明的候选项。YAML 字段使用安全解析器校验语法和顶层映射结构，并返回可定位的行列错误；保留原始文本存储。受限 Lua 字段在写入时会再次静态校验，不能通过只调用前端检查接口来绕过；同一事务合并后的 `ShopAdvanced.Mode=advanced` 必须配套非空且有效的 `ShopAdvanced.Script`。简单模式允许清空脚本。
 
 ## 订阅与恢复
 
@@ -167,3 +180,15 @@ INTERNAL_ERROR 不向浏览器返回堆栈；参数校验详情不回显输入�
 资源页支持最近 1–365 天，最多读取最近 50,000 行快照并明确提示截断。大世界与行动力按月份读取；委托支持今日、本周、选定月份，周统计跨月读取。舰船展示最新检测与保留的历史日记录；掉落缓存沿用旧版全设备累计口径，不假装按实例或月份隔离。
 
 图表保留独立采样时间和空值语义；聚合折线取桶末值，K 线取开、高、低、收，日聚合按浏览器本地自然日分桶。图表时间序列保持升序，原始记录和委托结算明细默认按时间降序显示，用户排序可覆盖默认值。CSV 导出保留原始精度，明细支持分页、排序、搜索和导出。侵蚀1沿用旧界面口径：轮数向上取整，每轮消耗 5 行动力；舰船效率与升级用时沿用原有估算公式。
+
+### 背景 HTTP 认证
+
+背景上传 `POST /api/v1/background/gallery` 与图片代抓 `GET /api/v1/background/media` 均需携带 `background.access` 返回的能力令牌；缺失或错误返回 401。令牌由 WebSocket 的既有认证保护，本机免密与无密码模式也通过该接口领取。
+
+上传仅接受 `x-azurpilot-background-token` 请求头；图片/视频标签不能设置请求头，代抓也接受 `token` 查询参数。该令牌仅授权背景接口，不能登录或调用其他 WebUI 方法；不得把访问密码放入图片 URL。令牌只在内存中使用，每次应用创建重新生成，不写入浏览器持久化设置；部署的访问日志也应避免记录含令牌的完整 URL。
+
+## clean 部署边界
+
+本分支删除交易所页面、代理 API、后台行动力/历史上传和 Android 热更新，旧客户端调用这些方法返回 `METHOD_NOT_FOUND`。完整裁剪范围见 [CLEAN_POLICY.md](../CLEAN_POLICY.md)。
+
+图形调度和资源统计继续在本地记录行动力历史。相关身份、加密密钥和检查点仍位于 `config/stock-exchange/` 与 `cache/stock-exchange/`，这些目录名不表示存在交易所上传服务。迁移时与配置、数据库一起保留，见[本地历史持久化](../docs/modules/infra/deploy.md#本地历史持久化)。

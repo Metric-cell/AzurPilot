@@ -22,6 +22,9 @@ def main():
     with tempfile.TemporaryDirectory(prefix='azurpilot-ui-') as directory, \
             tempfile.TemporaryDirectory(prefix='azurpilot-ui-keys-') as keys, \
             patch.object(LocalProtector, 'key_directory', return_value=Path(keys) / 'private'), \
+            patch('module.api.app.LIBRARY_DIR', Path(directory) / 'background-library'), \
+            patch('module.api.background_service.LIBRARY_DIR', Path(directory) / 'background-library'), \
+            patch('module.api.background_service.INDEX_FILE', Path(directory) / 'background-library/index.json'), \
             patch('module.runtime.account_tpm.TpmProtector.available', return_value=False), \
             patch('module.api.background_service.resolve',
                   side_effect=lambda url: {'final_url': url, 'content_type': 'image/svg+xml'}), \

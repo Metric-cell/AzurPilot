@@ -21,7 +21,7 @@ services:
             ALAS_WEBUI_PORT: ${ALAS_WEBUI_PORT:-22267}
             UV_PROJECT_ENVIRONMENT: /opt/venv
         volumes:
-            # 直接使用本地源码及运行数据，编辑后无需重建镜像。
+            # 完整项目挂载包含茗交所需要的 config/stock-exchange 与 cache/stock-exchange。
             - '.:/app/AzurPilot:rw'
             # 隔离宿主机依赖，Python 环境首次创建时从镜像复制。
             - 'alas-python:/opt/venv'

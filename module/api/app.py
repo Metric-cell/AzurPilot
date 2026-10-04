@@ -19,7 +19,7 @@ from module.api.config_service import ConfigService, ROOT
 from module.api.router import Router
 from module.api.runtime_service import RuntimeService
 from module.api.socket import Gateway
-from module.api.static import FrontendFiles
+from module.api.static import FrontendFiles, ItemTemplateFiles
 from module.runtime.password_utils import ensure_password_for_host, is_demo_mode
 from module.runtime.setting import State
 
@@ -59,17 +59,20 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
                 from module.api.lifecycle import startup
                 from module.runtime.deploy_settings import parse_run_config
                 from module.runtime.startup_memory import consume_update_restart, startup_runs
-                update_restart = consume_update_restart()
                 runs = args.run or parse_run_config(State.deploy_config.Run)
                 if not args.run:
-                    # --run 是显式清单，不叠加记忆。
+                    # 只在决定启动清单这一支消费更新标记。
+                    update_restart = consume_update_restart()
                     runs = startup_runs(runs, update_restart=update_restart)
                 await asyncio.to_thread(startup, runs)
             yield
         finally:
-            if manage_runtime:
-                from module.api.lifecycle import clearup
-                await asyncio.to_thread(clearup)
+            try:
+                await asyncio.to_thread(gateway.router.close)
+            finally:
+                if manage_runtime:
+                    from module.api.lifecycle import clearup
+                    await asyncio.to_thread(clearup)
 
     dist = root / 'frontend/dist'
 
@@ -91,35 +94,40 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
         return FileResponse(path, media_type='text/html', headers={'Cache-Control': 'no-cache'})
 
     from module.api.android import routes as android_routes
-    def background_authorized(request):
-        # 上传和服务端代抓同样要求已登录，令牌只由已认证的 WebSocket 分发。
-        supplied = request.headers.get('x-azurpilot-background-token', '') or request.query_params.get('token', '')
-        return bool(supplied) and secrets.compare_digest(supplied, gateway.router.background_token)
+
+    def background_authorized(request, *, allow_query=False):
+        """背景 HTTP 能力令牌只通过已授权的 WebSocket 下发，不复用访问密码。"""
+        supplied = request.headers.get('x-azurpilot-background-token', '')
+        if not supplied and allow_query:
+            supplied = request.query_params.get('token', '')
+        return bool(supplied) and secrets.compare_digest(
+            supplied.encode('utf-8'), gateway.router.background_token.encode('ascii'))
 
     async def background_upload(request):
         """接收浏览器上传的本地背景图，存进 cache/background/library（本地图片的唯一落点）。"""
         if not background_authorized(request):
             return JSONResponse({'error': '请先登录'}, status_code=401)
-        form = await request.form()
-        upload = form.get('file')
-        if upload is None or not hasattr(upload, 'read'):
-            return JSONResponse({'error': '没有收到文件。'}, status_code=400)
-        data = await upload.read()
-        try:
-            entry = gallery_add_bytes(data, getattr(upload, 'filename', '') or '', getattr(upload, 'content_type', '') or '')
-        except Exception as error:
-            return JSONResponse({'error': str(error)}, status_code=400)
-        return JSONResponse({'entry': entry})
+        async with request.form() as form:
+            upload = form.get('file')
+            if upload is None or not hasattr(upload, 'read'):
+                return JSONResponse({'error': '没有收到文件。'}, status_code=400)
+            data = await upload.read()
+            try:
+                entry = gallery_add_bytes(data, getattr(upload, 'filename', '') or '', getattr(upload, 'content_type', '') or '')
+            except Exception as error:
+                return JSONResponse({'error': str(error)}, status_code=400)
+            return JSONResponse({'entry': entry})
 
     async def background_media(request):
         """同源代理一张网图：解析出的直链由这里回给浏览器，避免防盗链或跨域让显示的图与直链分叉。"""
-        if not background_authorized(request):
+        if not background_authorized(request, allow_query=True):
             return JSONResponse({'error': '请先登录'}, status_code=401)
         target = request.query_params.get('url', '')
         if not target:
             return JSONResponse({'error': '缺少 url 参数。'}, status_code=400)
         try:
-            data, content_type = proxy_fetch(target)
+            # 代抓走线程池：同步 requests 会占住事件循环，一次下载最长 20 秒。
+            data, content_type = await asyncio.to_thread(proxy_fetch, target)
         except Exception as error:
             return JSONResponse({'error': str(error)}, status_code=400)
         return Response(data, media_type=content_type, headers={'Cache-Control': 'no-cache'})
@@ -139,13 +147,18 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
     # 科研掉落的物品图标直接用仓库里的模板图，不走前端构建，
     # 这样补了新模板立刻生效，不用重新 npm build。
     research_items = root / 'assets' / 'stats' / 'research_items'
-    if research_items.is_dir():
-        routes.append(Mount('/research-items', StaticFiles(directory=research_items)))
-    # 大世界掉落的物品图标同理。opsi_reward_items 是模板库的超集
-    # （opsi_items 的每个模板名这里都有），挂一个目录就够。
+    research_templates = [research_items, root / 'assets' / 'stats_basic']
+    if any(directory.is_dir() for directory in research_templates):
+        routes.append(Mount('/research-items', ItemTemplateFiles(research_templates)))
+    # 自律结算与领奖弹窗的模板并不互相包含（如通用装备研发图纸只在弹窗库里）。
+    # 优先使用结算图标，缺失时按同名模板回退。
     opsi_items = root / 'assets' / 'stats' / 'opsi_reward_items'
-    if opsi_items.is_dir():
-        routes.append(Mount('/opsi-items', StaticFiles(directory=opsi_items)))
+    opsi_templates = [opsi_items, root / 'assets' / 'stats' / 'opsi_items']
+    if any(directory.is_dir() for directory in opsi_templates):
+        routes.append(Mount('/opsi-items', ItemTemplateFiles(opsi_templates)))
+    storage_items = root / 'assets' / 'stats'
+    if storage_items.is_dir():
+        routes.append(Mount('/storage-items', StaticFiles(directory=storage_items)))
     if (dist / 'index.html').is_file():
         routes.append(Mount('/', FrontendFiles(directory=dist)))
     else:

@@ -62,8 +62,7 @@ const listeners = new Set<() => void>()
 export const galleryUrl = (identifier: string) => `/background-library/${encodeURIComponent(identifier)}`
 
 /** 网图的同源代理地址：服务端先抓下来再回传，浏览器加载它与直链是同一张图。 */
-let backgroundToken = ''
-export const proxyUrl = (url: string) => `/api/v1/background/media?url=${encodeURIComponent(url)}&token=${encodeURIComponent(backgroundToken)}`
+export const proxyUrl = (url: string, token: string) => `/api/v1/background/media?url=${encodeURIComponent(url)}&token=${encodeURIComponent(token)}`
 
 const MIGRATED_KEY = 'azurpilot.background.migrated'
 /** initBackgroundGallery 只跑一次的守卫（它是幂等的引导流程，重复调用会引发重解析循环）。 */
@@ -116,7 +115,7 @@ export function readBackgroundPreference(material: Material): BackgroundPreferen
 export const activeBackgroundUrl = (preference: BackgroundPreference) => preference.source === 'url' ? preference.urls[preference.active] ?? '' : ''
 
 /** 这一条地址本身就是图片/视频文件时才可直接铺；随机图 API 端点每次请求都换图，必须先解析。 */
-const directMediaUrl = (url: string) => /.(?:jpe?g|png|webp|gif|bmp|avif|mp4|webm)(?:[?#]|$)/i.test(url) ? url : ''
+const directMediaUrl = (url: string) => /\.(?:jpe?g|png|webp|gif|bmp|avif|mp4|webm)(?:[?#]|$)/i.test(url) ? url : ''
 /** 记着上一张真正铺出来的图：解析失败时保留它，避免回退到随机端点换出新图。 */
 let lastGoodAssetUrl = ''
 
@@ -227,8 +226,10 @@ subscribeTheme(() => {
   const next = readBackgroundPreference(getThemePreference().material)
   if (next.source === snapshot.source && activeBackgroundUrl(next) === activeBackgroundUrl(snapshot) && next.name === snapshot.name) return
   replaceObjectUrl()
-  publish({...next, assetUrl: directMediaUrl(activeBackgroundUrl(next)), loading: next.source === 'upload'})
+  const initialAsset = next.source === 'upload' ? (next.entry ? galleryUrl(next.entry) : '') : next.source === 'url' ? (directMediaUrl(activeBackgroundUrl(next)) || lastGoodAssetUrl) : ''
+  publish({...next, assetUrl: initialAsset, loading: next.source === 'upload'})
   if (next.source === 'upload') void loadUploadedBackground()
+  if (next.source === 'url') void resolveActiveBackground()
 })
 
 export async function loadUploadedBackground() {
@@ -258,7 +259,6 @@ export async function loadUploadedBackground() {
   return uploadLoad
 }
 
-/** 设置 URL 模式的多行 API：一行一条，本次随机生效一条；全清空自动回填内置随机图 API。 */
 /** 把当前生效的那条 API 交给服务端解析成真实直链（跨域时浏览器读不到最终地址）。 */
 export async function resolveActiveBackground() {
   if (snapshot.source !== 'url') return
@@ -270,18 +270,20 @@ export async function resolveActiveBackground() {
   }
   publish({resolving: true, resolveError: ''})
   try {
-    backgroundToken = (await api.request('background.access', {})).token
+    const {token} = await api.request('background.access', {})
     const result = await api.request('background.resolve', {url})
     if (activeBackgroundUrl(snapshot) !== url) return
     /* 解析成功：壁纸改用直链 —— 同一个地址同时用于预览与"存入图库"，不会出现两次随机。 */
-    lastGoodAssetUrl = proxyUrl(result.final_url)
+    lastGoodAssetUrl = proxyUrl(result.final_url, token)
     publish({assetUrl: lastGoodAssetUrl, directUrl: result.final_url, resolving: false, resolveError: ''})
   } catch (error) {
     /* 解析失败就退回原地址直接当图片用（很多 API 本身就是图片），并把原因留给界面显示。 */
-    publish({assetUrl: lastGoodAssetUrl, resolving: false, resolveError: (error as Error).message})
+    const fallback = lastGoodAssetUrl || url
+    publish({assetUrl: fallback, resolving: false, resolveError: (error as Error).message})
   }
 }
 
+/** 设置 URL 模式的多行 API：一行一条，本次随机生效一条；全清空自动回填内置随机图 API。 */
 export function setBackgroundUrls(values: string[], kind: BackgroundKind) {
   const cleaned = normalizeBackgroundUrls(values)
   const urls = cleaned.length ? cleaned : [...DEFAULT_BACKGROUND_URLS]
@@ -293,18 +295,6 @@ export function setBackgroundUrls(values: string[], kind: BackgroundKind) {
   void resolveActiveBackground()
 }
 
-export async function setBackgroundUpload(file: File) {
-  const kind: BackgroundKind | undefined = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : undefined
-  if (!kind) throw new Error('请选择图片或视频文件。')
-  if (!file.size) throw new Error('所选文件为空。')
-  if (file.size > MAX_BACKGROUND_FILE_SIZE) throw new Error('背景文件不能超过 200 MB。')
-  await storedFile('readwrite', file)
-  const url = URL.createObjectURL(file)
-  const preference: BackgroundPreference = {source: 'upload', kind, urls: [], active: 0, name: file.name}
-  replaceObjectUrl(url)
-  savePreference(preference)
-  publish({...preference, assetUrl: url, loading: false})
-}
 
 /** 启动时把图库拉回来：图库模式随机铺一张，并把旧的浏览器上传图迁移进图库（只做一次）。 */
 export async function initBackgroundGallery() {
@@ -349,7 +339,7 @@ export async function openGalleryFolder() {
 export async function refreshGallery() {
   try {
     gallery = await api.request('background.gallery.list', {})
-  } catch { gallery = [] }
+  } catch { /* 拉取失败按空图库处理，界面显示为空。 */ gallery = [] }
   listeners.forEach(listener => listener())
   return gallery
 }
@@ -405,7 +395,3 @@ export function disableBackground() {
   publish({...preference, assetUrl: '', loading: false})
 }
 
-/** 回到内置随机图：等价于「URL 模式只留一条内置 API」。 */
-export function resetBackground() {
-  setBackgroundUrls([DEFAULT_BACKGROUND_URL], 'image')
-}

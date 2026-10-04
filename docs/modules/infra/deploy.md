@@ -59,6 +59,18 @@ deploy/
 | `python -m deploy.app` | 只重建前端产物 |
 | `deploy/docker/Dockerfile` | 容器构建（多阶段，预装前端产物） |
 
+### 本地历史持久化
+
+clean 分支删除交易所远端服务和后台上传，但图形调度与行动力历史仍使用本地身份和加密存储。持久化 `config/` 与 `cache/`，包括 `config/stock-exchange/game.key`、`registry.json` 和 `cache/stock-exchange/` 中的身份与历史检查点。
+
+```yaml
+volumes:
+  - ./config:/app/AzurPilot/config:rw
+  - ./cache:/app/AzurPilot/cache:rw
+```
+
+备份和迁移前停止服务与 worker，再一起复制配置、SQLite（含 WAL）、旧 CL1 统计库、设备身份及本地加密数据。账号保险库使用的项目外本机密钥与 machine-id 继续按原来的部署方式保留，它们与行动力历史的文件密钥是两套不同的保护机制。不要通过删除密钥、登记或身份文件来重建已有数据。完整 clean 边界见 [CLEAN_POLICY.md](../../../CLEAN_POLICY.md)。
+
 ## 6. 工作流程
 
 ### 安装器链条

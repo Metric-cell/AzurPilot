@@ -31,6 +31,10 @@ NAME = re.compile(r'[A-Za-z0-9' + CJK + r'][A-Za-z0-9_. ' + CJK + r'\-]{0,63}\Z'
 # 名字里以点分段的基名与这些词相同时继续拦下：template 是模板，其余是 Windows 设备名。
 RESERVED = {TEMPLATE, 'deploy', 'backup', 'con', 'prn', 'aux', 'nul',
             *(f'com{i}' for i in range(1, 10)), *(f'lpt{i}' for i in range(1, 10))}
+OPSI_EXPLORE_PROGRESS = {
+    'OpsiExplore.OpsiExplore.ExploreProgress',
+    'OpsiScheduling.OpsiSmartExplore.Progress',
+}
 
 
 def validate_name(value):
@@ -183,6 +187,12 @@ class ConfigService:
             raise ApiError('INVALID_PARAMS', '不是合法的 JSON 配置文件') from exc
         if not isinstance(data, dict) or not isinstance(data.get('Alas'), dict):
             raise ApiError('INVALID_PARAMS', '配置文件缺少 Alas 段')
+        if '_schedulerProgram' in data:
+            from module.scheduler.store import ProgramStore
+            try:
+                ProgramStore.import_bundle(data['_schedulerProgram'])
+            except (ValueError, KeyError, TypeError) as exc:
+                raise ApiError('INVALID_PARAMS', f'调度方案导入失败：{exc}') from exc
         self.import_directory.mkdir(parents=True, exist_ok=True)
         path = self.import_directory / f'{name}.json'
         if path.is_symlink() or path.resolve().parent != self.import_directory.resolve():
@@ -259,11 +269,19 @@ class ConfigService:
             raise ApiError('CONFIG_INVALID', '配置文件损坏，请从备份恢复') from exc
         # 旧配置缺失的参数在读时补齐，完整迁移仍由核心运行器负责。
         merged = copy.deepcopy(self.template)
+        if '_stockInstance' in data:
+            merged['_stockInstance'] = data['_stockInstance']
         for task, groups in data.items():
             if isinstance(groups, dict):
                 for group, fields in groups.items():
                     if isinstance(fields, dict):
                         merged.setdefault(task, {}).setdefault(group, {}).update(fields)
+                        # 新名称出现前，WebUI 也要显示旧航母开关的实际值。
+                        if task == 'General' and group == 'Enhance':
+                            legacy = fields.get('SkipSingleCommonCV')
+                            if 'KeepCommonCV' not in fields and isinstance(legacy, bool):
+                                merged[task][group]['KeepCommonCV'] = legacy
+                            merged[task][group].pop('SkipSingleCommonCV', None)
         return merged, hashlib.sha256(raw).hexdigest()
 
     def schema(self, language='zh-CN'):
@@ -294,7 +312,20 @@ class ConfigService:
             dict: 包含 instance, revision, values 的字典。
         """
         data, revision = self.read(name)
+        # 内部身份不属于参数契约，编辑界面只接收参数组。
+        data.pop('_stockInstance', None)
         return {'instance': name, 'revision': revision, 'values': data}
+
+    def export(self, name):
+        """配置导出携带方案，排除调度运行变量和资源历史。"""
+        from module.scheduler.store import ProgramStore
+        data, _ = self.read(name)
+        from module.runtime.game_data import INSTANCE_FIELD
+        data.pop(INSTANCE_FIELD, None)
+        store = ProgramStore(self.directory)
+        if store.exists(name):
+            data['_schedulerProgram'] = store.export(name)
+        return data
 
     def create(self, name, source=None, import_file=None):
         """创建新的实例配置文件。
@@ -319,6 +350,17 @@ class ConfigService:
                 data = self.read(source)[0]
             else:
                 data = copy.deepcopy(self.template)
+            bundle = data.pop('_schedulerProgram', None)
+            from module.runtime.game_data import GameDataProtector, INSTANCE_FIELD
+            # 空占位表示新实例，首次使用时登记 UUID，禁止把复制的仪表盘当迁移来源。
+            data[INSTANCE_FIELD] = None
+            from module.scheduler.store import ProgramStore
+            store = ProgramStore(self.directory)
+            if bundle is not None:
+                try:
+                    bundle = store.import_bundle(bundle)
+                except (ValueError, KeyError, TypeError) as exc:
+                    raise ApiError('INVALID_PARAMS', f'调度方案导入失败：{exc}') from exc
             path = self.path(name, exists=False)
             # 排他创建避免不同会话覆盖已有配置。
             try:
@@ -326,6 +368,17 @@ class ConfigService:
                     json.dump(data, file, ensure_ascii=False, indent=2)
             except FileExistsError as exc:
                 raise ApiError('ALREADY_EXISTS', '同名实例已存在') from exc
+            try:
+                if source:
+                    store.copy(source, name)
+                elif bundle is not None:
+                    store.import_program(name, {key: bundle[key] for key in ('mode', 'draft', 'active')})
+                protection = GameDataProtector(self.root)
+                if protection.initialized():
+                    protection.resolve(name, fresh=True)
+            except Exception:
+                path.unlink(missing_ok=True)
+                raise
             return self.get(name)
 
     @staticmethod
@@ -395,6 +448,9 @@ class ConfigService:
         field = self.args
         for part in parts:
             field = field.get(part, {})
+        # 开荒进度仍只读，只允许按钮清空；断点由下方事务同步重置。
+        if path in OPSI_EXPLORE_PROGRESS and field and type(value) is str and value == '':
+            return parts
         # 存储区禁止编辑内容，但允许通过同一配置事务显式清空。
         if field.get('type') == 'storage' and field.get('display') != 'hide' and type(value) is dict and not value:
             return parts
@@ -474,12 +530,26 @@ class ConfigService:
                     raise ApiError('INVALID_PARAMS', '同一次保存不能重复修改同一个参数')
                 seen.add(change.path)
                 data.setdefault(task, {}).setdefault(group, {})[arg] = change.value
+                if change.path in OPSI_EXPLORE_PROGRESS:
+                    self._reset_opsi_explore_progress(data, change.path)
                 self._sync_record_time(data[task][group], arg)
                 if group == 'ShopAdvanced':
                     affected_shop_tasks.add(task)
             self.validate_shop_advanced_groups(data, affected_shop_tasks)
             atomic_write(str(self.path(name)), json.dumps(data, ensure_ascii=False, indent=2))
             return self.get(name)
+
+    @staticmethod
+    def _reset_opsi_explore_progress(data, path):
+        """清空对应开荒断点，保留本月行动力购买记录及其他任务状态。"""
+        if path == 'OpsiExplore.OpsiExplore.ExploreProgress':
+            fields = data.setdefault('OpsiExplore', {}).setdefault('OpsiExplore', {})
+            fields['LastZone'] = 0
+            fields['MeowfficerCleanupState'] = None
+        else:
+            storage = data.setdefault('OpsiScheduling', {}).setdefault('Storage', {}).get('Storage')
+            if isinstance(storage, dict):
+                storage.pop('SmartExplore', None)
 
     @staticmethod
     def _sync_record_time(fields, arg):
@@ -514,9 +584,17 @@ class ConfigService:
         with self.lock, config_transaction(self.path(name)):
             if self.read(name)[1] != revision:
                 raise ApiError('CONFLICT', '配置已变化，请重新加载后删除')
+            from module.runtime.game_data import GameDataProtector
+            protection = GameDataProtector(self.root)
+            if protection.initialized():
+                with protection.transaction():
+                    pass
             # 删除操作保留备份，用户可从 config/backup 手动恢复。
             backup = self.directory / 'backup'
             backup.mkdir(exist_ok=True)
             target = backup / f'{name}-{datetime.now():%Y%m%d-%H%M%S-%f}.json'
             self.path(name).replace(target)
+            from module.scheduler.store import ProgramStore
+            ProgramStore(self.directory).archive(name, backup / target.stem)
+            protection.retire(name)
             return {'deleted': name}
