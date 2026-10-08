@@ -11,6 +11,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 REMOVED_NETWORK_MODULES = (
     "module/api/android_update.py",
     "module/api/stock_exchange_service.py",
+    "module/api/stock_exchange_recovery.py",
     "module/api/stock_exchange_history.py",
     "deploy/geo.py",
     "deploy/git_over_cdn/client.py",
@@ -35,6 +36,7 @@ REMOVED_NETWORK_MODULES = (
 REMOVED_IMPORTS = (
     "module.api.android_update",
     "module.api.stock_exchange_service",
+    "module.api.stock_exchange_recovery",
     "module.api.stock_exchange_history",
     "deploy.git_over_cdn.client",
     "module.base.api_client",

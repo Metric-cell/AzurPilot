@@ -1,5 +1,8 @@
 # WebUI 总览
 
+> clean 部署适用范围：遥测、日报生成发送、交易所远端代理/订阅/上传、MCP、远控及自动更新均已裁剪。下文保留的上游架构背景不代表这些入口存在；实际入口以本分支源码与 [裁剪边界](../../../CLEAN_POLICY.md) 为准。本地资源管理、历史与身份迁移继续保留。
+
+
 > AzurPilot 的浏览器控制台体系：React 前端、WebSocket API、进程运行时与实例调度器四层协作，把「人在浏览器里点按钮」变成「一组互相监督的子进程安全地控制模拟器」。
 
 ## 1. 模块概述
@@ -257,6 +260,7 @@ WebUI 涉及三类配置，读写路径与生效时机各不相同：
 
 关键关联：
 
+- 背景与透明效果由应用的背景设置和玻璃／普通材质决定，不随 Windows 透明效果开关或 `prefers-reduced-transparency` 降级；高对比度、强制颜色及减少动画的现有降级规则仍保留。
 - `config/deploy.yaml` 的 `Webui.WebuiPort`（默认 25548）、`Webui.WebuiHost`、`Webui.WebuiSSLKey/SSLCert` 决定监听；CLI 参数优先。`Update.EnableReload` 决定是否有热重载监督。
 - `Webui.Run`（或 CLI `--run`）列出启动时自动运行的实例，由应用 lifespan 消费。
 - 公网监听且未设密码时自动生成 32 位随机密码，写入根目录 `password.txt` 并回写部署配置；本机连接免密。

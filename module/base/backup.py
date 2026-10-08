@@ -3,6 +3,7 @@
 提供数据库和用户配置的每日自动备份、压缩存档与历史备份过期清理功能。
 """
 
+from module.base.runtime_params import BACKUP_KEEP_DAYS
 import json
 import shutil
 import sqlite3
@@ -17,12 +18,12 @@ ROOT_DIR = Path(__file__).resolve().parents[2]
 CONFIG_DIR = ROOT_DIR / 'config'
 BACKUP_ROOT = ROOT_DIR / 'AzurPilot_Data_Backup'
 
-BACKUP_KEEP_DAYS = 7
 
 DATABASE_FILES = (
     'azurstats_local.db',
     'cl1_data.db',
     'storage_statistics.db',
+    'daily_summary.db',
 )
 
 
@@ -90,10 +91,7 @@ def backup_database(backup_dir):
         target = backup_dir / name
 
         try:
-            sqlite_backup(
-                source=source,
-                target=target,
-            )
+            sqlite_backup(source=source, target=target)
 
             files.append({
                 'name': name,
@@ -167,6 +165,7 @@ def backup_config(backup_dir):
             logger.warning(f'用户配置备份失败：{file.name}，{e}')
 
     return files
+
 
 def sqlite_backup(source, target):
     """使用 SQLite 原生 backup() 接口备份数据库。

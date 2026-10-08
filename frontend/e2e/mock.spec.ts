@@ -1,5 +1,84 @@
 import { expect, test } from '@playwright/test'
 
+test('统计慢请求合并更新且概览事件不重复取数', async ({page}) => {
+  const ids = new Set<string>()
+  const held: string[] = []
+  let overview = ''
+  let emit: (topic: string, instance?: string) => void = () => {}
+  let release: () => void = () => {}
+  await page.routeWebSocket('**/api/v1/ws', socket => {
+    const server = socket.connectToServer()
+    emit = (topic, instance = 'demo-main') => {
+      /* 概览事件回放服务端的真实载荷：右栏直接按 Overview 形状消费事件数据，占位载荷会把它渲染崩。 */
+      if (topic === 'overview' && overview) socket.send(overview)
+      else socket.send(JSON.stringify({v: 1, type: 'event', topic, seq: 100, data: {instance}}))
+    }
+    release = () => socket.send(held.shift()!)
+    socket.onMessage(message => {
+      const request = JSON.parse(String(message))
+      if (request.method === 'statistics.report') ids.add(request.id)
+      server.send(message)
+    })
+    server.onMessage(message => {
+      const response = JSON.parse(String(message))
+      if (response.topic === 'overview') overview = String(message)
+      if (ids.has(response.id)) held.push(String(message))
+      else if (response.topic !== 'statistics') socket.send(message)
+    })
+  })
+  await page.addInitScript(() => {
+    localStorage.setItem('azurpilot.theme', 'light')
+    localStorage.setItem('azurpilot.statistics', JSON.stringify({category: 'opsi'}))
+  })
+  await page.goto('/#/i/demo-main/statistics')
+  await expect.poll(() => held.length).toBe(1)
+  await expect.poll(() => overview !== '', {timeout: 15_000}).toBe(true)
+  for (let index = 0; index < 20; index++) {emit('overview'); emit('statistics')}
+  await page.waitForTimeout(600)
+  expect(ids.size).toBe(1)
+  release()
+  await expect(page.getByText('出击消耗', {exact: true})).toBeVisible()
+  await expect.poll(() => held.length).toBe(1)
+  expect(ids.size).toBe(2)
+  release()
+  for (let index = 0; index < 20; index++) {emit('overview'); emit('statistics', 'demo-alt')}
+  await page.waitForTimeout(600)
+  expect(ids.size).toBe(2)
+  await page.screenshot({path: test.info().outputPath('statistics-coalesced.png'), fullPage: true})
+})
+
+test('统计切换分类后丢弃旧响应和旧刷新回调', async ({page}) => {
+  let held = ''
+  let oldId = ''
+  let release: () => void = () => {}
+  await page.routeWebSocket('**/api/v1/ws', socket => {
+    const server = socket.connectToServer()
+    release = () => socket.send(held)
+    socket.onMessage(message => {
+      const request = JSON.parse(String(message))
+      if (request.method === 'statistics.report' && request.params.category === 'opsi') oldId = request.id
+      server.send(message)
+    })
+    server.onMessage(message => {
+      const response = JSON.parse(String(message))
+      if (response.id === oldId && oldId) held = String(message)
+      else socket.send(message)
+    })
+  })
+  await page.addInitScript(() => {
+    localStorage.setItem('azurpilot.theme', 'light')
+    localStorage.setItem('azurpilot.statistics', JSON.stringify({category: 'opsi'}))
+  })
+  await page.goto('/#/i/demo-main/statistics')
+  await expect.poll(() => held.length).toBeGreaterThan(0)
+  await page.getByRole('tab', {name: '舰船经验', exact: true}).click()
+  await expect(page.getByText('目标等级', {exact: true})).toBeVisible()
+  release()
+  await page.waitForTimeout(400)
+  await expect(page.getByText('目标等级', {exact: true})).toBeVisible()
+  await expect(page.getByText('出击消耗', {exact: true})).toHaveCount(0)
+})
+
 test('大世界掉落缺图回退领奖模板并显示月度Boss筛选', async ({page}) => {
   await page.emulateMedia({reducedMotion: 'reduce'})
   await page.addInitScript(() => {
@@ -561,34 +640,6 @@ test('配置字体、多行输入与 YAML 编辑实时保存及主题颜色', as
   expect(errors).toEqual([])
 })
 
-test('受限 Lua 策略保留本地草稿，检查通过后才可应用', async ({page}) => {
-  await page.goto('/#/i/demo-main/task/EventShop')
-  const script = page.locator('[id="EventShop.ShopAdvanced.Script"]')
-  const check = page.getByRole('button', {name: '检查', exact: true})
-  const apply = page.getByRole('button', {name: '应用', exact: true})
-  await expect(page.getByText('高级商店策略说明', {exact: true})).toBeVisible()
-  await expect(page.getByText('context.domain', {exact: true})).toHaveCount(1)
-  await page.screenshot({path: 'test-results/restricted-lua-help.png', fullPage: true})
-  await expect(apply).toBeDisabled()
-
-  await script.fill('os.execute("bad")')
-  await check.click()
-  await expect(page.getByText('不允许调用 os.execute', {exact: true})).toBeVisible()
-  await expect(page.getByText('位置 1:1', {exact: true})).toBeVisible()
-  await expect(apply).toBeDisabled()
-
-  const valid = 'return shop.plan { candidates = candidates:take(0) }'
-  await script.fill(valid)
-  await expect(apply).toBeDisabled()
-  await check.click()
-  await expect(apply).toBeEnabled()
-  await apply.click()
-  await page.reload()
-  await expect(script).toHaveText(valid)
-  await page.setViewportSize({width: 390, height: 844})
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
-  await page.screenshot({path: 'test-results/restricted-lua-mobile.png', fullPage: true})
-})
 
 test('输入框随内容和宽度变化增高，删除后缩回单行', async ({page}) => {
   const errors: string[] = []
@@ -965,4 +1016,50 @@ test('材质细节四层接线：逐层可调，重复值不落盘', async ({pag
     return Math.round(scope.getBoundingClientRect().right - modal.getBoundingClientRect().right)
   })
   expect(overflow).toBeLessThanOrEqual(0)
+})
+
+
+for (const category of ['opsi', 'action', 'ships', 'loot', 'resources']) {
+  test(`统计 ${category} 保持展示并提供文件导出入口`, async ({page}) => {
+    await page.emulateMedia({reducedMotion: 'reduce'})
+    await page.addInitScript(category => {
+      localStorage.setItem('azurpilot.theme', 'light')
+      localStorage.setItem('azurpilot.statistics', JSON.stringify({category}))
+    }, category)
+    await page.goto('/#/i/demo-main/statistics')
+    await expect(page.getByRole('button', {name: '刷新统计', exact: true}).first()).toBeVisible()
+    await expect(page.getByRole('button', {name: /导出/}).first()).toBeVisible()
+    await expect(page.locator('.statistics-metrics, .statistics-table, .statistics-chart').first()).toBeVisible()
+    if (category === 'opsi') await page.screenshot({path: test.info().outputPath('opsi-v2-page.png'), fullPage: true})
+  })
+}
+
+test('仓库分类继续提供原有文件导出', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('azurpilot.statistics', JSON.stringify({category: 'storage'})))
+  await page.goto('/#/i/demo-main/statistics')
+  await expect(page.getByRole('button', {name: /导出/}).first()).toBeVisible()
+})
+
+
+test('商店配置只显示官源购买设置并保留普通过滤器保存', async ({page}) => {
+  for (const task of ['EventShop', 'ShopFrequent', 'ShopOnce', 'PrivateQuarters', 'OpsiShop', 'OpsiVoucher']) {
+    await page.goto(`/#/i/demo-main/task/${task}`)
+    await expect(page.locator('.config-group').first()).toBeVisible()
+    await expect(page.locator('[id="group-ShopAdvanced"]')).toHaveCount(0)
+    await expect(page.locator('.restricted-lua-editor')).toHaveCount(0)
+  }
+  await page.goto('/#/i/demo-main/task/EventShop')
+  const filter = page.locator('[id="EventShop.EventShop.CustomFilter"]')
+  await filter.fill('Cube > Oil')
+  await filter.blur()
+  await expect(page.locator('[id="EventShop.EventShop.CustomFilter-status"]')).toContainText('已保存')
+  await page.reload()
+  await expect(filter).toHaveValue('Cube > Oil')
+  await page.setViewportSize({width: 390, height: 844})
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  const close = page.locator('.mobile-close')
+  if (await close.isVisible()) await close.click()
+  await filter.scrollIntoViewIfNeeded()
+  await expect(filter).toBeInViewport()
+  await page.screenshot({path: 'test-results/shop-upstream-mobile.png', fullPage: true})
 })

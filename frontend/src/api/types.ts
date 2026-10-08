@@ -102,9 +102,6 @@ export interface DeployField { key: string; type: string; label: string; help: s
 export interface Settings { groups: {key: string; label: string; fields: DeployField[]}[]; notice: string; demo: boolean }
 export interface ApiEvent { v: 1; type: 'event'; topic: string; seq: number; data: unknown }
 export interface ApiResponse { v: 1; type: 'response'; id: string; ok: boolean; result?: unknown; error?: {code: string; message: string; details?: unknown} }
-export interface ScriptDiagnostic { code?: string; message: string; line?: number | null; column?: number | null; severity?: 'error' | 'warning' }
-export interface ShopStrategyValidation { valid: boolean; diagnostics: ScriptDiagnostic[]; summary?: string }
-export type ShopStrategyTask = 'EventShop' | 'ShopFrequent' | 'ShopOnce' | 'PrivateQuarters' | 'OpsiShop' | 'OpsiVoucher'
 export interface Announcement {
   announcementId: string
   title: string
@@ -122,6 +119,7 @@ export interface BackgroundGalleryEntry {
 }
 
 export interface Results {
+  'statistics.resourceFlows': ResourceFlowReport
   'opsi.simulator.status': OpsiSimulatorStatus
   'opsi.simulator.start': OpsiSimulatorStatus
   'opsi.simulator.stop': OpsiSimulatorStatus
@@ -154,7 +152,6 @@ export interface Results {
   'instances.delete': {deleted: string}
   'config.get': Config
   'config.patch': Config
-  'shop_strategy.validate': ShopStrategyValidation
   'overview.get': Overview
   'scheduler.start': Overview
   'scheduler.stop': Overview
@@ -170,6 +167,19 @@ export interface Results {
   'settings.patch': {updated: string[]}
   'startup.get': {enabled: boolean; remember: boolean}
   'startup.set': {enabled: boolean; remember: boolean}
+}
+
+export interface ResourceFlowEntry {
+  id: number; ts: string; resource: string; amount: number; task: string; operation: string
+  evidence: 'confirmed' | 'recognition' | 'observed' | 'adjustment'; run_id: string | null
+}
+export interface ResourceFlowReport {
+  instance: string; start: string; end: string; offset: number; limit: number; total: number; throughId: number
+  resources: {key: string; label: string; group: string; current: number | null; observedAt: string | null; income: number; expense: number; adjustment: number; count: number}[]
+  tasks: string[]
+  flows: {resource: string; task: string; operation: string; evidence: ResourceFlowEntry['evidence']; income: number; expense: number; count: number}[]
+  entries: ResourceFlowEntry[]
+  oilControl: {enable: boolean; target: number}
 }
 
 

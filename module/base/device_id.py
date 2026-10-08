@@ -149,8 +149,7 @@ def _init_device_id() -> str:
     # 立即覆写新 ID
     device_id = generate_device_id()
     _overwrite_device_id(device_id, device_id_file)
-    logger.info(f'设备ID initialized: {device_id[:8]}...')
-    
+
     _start_refresh_timer(device_id, device_id_file)
     
     return device_id

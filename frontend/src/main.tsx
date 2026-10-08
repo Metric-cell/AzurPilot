@@ -34,11 +34,14 @@ class ErrorBoundary extends Component<{children: ReactNode}, {failed: boolean}> 
 }
 const SchedulerProgram = lazy(() => import('./pages/SchedulerProgram').then(module => ({default: module.SchedulerProgram})))
 
+const ResourceManagement = lazy(() => import('./pages/ResourceManagement').then(module => ({default: module.ResourceManagement})))
+
 const router = createHashRouter([
   {path: '/', element: <App/>, errorElement: <ErrorPage/>, children: [{index: true, element: <Home/>}, {path: 'interface', element: <InterfaceSettings/>}, {path: 'settings', element: <Settings/>}, {path: 'configs', element: <ConfigManager/>}, {path: 'dev', element: <DevControls/>}]},
   {path: '/i/:instance', element: <App/>, errorElement: <ErrorPage/>, children: [
     {index: true, element: <Navigate to="overview" replace/>},
     {path: 'overview', element: <Overview/>}, {path: 'task/:task', element: <TaskConfig/>},
+    {path: 'resources', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><ResourceManagement/></Suspense>},
     {path: 'logs', element: <Navigate to="../overview" replace/>}, {path: 'statistics', element: <Statistics/>}, {path: 'scheduler', element: <Navigate to="../task/SchedulerProgram" replace/>}, {path: 'settings', element: <Navigate to="/settings" replace/>},
     {path: 'task/SchedulerProgram', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><SchedulerProgram/></Suspense>},
   ]},

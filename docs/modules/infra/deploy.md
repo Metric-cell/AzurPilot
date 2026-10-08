@@ -61,15 +61,11 @@ deploy/
 
 ### 本地历史持久化
 
-clean 分支删除交易所远端服务和后台上传，但图形调度与行动力历史仍使用本地身份和加密存储。持久化 `config/` 与 `cache/`，包括 `config/stock-exchange/game.key`、`registry.json` 和 `cache/stock-exchange/` 中的身份与历史检查点。
+clean 分支删除交易所远端服务和后台上传，但图形调度与行动力历史仍使用本地身份和加密存储。新版统一持久化在 `config/stock-exchange/`，包括 `game.key`、`registry.json`、身份与历史检查点。首次升级需同时保留旧 `cache/stock-exchange/` 可读写，程序迁移到 config 后仍使用原身份；不能因目录名称包含 stock 就删除本地数据。
 
-```yaml
-volumes:
-  - ./config:/app/AzurPilot/config:rw
-  - ./cache:/app/AzurPilot/cache:rw
-```
+备份和迁移前停止服务与 worker，再一起复制配置、SQLite（含 WAL）、旧 CL1 统计库、设备身份及本地加密数据。旧格式升级须在原容器项目路径下进行，保留原用户密钥目录中的 `.game` 登记与配套 `.key`。账号保险库的项目外本机密钥与 machine-id 继续按原部署方式保留，它们与行动力历史的文件密钥是不同的保护机制。
 
-备份和迁移前停止服务与 worker，再一起复制配置、SQLite（含 WAL）、旧 CL1 统计库、设备身份及本地加密数据。账号保险库使用的项目外本机密钥与 machine-id 继续按原来的部署方式保留，它们与行动力历史的文件密钥是两套不同的保护机制。不要通过删除密钥、登记或身份文件来重建已有数据。完整 clean 边界见 [CLEAN_POLICY.md](../../../CLEAN_POLICY.md)。
+统计库与舰船经验的新写入使用普通 SQLite/JSON；`opsi_secure` 仅负责旧统计密文的本地兼容读取和迁移，不恢复日报或上传服务。保留旧日报数据库的迁移与备份能力，避免丢失已有文件。迁移成功才清理对应旧统计密钥；升级前完整备份，不删除密钥、登记或身份文件来重建已有数据。完整 clean 边界见 [CLEAN_POLICY.md](../../../CLEAN_POLICY.md)。
 
 ## 6. 工作流程
 

@@ -2,19 +2,25 @@
 
 > React 控制台（frontend/）：React + TypeScript + Vite 实现的 WebUI，业务通信统一走 `/api/v1/ws`。详细界面设计与协议见 frontend/README.md 与 frontend/API.md。
 
+本页适用于 clean 分支：保留本地界面与资源管理，交易终端、验证码、后台上传、在线更新、远控和自动公告均已裁剪。完整边界见 [CLEAN_POLICY.md](../../../CLEAN_POLICY.md)。
+
 ## 1. 模块概述
 
-frontend/ 是 AzurPilot 的浏览器控制台，替代旧版 PyWebIO 界面，覆盖主页与实例导航、任务配置表单、总览日志与截图预览、统计图表、系统设置、远程访问与更新器。前端不包含任何游戏逻辑，所有业务操作都通过 WebSocket API 交给 [API 服务](api.md)执行。
+实例侧栏新增独立 [资源管理](resource-management.md) 页 `/i/:instance/resources`，由 `pages/ResourceManagement.tsx` 与 `resources/` 提供 ECharts 桑基图、库存与收支明细。图节点支持资源与任务筛选，明细支持分页和完整区间 CSV 导出；原调度的石油自动控制使用现有配置事务接口保存。五种语言、窄屏和空数据状态均沿用控制台组件与主题。
+
+frontend/ 是 AzurPilot 的浏览器控制台，替代旧版 PyWebIO 界面，覆盖主页与实例导航、任务配置表单、总览日志与截图预览、资源管理、统计图表与系统设置。前端不包含任何游戏逻辑，所有业务操作都通过 WebSocket API 交给 [API 服务](api.md)执行。
 
 frontend/README.md 与 frontend/API.md 已经是本前端的详细文档：前者覆盖界面行为、主题材质、启动开发与迁移边界，后者定义消息协议。本文不重复其内容，只作为模块文档体系的索引篇，说明目录分工、构建测试入口与生成产物红线。
 
 注意：项目中的 **1280×720 是游戏截图识别的约束，不适用于 WebUI 布局**。前端按普通响应式网页开发，支持移动端折叠菜单，e2e 视口为 1440×1100。
 
+统计页各分类均保留历史展示与筛选，并提供导出入口：页面可导出本类数据，表格有各自的导出明细按钮，图表支持保存为图片。
+
 ## 2. 模块职责
 
 ### 负责
 
-- 渲染单页应用（hash 路由）：主页、实例总览、任务配置、统计、系统设置、更新器等页面
+- 渲染单页应用（hash 路由）：主页、实例总览、任务配置、资源管理、统计与系统设置等页面
 - WebSocket 连接管理：认证、心跳、请求关联、超时与重连（`src/api/client.ts`）
 - 配置表单展示与保存：字段保存队列、草稿恢复、重试与数值校验（`src/config/EditQueue.ts`）
 - 任务优先级字段的拖动排序与解析：`src/app/taskPriority.ts`（纯函数：解析/合并/移动）+ `src/components/TaskPriorityField.tsx`（拖拽交互），写入 `Scheduler_Scheduler_Tasks`，提交值用 `
@@ -26,7 +32,7 @@ frontend/README.md 与 frontend/API.md 已经是本前端的详细文档：前�
 ### 不负责
 
 - API 协议、认证会话与业务适配：在 `module/api`，见 [API 服务](api.md)
-- 进程、OCR、更新与认证等运行时服务：在 `module/runtime`，见 [WebUI 总览](index.md)
+- 进程、OCR 与认证等运行时服务：在 `module/runtime`，见 [WebUI 总览](index.md)
 - 游戏配置定义与翻译生成：在 `module/config/`，见 [配置系统](../config.md)
 - 真实运行与完整业务校验：mock 服务只验证前端交互，安全策略以 Python API 测试为准
 
@@ -37,8 +43,8 @@ frontend/
 ├── src/main.tsx              # 应用入口：hash 路由表、错误兜底、先加载主题再挂载
 ├── src/api/                  # client.ts 连接层；generated.ts 与 contract.json 为生成产物
 ├── src/app/                  # 布局、主题系统（theme.ts 按需加载）、连接上下文、任务优先级解析（taskPriority.ts）、各类偏好
-├── src/pages/                # 页面：Home / Overview / TaskConfig / Statistics / Settings / Updater 等
-├── src/stock/                # 茗喵证券交易终端、开户登录、身份信息与行情图表
+├── src/pages/                # 页面：Home / Overview / TaskConfig / ResourceManagement / Statistics / Settings 等
+├── src/resources/            # 资源管理桑基图、图数据转换与页面样式
 ├── src/components/           # 可复用组件：FormControls、LogPanel、StatisticsChart、TaskPriorityField（任务优先级拖动排序）、实例切换等
 ├── src/config/               # EditQueue 跨页面字段保存队列、草稿恢复、输入校验
 ├── src/styles/               # 设计变量与界面样式（apple / forms / compact / minimal 等 css）
@@ -55,10 +61,6 @@ frontend/
 ## 4. 核心入口
 
 追代码从 `src/main.tsx` 开始：hash 路由表、顶层 ErrorBoundary 与主题加载流程都在这里。
-
-茗交所入口为 `src/pages/StockExchange.tsx`，实例侧栏的「茗喵证券交易所」导航位于「资源统计」下方，由 `src/app/App.tsx` 提供；总览资源卡片设置旁的快捷入口已移除，移动端从导航抽屉进入。交易终端独立顶栏固定在窗口顶部，左侧依次提供返回总览、用户入口与亮暗主题切换按钮，右侧留空。`src/stock/theme.tsx` 管理独立主题，默认暗色，通过 `localStorage` 的 `azurpilot.stock-theme` 记住本机选择，不跟随 WebUI 或系统主题；`src/stock/theme.css` 定义亮色语义配色，图表和验证码使用同一主题上下文，全屏图表的 Portal 显式携带主题属性。切换保留页面、表单与图表缩放范围。开户、登录弹窗提供返回当前实例总览的链接，状态与行情加载期间隐藏返回入口；交互与联调方式见 [前端 README「茗喵证券交易所」](../../../frontend/README.md#茗喵证券交易所)。
-
-茗交所 Mock 还需单独启动相邻交易所仓库的 Go Mock 服务，本仓库 `dev:mock` 只提供模拟 API 与 Vite。代理将上游连接失败归为 `STOCK_UNAVAILABLE` 并提示启动方式，无效 JSON 或响应时间归为 `STOCK_INVALID_RESPONSE`，不再误报为浏览器请求格式错误；修复上游后可在交易页面重试连接。
 
 | 入口 | 用途 |
 | --- | --- |
@@ -79,12 +81,12 @@ Node.js >= 22.12（推荐 24），首次准备用 `npm ci --prefix frontend`。
 - 开发联调：`uv run python gui.py` 起后端（默认端口见 config/deploy.yaml 的 `WebuiPort`），另开 `npm run dev`，Vite 将 `/api`（含 WebSocket）与 `/healthz` 代理到后端，`AZURPILOT_BACKEND` 可换目标；代理保留 Host，浏览器来源校验仍然有效。
 - 纯前端开发：`npm run dev:mock`，模拟服务只读公开的 args.json、menu.json、翻译与 template.json，所有数据在内存，重启即重置。
 - 构建部署：`npm run build` 产出 `dist/`。gui.py 启动时检查前端源码摘要，缺产物或源码变化时自动执行 `npm ci` 与构建；Docker 多阶段构建预装静态产物。
-- 构建使用相对 base（`base: './'`）：远程访问经 `/<peer_id>/` 前缀式反代加载，绝对路径会 404。
+- 构建沿用相对 base（`base: './'`），静态资源路径与入口页面保持一致。
 
 ## 16. 修改注意事项
 
 - **生成产物红线**：`src/api/generated.ts` 与 `src/api/contract.json` 由 `uv run python -m dev_tools.export_api_schema` 生成，禁止手改；CI 会重新生成并用 `git diff --exit-code` 校验。新增 API 方法的顺序：先定义后端参数模型与路由，再运行生成器，然后更新 `src/api/types.ts` 响应类型与对应测试；不得通过方法名反射任意 Python 属性。
-- **`base: './'` 不能改回绝对路径**：这是远程访问反代的硬性要求，且配套要求 deploy.yaml 的 `RemoteAccessMode` 为 ssh。
+- **相对静态资源路径**：保留 `base: './'`，修改部署路径时同步验证入口页面和静态资源加载。
 - **不要在 React 中重复登记游戏配置**：配置表单直接读取后端生成的 args.json、menu.json 与翻译文件；新增任务或参数只需改 `module/config/` 并重新生成。
 - 新增选择器使用 `FormControls.tsx` 的 `Select`，配置字段使用 `FieldInput`，不要在各页面单独绘制箭头、勾选等图标。
 - 控制台固定文案在 `src/i18n.ts`（五种语言）；游戏任务配置的名称与说明翻译在 `module/config/i18n/`，二者独立，别改错位置。

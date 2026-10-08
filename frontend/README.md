@@ -155,6 +155,6 @@ npm run test:e2e:mock
 
 ## clean 部署
 
-此分支保留本地调度与统计界面，删除交易所导航、页面、代理 API、验证码及后台上传。更新、远控、自动公告与第三方遥测继续按 [CLEAN_POLICY.md](../CLEAN_POLICY.md) 裁剪。
+此分支保留本地调度、资源管理与统计界面，删除交易所导航、页面、代理 API、验证码及后台上传。更新、远控、自动公告与第三方遥测继续按 [CLEAN_POLICY.md](../CLEAN_POLICY.md) 裁剪。
 
 本地行动力历史使用的身份与加密存储仍须持久化，见[本地历史持久化](../docs/modules/infra/deploy.md#本地历史持久化)。

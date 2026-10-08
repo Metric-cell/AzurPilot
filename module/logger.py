@@ -174,7 +174,7 @@ class RichTimedRotatingHandler(TimedRotatingFileHandler):
             show_time=False,
             show_level=False,
             rich_tracebacks=True,
-            tracebacks_show_locals=True,
+            tracebacks_show_locals=False,
             tracebacks_extra_lines=3,
             highlighter=NullHighlighter(),
         )
@@ -440,7 +440,7 @@ console_hdlr = RichHandler(
     show_path=False,
     show_time=False,
     rich_tracebacks=True,
-    tracebacks_show_locals=True,
+    tracebacks_show_locals=False,
     tracebacks_extra_lines=3,
 )
 console_hdlr.setFormatter(console_formatter)
@@ -528,6 +528,19 @@ def set_file_logger(name=None):
     logger.log_file = hdlr.log_file
 
 
+def set_console_logger(enabled=True):
+    """开关当前进程的控制台日志处理器；WebUI 子进程关闭后只把日志写进文件。
+
+    Args:
+        enabled (bool, optional): True 添加控制台处理器，False 移除。默认为 True。
+    """
+    if enabled:
+        if console_hdlr not in logger.handlers:
+            logger.addHandler(console_hdlr)
+    elif console_hdlr in logger.handlers:
+        logger.removeHandler(console_hdlr)
+
+
 def set_func_logger(func):
     """设置将日志输出传递给回调函数的处理器（用于 WebUI 实时展示）。
 
@@ -551,7 +564,7 @@ def set_func_logger(func):
         show_time=False,
         show_level=True,
         rich_tracebacks=True,
-        tracebacks_show_locals=True,
+        tracebacks_show_locals=False,
         tracebacks_extra_lines=2,
         highlighter=Highlighter(),
     )

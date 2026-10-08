@@ -21,7 +21,7 @@ describe('routeDirection', () => {
   it('顶层导航按侧栏顺序判断横向方向', () => {
     expect(routeDirection('/interface', '/settings')).toBe('forward')
     expect(routeDirection('/settings', '/interface')).toBe('back')
-    expect(routeDirection('/updater', '/dev')).toBe('forward')
+    expect(routeDirection('/interface', '/dev')).toBe('forward')
   })
 
   it('实例内一级页按 总览→统计 的方向', () => {
@@ -32,7 +32,7 @@ describe('routeDirection', () => {
   it('无法判定方向时用淡入（任务参数切换、切换实例）', () => {
     expect(routeDirection('/i/a/task/Alas', '/i/a/task/Daily')).toBe('fade')
     expect(routeDirection('/i/a/overview', '/i/b/overview')).toBe('fade')
-    expect(routeDirection('/settings', '/updater')).toBe('back')
+    expect(routeDirection('/settings', '/interface')).toBe('back')
   })
 })
 

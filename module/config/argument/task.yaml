@@ -17,6 +17,7 @@ Alas:
       - Enhance
       - OldRetire
       - PublicEmotion
+      - OilControl
       - YukikazeTaskManager
     Restart:
       - Scheduler
@@ -150,7 +151,6 @@ Event:
     EventShop:
       - Scheduler
       - EventShop
-      - ShopAdvanced
     WarArchives:
       - Scheduler
       - Campaign
@@ -246,6 +246,7 @@ Reward:
       - Research
     StorageStatistics:
       - Scheduler
+      - StorageStatistics
     Dorm:
       - Scheduler
       - Dorm
@@ -287,14 +288,12 @@ DailyMission:
     ShopFrequent:
       - Scheduler
       - GeneralShop
-      - ShopAdvanced
     ShopOnce:
       - Scheduler
       - GuildShop
       - MedalShop2
       - MeritShop
       - CoreShop
-      - ShopAdvanced
     Shipyard:
       - Scheduler
       - ShipyardDr
@@ -313,7 +312,6 @@ DailyMission:
     PrivateQuarters:
       - Scheduler
       - PrivateQuarters
-      - ShopAdvanced
 Opsi:
   menu: collapse
   page: setting
@@ -337,11 +335,9 @@ Opsi:
     OpsiShop:
       - Scheduler
       - OpsiShop
-      - ShopAdvanced
     OpsiVoucher:
       - Scheduler
       - OpsiVoucher
-      - ShopAdvanced
     OpsiDaily:
       - Scheduler
       - OpsiDaily
@@ -472,6 +468,20 @@ FleetManagement:
   tasks:
     FleetInfo:
       - FleetInfo
+
+# ==================== Run Params ====================
+
+RunParams:
+  menu: collapse
+  page: setting
+  tasks:
+    RunParams:
+      - Watchdog
+      - Reboot
+      - Device
+      - ScreenRecord
+      - UiWait
+      - Handover
 
 # ==================== Tool ====================
 

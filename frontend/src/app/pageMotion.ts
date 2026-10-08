@@ -12,9 +12,9 @@ export { triggerCardStaggerMotion, replayCardStaggerMotion } from './cardMotion'
 export type NavDirection = 'forward' | 'back' | 'fade'
 
 /* 侧栏顶层导航的展示顺序：同深度页面之间用它判断横向方向（向右 = forward）。 */
-const PRIMARY_NAV_ORDER = ['/updater', '/interface', '/remote', '/configs', '/settings', '/dev']
+const PRIMARY_NAV_ORDER = ['/interface', '/configs', '/settings', '/dev']
 /* 实例内一级页的展示顺序。 */
-const INSTANCE_PAGE_ORDER = ['/overview', '/statistics']
+const INSTANCE_PAGE_ORDER = ['/overview', '/resources', '/statistics']
 
 export function routeDepth(pathname: string): number {
   return pathname.split('/').filter(Boolean).length

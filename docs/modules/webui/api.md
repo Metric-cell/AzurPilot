@@ -1,8 +1,13 @@
 # API 服务（module/api）
 
+> clean 部署适用范围：遥测、日报生成发送、交易所远端代理/订阅/上传、MCP、远控及自动更新均已裁剪。下文保留的上游架构背景不代表这些入口存在；实际入口以本分支源码与 [裁剪边界](../../../CLEAN_POLICY.md) 为准。本地资源管理、历史与身份迁移继续保留。
+
+
 > WebUI 的后端服务：一个 Starlette ASGI 应用把 React 静态资源、同源 WebSocket 业务通道与 MCP SSE 子应用组装进同一进程；业务数据全部经 v1 信封走单一 WebSocket，HTTP 只保留静态资源、健康检查与一份自包含报告页。
 
 ## 1. 模块概述
+
+`statistics.resourceFlows` 是资源管理的只读查询方法，参数模型为 `ResourceFlowsParams`，`resource_service.py` 核验实例、日期与分页后委托本地资源账本聚合，并补充可靠仪表盘及仓库库存。它不访问设备或启动游戏；石油控制设置继续通过原有配置 API 读写。数据与导出快照语义见 [资源管理](resource-management.md)。
 
 module/api 是 React WebUI 的全部后端。浏览器加载 `http://{host}:{port}` 后，页面资源由静态文件服务提供，而之后的一切业务——读配置、改配置、启动调度器、看日志、看截图、读统计、管理更新——都通过同一条 `/api/v1/ws` WebSocket 连接完成。这个「业务全走 WS」的决策是模块的设计核心：
 
@@ -12,7 +17,7 @@ module/api 是 React WebUI 的全部后端。浏览器加载 `http://{host}:{por
 
 模块本身刻意做成**薄适配层**：它不做游戏业务，只做「协议收发 + 参数校验 + 编排」。真正的业务要么委托给 `module/runtime/`（进程管理、更新器、部署设置），要么委托给 `module/config/transaction` 的跨进程事务与 `module/statistics/` 的统计数据源。这使 API 层可以在测试中用临时配置目录 + 关闭真实进程生命周期的方式完整运行（`create_app` 的测试参数），而不接触任何设备。
 
-与独立 MCP 服务的关系是**宿主与挂载件**：`create_app(mount_mcp=True)` 时把 MCP SSE 应用以 `Mount('/mcp')` 挂进来，两者共享同一份 `ConfigService`/`RuntimeService` 对象和同一个访问密码，关闭时先等 MCP 在途操作结束再回收共享运行时。独立运行的 MCP（`mcp_server_sse.py`，见 [MCP SSE 服务器](../entry/mcp-server.md)）则自己管理生命周期。
+与独立 MCP 服务的关系是**宿主与挂载件**：上游原有 MCP 挂载（clean 已删除） 时把 MCP SSE 应用以 `Mount('/mcp')` 挂进来，两者共享同一份 `ConfigService`/`RuntimeService` 对象和同一个访问密码，关闭时先等 MCP 在途操作结束再回收共享运行时。独立运行的 MCP（`mcp_server_sse.py`，见 [MCP SSE 服务器](../entry/mcp-server.md)）则自己管理生命周期。
 
 ## 2. 模块职责
 
@@ -59,11 +64,13 @@ module/api/
 
 仓库报告使用 `statistics.report(category='storage', days=7)` 只读查询最近完整快照及时间窗口内成功扫描的历史序列。序列的可选 `icon` 在逐点与共用时间轴两种格式中保留，物品图标由 `/storage-items/` 静态挂载提供。主动扫描沿用 `tasks.run(task='StorageStatistics')` 与实例运行互斥；页面刷新不启动扫描。
 
+其他分类报表在同一请求内共用一次受保护数据校验及协调锁，避免每个指标扫描全部历史。`CategorySection` 仅按 `statistics` 事件更新，同一分类最多保留一个正在执行的请求；期间收到的多次通知合并为一次后续刷新。运行概览事件不触发统计查询，SQLite WAL 的修改也纳入更新指纹；切换实例或参数后忽略旧响应。
+
 ## 4. 核心入口
 
 | 入口 | 用途 |
 | --- | --- |
-| `create_app()`（app.py） | uvicorn 以工厂字符串 `module.api.app:create_app` 加载；测试可传 `root`/`password`/`manage_runtime=False`/`mount_mcp=False` 隔离运行 |
+| `create_app()`（app.py） | uvicorn 以工厂字符串 `module.api.app:create_app` 加载；测试可传 `root`/`password`/`manage_runtime=False` 隔离运行 |
 | `Gateway.endpoint`（socket.py） | `/api/v1/ws` 的 ASGI 入口：Origin 校验、连接计数、创建 Session |
 | `Router.dispatch`（router.py） | 方法名 → 参数验证 → handler 的唯一分发路径 |
 | `ConfigService` / `RuntimeService` | MCP 工具与 WS handler 共用的两个服务对象 |
@@ -169,7 +176,6 @@ flowchart TD
 | [配置系统](../config.md) | `args.json`/`menu.json`/`i18n` 作为校验依据与下发数据；`config_transaction` 跨进程写锁 |
 | [调度器](../entry/alas.md) | `scheduler.start`/`tasks.run` 最终拉起的进程 |
 | `module/statistics/*` | 资源时间线、大世界月度、委托收益、舰船经验、掉落缓存 |
-| `module/shop_strategy` | 高级商店策略的静态校验（不执行脚本） |
 | `deploy/atomic` | 配置与 `password.txt` 的原子写 |
 
 ## 8. 数据流
@@ -397,7 +403,7 @@ ws.send_json({'v':1,'type':'request','id':'2','method':'events.subscribe',
 ## 19. 调试方法
 
 - **健康检查**：`GET /healthz` 应返回 `{'status': 'ok', 'protocolVersion': 1}`；`GET /` 返回 503 说明前端未构建（在 `frontend/` 执行 `npm ci && npm run build`）。
-- **单测夹具**：`create_app(root=临时目录, password='...', manage_runtime=False, mount_mcp=False)` 是标准隔离模式，见 `tests/test_api.py` 的 `fixture()`。相关模块：`tests.test_api`（协议/认证/配置事务）、`tests.test_api_lifecycle`（真实 Manager 生命周期）、`tests.test_api_mcp_integration`（MCP 挂载与关闭顺序）、`tests.test_frontend_static`（MIME 与 SPA 回退）。
+- **单测夹具**：`create_app(root=临时目录, password='...', manage_runtime=False)` 是标准隔离模式，见 `tests/test_api.py` 的 `fixture()`。相关模块：`tests.test_api`（协议/认证/配置事务）、`tests.test_api_lifecycle`（真实 Manager 生命周期）、`tests.test_api_mcp_integration`（MCP 挂载与关闭顺序）、`tests.test_frontend_static`（MIME 与 SPA 回退）。
 - **契约差异**：前端类型对不上时先跑 `uv run python -m dev_tools.export_api_schema` 看 diff，再查是不是手改了生成物。
 - **日志**：业务异常在服务日志中带 `WebSocket API 执行失败` 标题（含完整堆栈）；订阅异常有 `订阅数据读取失败`。客户端只会看到无堆栈的 `INTERNAL_ERROR`。
 - **更新问题**：`updater.status` 的 `error`/`busy`/`canApply` 字段是更新器状态的唯一窗口；fetch 失败细节在服务日志。
@@ -411,3 +417,7 @@ ws.send_json({'v':1,'type':'request','id':'2','method':'events.subscribe',
 - [MCP SSE 服务器](../entry/mcp-server.md) — 挂载于 `/mcp` 的独立协议子应用
 - [配置系统](../config.md) — 被校验与读写的数据来源（argument YAML、i18n、事务）
 - [外部桥接与开发工具](../infra/submodule-tools.md) — `dev_tools/export_api_schema` 所在的开发工具层
+
+### 茗交所实时订阅
+
+clean 不注册 `stock.status`、`stock.request`、`stock.rebuild`，也不接受 `stock` 事件订阅；不存在共享远端 SSE、上传或股票请求频率豁免。`statistics.resourceFlows` 提供本地资源区间与分页明细，不触发设备操作或外部请求。
