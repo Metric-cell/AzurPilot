@@ -119,6 +119,10 @@ module/api/
 
 把 `ProcessManager` 的进程世界翻译成前端视图：`STATES = {1: running, 2: stopped, 3: error, 4: updating}` 是进程状态与前端枚举的唯一映射；`logs()` 用对象身份匹配 `renderables` 的裁剪重叠区，保证游标单调递增；`capture()` 只读 `preview.hub` 的最新帧，**绝不主动触发截图**。
 
+`instances()` 保留 `server` 字段作为 `Emulator.ServerName` 开服检测配置，同时提供 `region` 作为游戏地区。
+地区复用 `to_server(Emulator.PackageName)`；包名未配置或为 `auto` 时返回 `null`，等待设备检测。
+需要判断国服功能是否可用的页面应读取 `region`，不能把可关闭的开服检测配置当作游戏地区。
+
 `overview()` 枚举任务时跳过非字典根节点，例如内部身份 `_stockInstance`。该字段仍由 `ConfigService.read()` 保留，不能当作任务参数组；总览请求、订阅推送以及启停后返回的总览共用这一读取路径。
 
 ## 6. 工作流程
@@ -403,7 +407,8 @@ ws.send_json({'v':1,'type':'request','id':'2','method':'events.subscribe',
 ## 19. 调试方法
 
 - **健康检查**：`GET /healthz` 应返回 `{'status': 'ok', 'protocolVersion': 1}`；`GET /` 返回 503 说明前端未构建（在 `frontend/` 执行 `npm ci && npm run build`）。
-- **单测夹具**：`create_app(root=临时目录, password='...', manage_runtime=False)` 是标准隔离模式，见 `tests/test_api.py` 的 `fixture()`。相关模块：`tests.test_api`（协议/认证/配置事务）、`tests.test_api_lifecycle`（真实 Manager 生命周期）、`tests.test_api_mcp_integration`（MCP 挂载与关闭顺序）、`tests.test_frontend_static`（MIME 与 SPA 回退）。
+- **启动器通道**：`/api/launcher/{status,startup,stream,report,trusted-login}` 与 `/launcher-login` 只服务外部启动器，全部限定本机回环，非本机一律 403（控制台的启动器卡片读同一组端点，远端访问时即显示「只能在本机 WebUI 中设置」）。
+- **单测夹具**：`create_app(root=临时目录, password='...', manage_runtime=False)` 是标准隔离模式，见 `tests/test_api.py` 的 `fixture()`。相关模块：`tests.test_api`（协议/认证/配置事务）、`tests.test_api_lifecycle`（真实 Manager 生命周期）、`tests.test_frontend_static`（MIME 与 SPA 回退）。
 - **契约差异**：前端类型对不上时先跑 `uv run python -m dev_tools.export_api_schema` 看 diff，再查是不是手改了生成物。
 - **日志**：业务异常在服务日志中带 `WebSocket API 执行失败` 标题（含完整堆栈）；订阅异常有 `订阅数据读取失败`。客户端只会看到无堆栈的 `INTERNAL_ERROR`。
 - **更新问题**：`updater.status` 的 `error`/`busy`/`canApply` 字段是更新器状态的唯一窗口；fetch 失败细节在服务日志。

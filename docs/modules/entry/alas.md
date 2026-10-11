@@ -17,6 +17,8 @@
 
 一个 AzurPilot 实例（一份用户配置）对应一个调度器进程。多个实例并行时，每个进程有独立的 `AzurLaneAutoScript` 与状态。
 
+所有运行入口在业务 worker 启动前执行 `module.persistence.database.initialize()`。首次迁移先备份、转换与检查，失败停止启动并保留旧源；总库完成标记存在而数据库丢失时必须恢复备份。模块导入不创建总库，详见 [普通业务数据存储](../infra/persistence.md)。
+
 ## 2. 模块职责
 
 ### 负责
@@ -177,7 +179,7 @@ flowchart TD
 
 ### 原调度石油自动控制
 
-通用设置的 `General.OilControl.Enable` 默认开启，`Target` 默认 24000（可设 1000–24999）。石油超过控制线时进入清理，低于控制线后结束；恰好等于控制线不新触发。自然恢复上限 `Dashboard.Oil.Limit` 不参与计算。仅原调度生效，增强调度与完全接管仍由卡片程序决定业务任务。
+通用设置的 `General.OilControl.Enable` 默认关闭，需显式开启；`Target` 默认 24000（可设 1000–24999）。石油超过控制线时进入清理，低于控制线后结束；恰好等于控制线不新触发。自然恢复上限 `Dashboard.Oil.Limit` 不参与计算。仅原调度生效，增强调度与完全接管仍由卡片程序决定业务任务。
 
 `module/scheduler/oil_control.py` 在已有任务准备执行时观察石油，执行后及现有任务切换检查点重新判断；没有独立定时任务，也不提前唤醒等待中的游戏。只读的 `StorageStatistics` 直接放行，不为仓库扫描先跳转战役页，清油状态和待观察标记保留给下一项业务；系统恢复仍优先。观察采用战役页正向确认和连续两帧有效读数。读数不确定时不消费资源，五分钟后随现有任务再检查。
 
@@ -321,6 +323,7 @@ stateDiagram-v2
 | `ScriptError` | 代码 bug | 连续 3 次内注入 `Restart` 重试；达到 3 次退出 | `'recoverable'` / `exit(1)` |
 | `EmulatorNotRunningError` | 模拟器离线 | `_try_restart_emulator()`（永不放弃，超阈值只加长间隔）+ `Restart` | `'recoverable'` |
 | `RequestHumanTakeover` | 严重到无法安全自动判断 | 也先尝试重启模拟器自动恢复，不再直接终止 | `'recoverable'` |
+| `MindCalculatorScanError` | 船坞扫描识别或三排定位无法确认 | 记录具体原因、异常和错误截图，保留旧清单并结束当前工具任务；不重启模拟器 | `False` |
 | `AutoSearchSetError` | 自动搜索设置失败 | 重启游戏 | `'recoverable'` |
 | 其他 `Exception` | 未预期异常 | 连续计数达 `GameStuckThreshold` 升级为重启模拟器，否则仅重启游戏 | `'recoverable'` |
 | `EmulatorOpBusy` | 已有模拟器启停操作在跑 | 放弃本轮恢复，后台操作结束后下一轮调度接手（非错误，是并发保护） | `False`（重启函数内消化） |

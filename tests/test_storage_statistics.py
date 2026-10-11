@@ -200,7 +200,7 @@ class RecognitionTests(unittest.TestCase):
 class SnapshotTests(unittest.TestCase):
     def setUp(self):
         self.temp = self.enterContext(tempfile.TemporaryDirectory())
-        self.path = Path(self.temp) / 'config/storage_statistics.db'
+        self.path = Path(self.temp) / 'config/azurpilot.db'
         self.items = [dict(id='chips', name='心智单元', group='材料', amount=13393),
                       dict(id='absent', name='未发现物品', group='材料', amount=None)]
 
@@ -239,6 +239,18 @@ class SnapshotTests(unittest.TestCase):
         self.assertEqual(get_storage_timeline('gamma', database=self.path), [])
         self.assertEqual(before, self.path.read_bytes())
 
+    def test_history_until_drops_scans_after_window(self):
+        """窗口上界同样下推到 SQL：看历史月份时不得混入其后的扫描。"""
+        identifiers = [self.save(), self.save(items=[dict(self.items[0], amount=14), self.items[1]]), self.save()]
+        with closing(sqlite3.connect(self.path)) as connection, connection:
+            for identifier, timestamp in zip(identifiers, ['2026-09-01 00:00:00', '2026-10-01 00:00:00', '2026-10-03 00:00:00']):
+                connection.execute('UPDATE storage_scans SET finished_at=? WHERE id=?', (timestamp, identifier))
+
+        rows = get_storage_timeline('alpha', since='2026-09-01 00:00:00', until='2026-10-01 00:00:00',
+                                    database=self.path)
+
+        self.assertEqual([row['chips'] for row in rows], [13393, 14])
+
     def test_storage_trends_only_use_completed_known_counts_and_preserve_icons(self):
         from module.api.statistics_service import compact_axis, report
         catalog = StorageCatalog()
@@ -248,7 +260,7 @@ class SnapshotTests(unittest.TestCase):
         items[7]['amount'] = None
         self.save(items=items)
         before = self.path.read_bytes()
-        configs = SimpleNamespace(path=Mock(return_value=self.path.parent / 'alpha.json'))
+        configs = SimpleNamespace(directory=self.path.parent, path=Mock(return_value=self.path.parent / 'alpha.json'))
         result = report(configs, 'alpha', 'storage', None, 7, 'month')
         chips = next(item for item in result['series'] if item['key'] == 'CognitiveChips')
         absent = next(item for item in result['series'] if item['key'] == 'CognitiveChipsII')
@@ -258,6 +270,26 @@ class SnapshotTests(unittest.TestCase):
         compressed = compact_axis([chips])
         self.assertEqual(compressed['series'][0]['icon'], chips['icon'])
         self.assertEqual(before, self.path.read_bytes())
+
+    def test_storage_report_month_window_excludes_scans_after_the_month(self):
+        """仓库趋势按选定月份取窗口：月内的扫描全在，月外的不带。"""
+        from module.api.statistics_service import report
+        catalog = StorageCatalog()
+        base = [dict(id=item['id'], name=item['name'], group=item['group'], amount=1) for item in catalog.items]
+        first = self.save(items=base)
+        second = self.save(items=[dict(base[0], amount=9)] + base[1:])
+        third = self.save(items=[dict(base[0], amount=99)] + base[1:])
+        with closing(sqlite3.connect(self.path)) as connection, connection:
+            for identifier, timestamp in ((first, '2026-01-05 00:00:00'),
+                                          (second, '2026-01-20 00:00:00'),
+                                          (third, '2026-03-02 00:00:00')):
+                connection.execute('UPDATE storage_scans SET finished_at=? WHERE id=?', (timestamp, identifier))
+
+        configs = SimpleNamespace(directory=self.path.parent, path=Mock(return_value=self.path.parent / 'alpha.json'))
+        result = report(configs, 'alpha', 'storage', '2026-01', 7, 'month')
+        chips = next(item for item in result['series'] if item['key'] == base[0]['id'])
+
+        self.assertEqual([point['v'] for point in chips['points']], [1.0, 9.0])
 
     def test_invalid_counts_and_partial_transaction_keep_old_snapshot(self):
         scan_id = self.save()
@@ -272,7 +304,7 @@ class SnapshotTests(unittest.TestCase):
 
     def test_report_only_reads_saved_counts(self):
         from module.api.statistics_service import report
-        configs = SimpleNamespace(path=Mock(return_value=self.path.parent / 'alpha.json'))
+        configs = SimpleNamespace(directory=self.path.parent, path=Mock(return_value=self.path.parent / 'alpha.json'))
         first = report(configs, 'alpha', 'storage', None, 7, 'month')
         self.assertTrue(all(row[3] is None for row in first['tables'][0]['rows']))
         self.assertFalse(self.path.exists())
@@ -404,7 +436,7 @@ class TaskTests(unittest.TestCase):
         self.enterContext(patch.object(self.module, 'Timer', FrameTimer))
         self.enterContext(patch.object(self.module.logger, 'attr'))
         self.temp = self.enterContext(tempfile.TemporaryDirectory())
-        self.path = Path(self.temp) / 'warehouse.db'
+        self.path = Path(self.temp) / 'azurpilot.db'
         self.enterContext(patch.object(self.module, 'save_snapshot',
             side_effect=lambda *args, **kwargs: save_snapshot(*args, **kwargs, database=self.path)))
 
@@ -542,12 +574,12 @@ class ApiIntegrationTests(unittest.TestCase):
             rows = response['result']['tables'][0]['rows']
             self.assertEqual(len(rows), 25)
             self.assertTrue(all(row[3] is None and row[4] == '未扫描' for row in rows))
-            self.assertFalse((root / 'config/storage_statistics.db').exists())
+            self.assertFalse((root / 'config/azurpilot.db').exists())
             catalog = StorageCatalog()
             items = [dict(id=item['id'], name=item['name'], group=item['group'], amount=index + 1)
                      for index, item in enumerate(catalog.items)]
             save_snapshot('testpilot', 'cn', items, started_at='2026-10-03', pages=12,
-                          catalog_version=catalog.version, database=root / 'config/storage_statistics.db')
+                          catalog_version=catalog.version, database=root / 'config/azurpilot.db')
             ws.send_json({'v': 1, 'type': 'request', 'id': 'history', 'method': 'statistics.report',
                           'params': {'instance': 'testpilot', 'category': 'storage', 'days': 30}})
             response = ws.receive_json()

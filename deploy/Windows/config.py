@@ -8,6 +8,10 @@ from deploy.Windows.logger import logger
 from deploy.Windows.utils import DEPLOY_CONFIG, DEPLOY_TEMPLATE, cached_property
 
 
+CNB_REPOSITORY = 'https://cnb.cool/AzurPilot/AzurPilot'
+GITCODE_REPOSITORY = 'https://gitcode.com/ddl2/AzurLaneAutoScript'
+
+
 class ExecutionError(Exception):
     pass
 
@@ -95,6 +99,10 @@ class DeployConfig(DeployConfigTransaction, ConfigModel):
             super().__setattr__('Repository', 'https://github.com/wess09/AzurPilot')
         if self.Repository in ['cn']:
             super().__setattr__('Repository', 'https://github.com/wess09/AzurPilot')
+        if self.Repository == 'cnb':
+            super().__setattr__('Repository', CNB_REPOSITORY)
+        if self.Repository == 'gitcode':
+            super().__setattr__('Repository', GITCODE_REPOSITORY)
 
     def filepath(self, path):
         """获取绝对文件路径。

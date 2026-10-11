@@ -3,12 +3,13 @@
  */
 
 import type {Catalog, ProgramSaved, ProgramSimulation, ProgramValidation, RuntimeProgramState} from '../scheduler/types'
+import type {MindCalculation, MindCatalog, MindReport, MindShip} from '../mind/types'
 
 export type Scalar = string | number | boolean | null
 export type Value = Scalar | Value[] | {[key: string]: Value}
 type Values = Record<string, Record<string, Record<string, Value>>>
 export type Status = 'running' | 'stopped' | 'error' | 'updating'
-export interface Instance { name: string; status: Status; serial: string; server: string; currentTask?: string | null }
+export interface Instance { name: string; status: Status; serial: string; server: string; region?: 'cn' | 'en' | 'jp' | 'tw' | null; currentTask?: string | null }
 export interface Field { type: string; value: Value; mode?: string; display?: string; option?: Value[]; validate?: string | number[]; preserve_empty?: boolean }
 /** 侧栏内容检索的一条命中：要么是任务名，要么是某个配置项。 */
 export interface SearchContentHit {
@@ -21,6 +22,7 @@ export interface SearchContentHit {
 
 export interface SearchContentResult {
   tasks: SearchContentHit[]
+  groups: SearchContentHit[]
   options: SearchContentHit[]
 }
 
@@ -119,6 +121,13 @@ export interface BackgroundGalleryEntry {
 }
 
 export interface Results {
+  'mind.catalog': MindCatalog
+  'mind.report': MindReport
+  'mind.calculate': MindCalculation
+  'mind.save': MindReport
+  'mind.import': {ships: MindShip[]}
+  'mind.recognize': {ships: MindShip[]}
+  'mind.export': {filename: string; content: string}
   'statistics.resourceFlows': ResourceFlowReport
   'opsi.simulator.status': OpsiSimulatorStatus
   'opsi.simulator.start': OpsiSimulatorStatus

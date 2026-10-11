@@ -248,7 +248,7 @@ flowchart TD
 | `Dorm_Feed` | checkbox | true | 喂食 |
 | `Dorm_FeedFilter` | textarea | `20000 > ... > 1000` | 喂食优先级（按单次喂食量） |
 | `Dorm_BuyFood` | 隐藏 | false | 已停用（`display: disabled`）；自动购粮由原调度石油控制或委托溢出兜底调用 |
-| `General.OilControl.Enable` / `Target` | checkbox / int | true / 24000 | 原调度石油控制，范围 1000–24999；独立于日常后宅开关 |
+| `General.OilControl.Enable` / `Target` | checkbox / int | false / 24000 | 原调度石油控制，范围 1000–24999；独立于日常后宅开关 |
 | `BuyFurniture_Enable` / `BuyOption` / `LastRun` | checkbox/select/datetime | false / all / 2020-01-01 | 限时家具购买，检查间隔 6 天由代码常量 `CHECK_INTERVAL` 决定 |
 
 ### 指挥喵（任务 Meowfficer，组 Meowfficer / MeowfficerTrain；工具任务 MeowfficerScore）

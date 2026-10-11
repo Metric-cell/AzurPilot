@@ -73,7 +73,7 @@ class CampaignRun(CampaignEvent, ShopStatus):
         Raises:
             RequestHumanTakeover: 地图文件不存在时抛出。
         """
-        if hasattr(self, 'name') and name == self.name:
+        if name == getattr(self, 'name', None) and folder == getattr(self, 'folder', None):
             return False
 
         self.name = name
@@ -191,31 +191,6 @@ class CampaignRun(CampaignEvent, ShopStatus):
                 logger.hr('触发停止条件: 物资上限')
                 self.handle_task_balancer()
                 return True
-
-        return False
-
-    def _triggered_app_restart(self):
-        """检查是否触发重启条件。
-
-        Returns:
-            bool: 是否触发重启条件。
-        """
-        if not self.campaign.emotion.is_ignore:
-            if self.campaign.emotion.triggered_bug():
-                logger.info('[战役-运行] 触发重启避免情绪bug')
-                return True
-
-        return False
-
-    def handle_app_restart(self):
-        """检查并处理因情绪异常导致的客户端重启。
-
-        Returns:
-            bool: 若触发了重启调用返回 True，否则返回 False。
-        """
-        if self._triggered_app_restart():
-            self.config.task_call('Restart')
-            return True
 
         return False
 

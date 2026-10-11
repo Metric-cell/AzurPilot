@@ -94,7 +94,7 @@ module/
 
 建造订单在数量面板核对、提交成功后向资源账本写入实际支付的物资、魔方或建造券，准备或提交失败不预扣；计算阶段的预计库存仍标为未观测，不作为收支。规则见 [资源管理](../webui/resource-management.md)。
 
-`RewardGacha(GachaUI, Retirement, CampaignStatus)` 执行建造完整流程：清空已有队列收菜 → OCR 金币/魔方/建造券 → 按池（light 600 金 +1 魔方，heavy/special/event/wishing_well 1500 金 +2 魔方）计算可建次数 → 提交订单。活动池优先消耗建造券（`Gacha_UseTicket`），差额按 `Gacha_UseDrill` 与资源上限折算；收菜时新船走快速跳过并交给退役流程。资源计数写入 `LogRes` 统计。
+`RewardGacha(GachaUI, Retirement, CampaignStatus)` 执行建造完整流程：清空已有队列收菜 → OCR 金币/魔方 → 选择卡池及支付资源 → 核对数量并提交订单。开启 `Gacha_UseTicket` 后先前往活动池检查单次建造券，有券时优先使用，最多建造 `Gacha_Amount` 次；活动池不可用、无可用券或券不足时，剩余次数按 `Gacha_Pool` 建造，按实际卡池和资源上限计算可建次数（light 每次 600 物资 +1 魔方，heavy/special/event/wishing_well 每次 1500 物资 +2 魔方）。关闭用券优先功能时直接使用设定卡池。提交后游戏进入队列页，下一批订单须先返回建造页；`Gacha_UseDrill` 仅控制提交后是否使用快速完成工具收菜，不决定卡池或支付资源。收菜时新船走快速跳过并交给退役流程，资源计数写入 `LogRes` 统计。
 
 ### 每日任务（module/daily）
 
@@ -120,6 +120,8 @@ module/
 
 `EventBase(CampaignRun)` 统一加载活动地图并强制关闭一次性关卡标记，`convert_stages()` 兼容字符串/列表/Filter 三种输入。`CampaignABCD`（EventA~D 四个任务共用）：扫描 `campaign/{活动}/` 下 `.py` 文件生成关卡列表 → `EventDaily_StageFilter` 过滤排序 → 从 `EventDaily_LastStage` 断点续刷（记录过期则重置）→ 每关 `total=1`，逐关推进，全部完成延迟到次日；关卡名错误时提示应改用 Event 任务解锁。`CampaignSP` 检查 `sp.py` 存在后执行 1 次，成功与否都延迟到次日。`MaritimeEscort`（海上护卫）进图即撤退，以低消耗拿约 70% 奖励，OCR 剩余次数为 0 则延迟到次日。
 
+`EventA`～`EventD` 的 `EventDaily.LastStage`（上一个完成的关卡）按文本编辑，可保存 `a3`、`D3` 等关卡名；输入 `0` 重置进度。参数默认值使用字符串 `'0'`，并声明 `mode: text`，避免 WebUI 按数字校验，也兼容旧配置及跨天重置产生的数字 `0`。运行器继续按关卡名恢复进度，跨天自动重置。
+
 ### 活动剧情（module/eventstory）
 
 `EventStory(CampaignUI, Combat, LoginHandler)` 循环推进活动剧情：导航至剧情入口（个别活动在 `page_sp` 或有专属弹窗按钮），按首段/末段/中段/战斗中段按钮推进；遇到剧情内战斗时直接重启游戏跳过（比打完快）。完成后回主界面再进入一次以清掉残留奖励弹窗。个别活动经特判跳过（如剧情入口在小游戏内的活动）。
@@ -134,7 +136,9 @@ module/
 
 ### 私人休息室（module/private_quarters）
 
-`PrivateQuarters(PQInteract, PQShop)`：进入宿舍菜单 → 私人休息室；按配置购买每周玫瑰（金币）与蛋糕（钻石，商店复用 `module/shop` 的 `ShopClerk` 框架），再检查每日互动剩余次数（OCR），进入目标舰娘房间执行对话与触摸互动。`available_targets` 定义 7 位可用舰娘及其所在场景；`not_supported_filter` 声明服务器差异（JP 缺纳希莫夫，TW 缺大凤与纳希莫夫），TW 服无商店。
+`PrivateQuarters(PQInteract, PQShop)`：进入宿舍菜单 → 私人休息室；按配置购买每周玫瑰（金币）与蛋糕（钻石，商店复用 `module/shop` 的 `ShopClerk` 框架），再检查每日互动剩余次数（OCR），进入目标舰娘房间执行对话与触摸互动。可选舰娘及所在场景以 `PQInteract.available_targets` 为准；服务器差异以 `PrivateQuarters.not_supported_filter` 为准，TW 服无商店。
+
+进房及对话处理后，`pq_goto_room()` 调用 `_pq_target_appear()`，以三种头顶气泡模板在 `(100, 100)` 偏移范围内确认舰娘就绪。每次检测最多向上微调一次视角，在 `Timer(1.5, count=3)` 窗口内持续截图；超时后退出房间，最多尝试三次。确认就绪才执行最多三次互动，精力耗尽导致互动按钮不出现时按现有超时退出；点击等待及互动阶段超时由 `RunParams.UiWait` 控制。
 
 ### 船坞蓝图（module/shipyard）
 
