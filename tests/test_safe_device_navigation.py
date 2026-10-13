@@ -46,6 +46,11 @@ class TestSafeDeviceNavigation(unittest.TestCase):
 class TestScreenshotBenchmarkCompatibility(unittest.TestCase):
     def test_android_13_does_not_benchmark_droidcast(self):
         benchmark = object.__new__(Benchmark)
+        benchmark.config = SimpleNamespace(
+            Benchmark_DeviceType='emulator',
+            Emulator_ScreenshotMethod='ADB',
+            Emulator_ControlMethod='minitouch',
+        )
         benchmark.__dict__['device'] = SimpleNamespace(
             sdk_ver=33,
             is_chinac_phone_cloud=False,

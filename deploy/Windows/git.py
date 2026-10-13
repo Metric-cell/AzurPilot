@@ -5,20 +5,19 @@ import subprocess
 import time
 from typing import Optional
 
-from deploy.Windows.config import CNB_REPOSITORY, GITCODE_REPOSITORY, DeployConfig, ExecutionError
+from deploy.Windows.config import MANUAL_GIT_MIRRORS, DeployConfig, ExecutionError
 from deploy.Windows.logger import Progress, logger
 from deploy.Windows.utils import cached_property
 
 
 def peer_fallback_repository(url: str) -> Optional[str]:
-    """若当前 URL 为 CNB 或 GitCode 国内镜像，获取同级的备用镜像 URL 用于分流容灾。"""
+    """若当前 URL 为备选国内镜像，获取列表中的同级备用镜像 URL 用于分流容灾。"""
     if not url:
         return None
     cleaned = url.strip().rstrip('/').removesuffix('.git')
-    if cleaned == CNB_REPOSITORY.rstrip('/'):
-        return GITCODE_REPOSITORY
-    if cleaned == GITCODE_REPOSITORY.rstrip('/'):
-        return CNB_REPOSITORY
+    for index, repo in enumerate(MANUAL_GIT_MIRRORS):
+        if cleaned == repo.rstrip('/'):
+            return MANUAL_GIT_MIRRORS[(index + 1) % len(MANUAL_GIT_MIRRORS)]
     return None
 
 

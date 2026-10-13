@@ -3,18 +3,19 @@ import subprocess
 from typing import Optional
 import time
 
-from deploy.config import CNB_REPOSITORY, GITCODE_REPOSITORY, DeployConfig, ExecutionError
+from deploy.config import MANUAL_GIT_MIRRORS, DeployConfig, ExecutionError
 from deploy.logger import logger
 from deploy.utils import *
 
 
 def peer_fallback_repository(url: str) -> Optional[str]:
     """显式 Git 部署失败时在同级镜像间重试，不查询云端控制。"""
+    if not url:
+        return None
     cleaned = url.strip().rstrip('/').removesuffix('.git')
-    if cleaned == CNB_REPOSITORY.rstrip('/'):
-        return GITCODE_REPOSITORY
-    if cleaned == GITCODE_REPOSITORY.rstrip('/'):
-        return CNB_REPOSITORY
+    for index, repository in enumerate(MANUAL_GIT_MIRRORS):
+        if cleaned == repository.rstrip('/'):
+            return MANUAL_GIT_MIRRORS[(index + 1) % len(MANUAL_GIT_MIRRORS)]
     return None
 
 
@@ -198,7 +199,7 @@ class GitManager(DeployConfig):
         self.execute(f'{git} --no-pager log --no-merges -1')
 
     def git_install(self):
-        """根据云端状态与本地配置执行 Git 源码拉取与更新。"""
+        """按显式部署配置与本地配置执行 Git 源码拉取与更新。"""
         logger.hr('Update AzurPilot', 0)
         self.git_repository_init(
             repo=self.Repository,

@@ -563,7 +563,7 @@ class ConfigGenerator:
         """根据基础模板生成各环境（国内镜像、AidLux、Docker、Linux）的部署配置模板。"""
         template = poor_yaml_read(DEPLOY_TEMPLATE)
         cn = {
-            'Repository': 'git://git.pull/AzurPilot',
+            'Repository': 'https://cnb.cool/AzurPilot/AzurPilot',
             'PypiMirror': 'https://mirrors.aliyun.com/pypi/simple',
             'Language': 'zh-CN',
         }
