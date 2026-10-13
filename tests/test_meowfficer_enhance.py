@@ -1,5 +1,6 @@
 """指挥喵强化的选中确认、滚动归位与重复执行回归测试。"""
 
+import collections
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -8,7 +9,9 @@ from unittest.mock import Mock, patch
 import numpy as np
 from PIL import Image
 
-from module.exception import GameStuckError
+from module.base.timer import Timer
+from module.device.device import Device
+from module.exception import GameStuckError, GameTooManyClickError
 from module.meowfficer.enhance import (
     MEOWFFICER_COINS,
     MEOWFFICER_ENHANCE_CAPACITY,
@@ -88,7 +91,11 @@ class SelectionFlowTests(unittest.TestCase):
                 next_image[0] = frame('selected')
                 pending_selection[0] = False
 
-        def swipe(*args, **kwargs):
+        def swipe(start, end, **kwargs):
+            # 猫窝内的向下手势才能恢复顶部；错误方向或区域不能伪造归位画面。
+            self.assertTrue(720 <= start[0] <= 1200 and 720 <= end[0] <= 1200)
+            self.assertTrue(139 <= start[1] < end[1] <= 549)
+            self.assertEqual(start[0], end[0])
             swipes.append(len(screenshots))
             next_image[0] = frame()
 
@@ -118,13 +125,49 @@ class SelectionFlowTests(unittest.TestCase):
         swipes, _ = self.select(frame('selected'))
         self.assertEqual(swipes, [])
 
-    def test_unconfirmed_target_propagates_existing_recovery_error(self):
+    def test_unconfirmed_target_triggers_existing_click_recovery(self):
         main = runner(frame('false_white'))
         main.meow_additional = lambda: False
-        main.device.click = Mock()
-        main.device.screenshot = Mock(side_effect=GameStuckError('选中状态无法确认'))
-        with self.assertRaises(GameStuckError):
-            main._meow_select()
+        device = Device.__new__(Device)
+        device.image = main.device.image
+        device.detect_record = set()
+        device.click_record = collections.deque(maxlen=15)
+        device._prev_fingerprint = None
+        device.app_is_running = Mock(return_value=True)
+        main.device = device
+        clock = [100.0]
+        screenshots, clicks = [], []
+
+        def screenshot():
+            clock[0] += 0.35
+            screenshots.append(clock[0])
+            if len(screenshots) > 150:
+                raise AssertionError('未选中目标时没有触发已有恢复保护')
+            # 画面始终未选中，复用实际设备的两种卡死检测，不直接注入异常。
+            device.stuck_record_check()
+            device._check_image_stuck()
+
+        def click(button):
+            clicks.append(button)
+            # 仅隔离实际触屏；重复点击检测和卡死计时器重置使用真实实现。
+            device.handle_control_check(button)
+
+        device.screenshot = screenshot
+        device.click = click
+        with (
+            patch('module.base.timer.time', side_effect=lambda: clock[0]),
+            patch.object(main, '_meow_target_selected', wraps=main._meow_target_selected) as confirm,
+        ):
+            device.stuck_timer = Timer(60, count=60).start()
+            device.stuck_timer_long = Timer(195, count=195).start()
+            device._stuck_image_timer = Timer(30, count=0)
+            # 每次点击会重置卡死计时器，实际先由第 12 次重复点击触发恢复。
+            with self.assertRaisesRegex(GameTooManyClickError, '按钮点击次数过多'):
+                main._meow_select()
+            self.assertGreater(confirm.call_count, 1)
+        self.assertEqual(len(clicks), 12)
+        self.assertEqual(len({str(button) for button in clicks}), 1)
+        self.assertGreater(len(screenshots), len(clicks))
         self.assertEqual(main.config.MeowfficerTrain_EnhanceIndex, 11)
         self.assertTrue(main.config.MeowfficerTrain_Enable)
 
