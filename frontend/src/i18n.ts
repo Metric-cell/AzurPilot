@@ -18,6 +18,16 @@ export const languages: Record<Language, string> = {
 }
 
 const zhCN = {
+  'launcher.closeBehavior': '关闭主窗口时',
+  'launcher.closeUnsupported': '当前平台仅支持退出应用。',
+  'launcher.closeHelp': '选择后台运行或退出应用后会自动记住；可随时在这里更改。',
+  'launcher.closeAsk': '每次询问',
+  'launcher.closeTray': '后台运行',
+  'launcher.closeExit': '退出应用',
+  'launcher.saving': '正在保存…',
+  'launcher.saved': '已保存',
+  'launcher.saveFailed': '保存失败，请重试。',
+
   ...resourceZhCN,
   ...mindZhCN,
   'stats.category.storage': '仓库物品',
@@ -588,6 +598,16 @@ export type UiKey = keyof typeof zhCN
 export type UiTranslator = (key: UiKey, params?: TranslationParams) => string
 
 const enUS: Record<UiKey, string> = {
+  'launcher.closeBehavior': 'When closing the main window',
+  'launcher.closeUnsupported': 'This platform only supports exiting the application.',
+  'launcher.closeHelp': 'Your choice to run in the background or exit is remembered. Change it here at any time.',
+  'launcher.closeAsk': 'Ask every time',
+  'launcher.closeTray': 'Run in background',
+  'launcher.closeExit': 'Exit application',
+  'launcher.saving': 'Saving…',
+  'launcher.saved': 'Saved',
+  'launcher.saveFailed': 'Could not save. Please try again.',
+
   ...resourceEnUS,
   ...mindEnUS,
   'stats.category.storage': 'Inventory',
@@ -732,6 +752,16 @@ const enUS: Record<UiKey, string> = {
 }
 
 const jaJP: Record<UiKey, string> = {
+  'launcher.closeBehavior': 'メインウィンドウを閉じたとき',
+  'launcher.closeUnsupported': 'このプラットフォームではアプリの終了のみ対応しています。',
+  'launcher.closeHelp': 'バックグラウンド実行または終了の選択は記憶されます。ここでいつでも変更できます。',
+  'launcher.closeAsk': '毎回確認する',
+  'launcher.closeTray': 'バックグラウンドで実行',
+  'launcher.closeExit': 'アプリを終了',
+  'launcher.saving': '保存中…',
+  'launcher.saved': '保存しました',
+  'launcher.saveFailed': '保存できませんでした。もう一度お試しください。',
+
   ...resourceJaJP,
   ...mindJaJP,
   'stats.category.storage': '倉庫アイテム',
@@ -937,6 +967,16 @@ const jaJP: Record<UiKey, string> = {
 }
 
 const zhTW: Record<UiKey, string> = {
+  'launcher.closeBehavior': '關閉主視窗時',
+  'launcher.closeUnsupported': '目前平台僅支援結束應用程式。',
+  'launcher.closeHelp': '選擇背景執行或結束應用程式後會自動記住；可隨時在這裡變更。',
+  'launcher.closeAsk': '每次詢問',
+  'launcher.closeTray': '背景執行',
+  'launcher.closeExit': '結束應用程式',
+  'launcher.saving': '儲存中…',
+  'launcher.saved': '已儲存',
+  'launcher.saveFailed': '儲存失敗，請重試。',
+
   ...resourceZhTW,
   ...mindZhTW,
   'stats.category.storage': '倉庫物品',
@@ -1191,6 +1231,16 @@ const zhTW: Record<UiKey, string> = {
 
 const zhMiao: Record<UiKey, string> = {
   ...zhCN,
+  'launcher.closeBehavior': '关闭主窗口时喵',
+  'launcher.closeUnsupported': '当前平台只能退出应用喵。',
+  'launcher.closeHelp': '选了后台运行或退出就会记住喵，随时可以在这里改。',
+  'launcher.closeAsk': '每次问我喵',
+  'launcher.closeTray': '后台运行喵',
+  'launcher.closeExit': '退出应用喵',
+  'launcher.saving': '正在保存喵…',
+  'launcher.saved': '已保存喵',
+  'launcher.saveFailed': '保存失败了喵，请重试。',
+
   ...resourceZhMiao,
   ...mindZhMiao,
   'stats.category.storage': '仓库物品喵',

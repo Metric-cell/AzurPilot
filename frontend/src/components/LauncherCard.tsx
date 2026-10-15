@@ -1,8 +1,9 @@
 /**
- * @fileoverview 启动器卡片：展示启动器连接状态，并切换 Windows 开机自启动。
+ * @fileoverview 启动器卡片：设置窗口关闭行为，并管理 Windows 开机自启动。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApp } from '../app/context'
+import { LauncherCloseBehavior } from './LauncherCloseBehavior'
 
 /** 启动器端点的响应：状态查询与开关请求共用。 */
 type LauncherStatus = {
@@ -127,6 +128,7 @@ export function LauncherCard() {
             disabled={phase !== 'ready'} onClick={() => { void toggle() }}><span/></button>
         </div>
       </div>
+      <LauncherCloseBehavior/>
     </section>
   )
 }
