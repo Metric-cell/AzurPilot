@@ -48,6 +48,8 @@ TPM 绑定使用 Windows `Microsoft Platform Crypto Provider` 创建当前用户
 - Windows：密钥位于 `%USERPROFILE%/AppData/Local/AzurPilot/account-keys/`，使用当前用户的 DPAPI 加密保存；目录 DACL 仅授予当前用户完整权限并禁止继承。DPAPI 不需要 TPM，采用用户范围，不使用允许同机其他用户解密的 `CRYPTPROTECT_LOCAL_MACHINE`。参见 [微软 DPAPI 文档](https://learn.microsoft.com/en-us/windows/win32/api/dpapi/nf-dpapi-cryptprotectdata)。
 - Linux：密钥位于 `~/.local/share/azurpilot/account-keys/`，目录 `0700`、文件 `0600`，每次自动解锁验证当前 UID、权限及普通文件类型。此方案的文件含随机明文密钥，依赖用户权限与系统安全；可配合磁盘加密，但程序不会把公开标识伪装成密钥密码。
 
+便携部署可通过进程环境变量 `AZURPILOT_LOCAL_DATA_DIR` 指定本机数据的绝对目录，密钥放在其 `account-keys/` 子目录。目录仍必须位于后端项目根之外，并保留原有权限、链接检查与 DPAPI 保护。Windows 启动器使用安装根的 `.launcher/`，后端放在同级 `backend/`；打包、同步或备份后端时不包含 `.launcher/`。迁移路径会改变实例绑定上下文，已有自动解锁需用实例密码重新绑定。
+
 路径拒绝符号链接、junction、越界 key id 和项目内存储位置。每个实例及项目路径有独立上下文，密钥文件与封装均绑定该上下文。解除绑定和删除实例会清理对应项目外密钥；用户主动删除保险库也尝试清理对应密钥。读取或写入不输出密钥、密码或底层异常内容。
 
 Windows 用 MachineGuid 与当前用户 SID，Linux 用 `/etc/machine-id`（备用 `/var/lib/dbus/machine-id`）与当前 UID 检测系统/用户变化；只保存哈希并参与密文认证。这些标识可被复制或修改，不能作为秘密密钥，也不构成硬件证明。重装系统通常改变标识，克隆或备份恢复可能保留它；不得宣称必然检测到所有设备变化。

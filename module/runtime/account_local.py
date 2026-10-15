@@ -101,8 +101,14 @@ class LocalProtector:
             Path: 本机密钥存储目录路径。
 
         Raises:
-            ApiError: 当前操作系统不受支持时抛出 LOCAL_KEY_UNAVAILABLE。
+            ApiError: 操作系统不受支持或便携数据目录不是绝对路径。
         """
+        portable = os.environ.get('AZURPILOT_LOCAL_DATA_DIR')
+        if portable:
+            directory = Path(portable)
+            if not directory.is_absolute():
+                raise ApiError('LOCAL_KEY_UNAVAILABLE', '本机数据目录必须是绝对路径')
+            return directory / 'account-keys'
         if os.name == 'nt':
             return Path.home() / 'AppData' / 'Local' / 'AzurPilot' / 'account-keys'
         if sys.platform == 'linux':

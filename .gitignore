@@ -68,6 +68,7 @@ docs/*
 !docs/modules/
 
 # Local directories
+/.launcher/
 /Alasio
 /f
 /workers

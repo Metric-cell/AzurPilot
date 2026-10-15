@@ -16,6 +16,22 @@ from module.runtime.account_vault import AccountVault
 PASSWORD = 'Local-Test-Passphrase-82!'
 
 
+class PortableKeyDirectoryTests(unittest.TestCase):
+    def test_portable_directory_remains_outside_backend_and_rejects_relative_paths(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder) / 'backend'
+            state = Path(folder) / '.launcher'
+            protector = LocalProtector(str(root), 'portable-test')
+            with patch.dict(os.environ, {'AZURPILOT_LOCAL_DATA_DIR': str(state)}):
+                self.assertEqual(protector.path('a' * 32).parent, state / 'account-keys')
+            with patch.dict(os.environ, {'AZURPILOT_LOCAL_DATA_DIR': str(root / '.launcher')}):
+                with self.assertRaises(ApiError):
+                    protector.path('a' * 32)
+            with patch.dict(os.environ, {'AZURPILOT_LOCAL_DATA_DIR': 'relative-data'}):
+                with self.assertRaises(ApiError):
+                    LocalProtector.key_directory()
+
+
 class LocalVaultTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
