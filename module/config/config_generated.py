@@ -313,6 +313,7 @@ class GeneratedConfig:
     Campaign_UseClearMode = True
     Campaign_UseFleetLock = True
     Campaign_UseAutoSearch = True
+    Campaign_ContinueAfterRestart = False
     Campaign_Use2xBook = False
     Campaign_AmbushEvade = True
     Campaign_UseRecommendFleet = False
@@ -372,6 +373,8 @@ class GeneratedConfig:
     # 配置组 `Emotion`
     Emotion_Mode = 'calculate'  # calculate, ignore, calculate_ignore
     Emotion_IgnoreShipwreck = False
+    Emotion_MinReserve = 0
+    Emotion_RecoveryWait = None
     Emotion_Fleet1Value = 119
     Emotion_Fleet1Record = datetime.datetime(2020, 1, 1, 0, 0)
     Emotion_Fleet1RecoveryState = None
@@ -538,6 +541,8 @@ class GeneratedConfig:
     Dorm_Collect = True
     Dorm_Feed = True
     Dorm_FeedFilter = '20000 > 10000 > 5000 > 3000 > 2000 > 1000'
+    Dorm_ReserveFood = False
+    Dorm_FeedReserveState = None
     Dorm_BuyFood = False
 
     # 配置组 `BuyFurniture`
@@ -654,6 +659,9 @@ class GeneratedConfig:
     Gacha_Pool = 'light'  # light, heavy, special, event, wishing_well
     Gacha_Amount = 1  # 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
     Gacha_UseTicket = True
+    Gacha_TicketAmount = 1  # 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+    Gacha_ClearTicket = True
+    Gacha_ClearTicketTime = '09:30'
     Gacha_UseDrill = False
 
     # 配置组 `BattlePass`
@@ -708,6 +716,7 @@ class GeneratedConfig:
     # 配置组 `Hard`
     Hard_HardStage = '11-4'
     Hard_HardFleet = 1  # 1, 2
+    Hard_RunAt18 = False
 
     # 配置组 `Exercise`
     Exercise_DelayUntilHoursBeforeNextUpdate = 12  # 1, 2, 3, 4, 5, 12
@@ -741,7 +750,6 @@ class GeneratedConfig:
     OpsiGeneral_IndependentPush = False
     OpsiGeneral_OpsiOnePushConfig = 'provider: null'
     OpsiGeneral_AutoSearchTimeLimit = 5
-    OpsiGeneral_SkipStrategicSearchCheck = False
 
     # 配置组 `OpsiAshBeacon`
     OpsiAshBeacon_AttackMode = 'current'  # current, current_dossier, current_dossier_only
@@ -825,9 +833,13 @@ class GeneratedConfig:
     OpsiHazard1Leveling_MinimumActionPointReserve = 200
     OpsiHazard1Leveling_ExecuteFixedPatrolScan = False
     OpsiHazard1Leveling_SkipHpCheck = False  # True, False
+    OpsiHazard1Leveling_ActionPointCheckInterval = 0
+    OpsiHazard1Leveling_SkipStrategicSearchCheck = False
     OpsiHazard1Leveling_Cl1Filter = 'ActionPoint'
     OpsiHazard1Leveling_RecordNonCL1AP = True
-    OpsiHazard1Leveling_RecordSeaMiles = True  # True, False
+    OpsiHazard1Leveling_RecordSeaMiles = -1
+    OpsiHazard1Leveling_SeaMilesLastRecord = None
+    OpsiHazard1Leveling_PendingMapEvent = None
     OpsiHazard1Leveling_DebugClip = False
 
     # 配置组 `OpsiSirenBug`
@@ -1158,8 +1170,14 @@ class GeneratedConfig:
 
     # 配置组 `MindCalculator`
     MindCalculator_MinLevel = 95
-    MindCalculator_MaxLevel = 120
+    MindCalculator_MaxLevel = 125
     MindCalculator_Result = {}
+    MindCalculator_FleetTechRecord = {}
+
+    # 配置组 `FleetTech`
+    FleetTech_MinLevel = 95
+    FleetTech_MaxLevel = 125
+    FleetTech_Record = {}
 
     # 配置组 `FleetInfo`
     FleetInfo_Result = {}

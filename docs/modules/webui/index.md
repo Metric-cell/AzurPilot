@@ -375,7 +375,7 @@ v1 只允许兼容性新增；删除方法或更改语义需要新版本路径�
 - **无跨连接事件重放**：重连后重新认证并重建订阅，服务不提供历史事件重放；日志靠游标增量，落后过多元数据会触发 reset。
 - **配额是硬限制**：32 个并发连接、单连接 30 请求/秒、单请求 1 MiB、单连接近 128 个请求 ID 去重——超限是拒绝而非排队。
 - **直连模式无热重载**：`EnableReload=false` 时没有监督器与重启通道，更新器拒绝执行需要重载的更新。
-- **迁移遗留未清理**：`module/webui/webui_prefs.py`（及 `config/webui_prefs.json`）在当前活跃代码中没有调用方——消费方随旧版总览面板功能移除。启动器命令通道（`module/runtime/launcher.py`、`launcher_trust.py`）已由 `module/api/launcher_api.py` 接入 `create_app`。`notify_webui` 仍向 `http://127.0.0.1:<port>/api/notify` 发 POST，但当前 `create_app` 未注册该端点，调用会静默失败。
+- **迁移遗留未清理**：`module/webui/webui_prefs.py`（及 `config/webui_prefs.json`）在当前活跃代码中没有调用方——消费方随旧版总览面板功能移除。启动器命令通道（`module/runtime/launcher.py`、`launcher_trust.py`）已由 `module/api/launcher_api.py` 接入 `create_app`；`notify_webui` 的接收端也已由 `module/api/notify_api.py` 接入（`/api/notify` + `/api/notify_stream` SSE，供启动器弹 Windows 原生通知）。
 - **预览是被动快照**：API 不主动截图；worker 未运行或未产生新帧时保持最后画面或空。
 
 ## 18. 示例
@@ -412,6 +412,8 @@ sequenceDiagram
 - **测试**：后端 `uv run python -m unittest tests.test_api tests.test_api_lifecycle tests.test_webui_worker_registry tests.test_config_transaction` 等；前端 `npm run typecheck --prefix frontend`、`npm test --prefix frontend` 与两套 Playwright e2e（主配置连临时 Python 后端并禁真实任务，mock 配置纯前端）。
 
 ## 20. 相关模块
+
+- [舰队科技列表](fleet-technology.md) —— Lua 目录、累计扫描证据、人工校正和阵营加成。
 
 - [WebUI 启动器](../entry/gui.md) —— 监督循环、双栈监听、热重载与依赖同步：本体系的进程骨架。
 - [API 服务](api.md) —— Starlette 应用组装、WS v1 协议、认证与业务编排。

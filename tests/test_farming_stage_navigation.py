@@ -15,7 +15,10 @@ from tests.test_farming_combat_config import make_config
 
 class FarmingStageNavigationTests(unittest.TestCase):
     def prepare_runner(self, task='ThreeOilLowCost', stage='C2', current_mode='normal', retirement=False):
-        config = make_config(task, Campaign={'Name': stage, 'Event': 'event_20260908_cn'})
+        # 固定含 C2/D3 的地图夹具，避免当前活动自动刷新改变难度导航场景。
+        with patch('module.config.config_updater.campaign_event_options',
+                   return_value={task: ['campaign_main', 'event_20260908_cn']}):
+            config = make_config(task, Campaign={'Name': stage, 'Event': 'event_20260908_cn'})
         runner = GemsFarming(config=config, device=Mock())
         name, folder = runner.handle_stage_name(stage, config.Campaign_Event)
         config.override(Campaign_Name=name, Campaign_Event=folder)

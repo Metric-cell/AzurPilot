@@ -48,7 +48,6 @@
 :root[data-theme='extreme'] .palette-add,
 :root[data-theme='extreme'] .yaml-editor,
 :root[data-theme='extreme'] .storage-field pre,
-:root[data-theme='extreme'] .remote-address code {border-radius: 0}
 /* liquid-glass 用内联 cornerRadius，只有 !important 压得过 */
 :root[data-theme='extreme'] .glass-material,
 :root[data-theme='extreme'] .glass-material > *,
@@ -364,6 +363,5 @@
   :root[data-theme='extreme'] .yaml-editor .cm-scroller {line-height: 1.55}
   :root[data-theme='extreme'] .editor-heading {padding: 5px 11px}
   :root[data-theme='extreme'] .storage-field pre {padding: 9px 11px; line-height: 1.6}
-  :root[data-theme='extreme'] .remote-address {padding: 12px 14px}
   :root[data-theme='extreme'] .fleet-column {padding: 12px 14px}
 }

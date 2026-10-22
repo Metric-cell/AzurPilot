@@ -34,6 +34,10 @@ class TestActionPointDashboardTotal(unittest.TestCase):
                 patch('module.os_handler.action_point.OCR_ACTION_POINT_REMAIN') as ocr:
             oil_item.predict.return_value = [SimpleNamespace(amount=oil)]
             items.predict.return_value = [SimpleNamespace(amount=amount) for amount in self.box]
+            # 只有完整、有效的面板观察才能写入含体力箱的总量。
+            oil_item.amount_ocr.last_batch_validity = (True,)
+            items.amount_ocr.last_batch_validity = (True, True, True)
+            ocr.last_valid = True
             ocr.ocr.return_value = self.current
             handler.action_point_update()
         return handler, log_res

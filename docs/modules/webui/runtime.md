@@ -25,7 +25,7 @@
 - 更新流程：`updater` 检查上游、编排停止-更新-重启事务，`module/api/update_service.py` 只是它的 WebUI 门面。
 - 被动截图通道：`preview.py` 接收 worker 截图、后台编码 JPEG、按实例保留最新帧。
 - 横切安全能力：`mcp_auth`（MCP 鉴权与会话）、`password_utils`（密码策略与本机判定）、`launcher_trust`（启动器信任令牌）。
-- 远程访问：`remote_access.py` 的 SSH 反向隧道与 WebRTC P2P 两种 provider 及自动切换。
+- 远程访问 provider、Cloudflare 隧道、固定入口续约和配对身份已在 clean 版删除。
 - 部署设置：`deploy_settings` 定义表单 schema 与校验，`config.py` 的 `DeployConfig` 把属性赋值自动落盘到 `deploy.yaml`。
 - 共享状态根：`setting.py` 的 `State`（跨进程事件、SyncManager、进程注册表）。
 - 停止后收尾：`scheduler_stop` 在独立进程中执行返回主页/关游戏/关模拟器。
@@ -219,7 +219,7 @@ flowchart TD
     F --> G["置位 dependency_sync_event + restart_event<br/>clearup() 后父监督器接管"]
 ```
 
-「先写盘再更新」是关键顺序：git reset/pull 即使报错也可能已部分改写源码，因此一旦开始更新，恢复只能走「依赖同步后重启」一条路。更新检查本身分两条路：`GitOverCdn` 开启时读 CDN 状态（`uptodate`/`behind`/`failed`，failed 回退 git）；否则 `git fetch` 后对比 `..origin/{Branch}`，本地存在上游没有的提交（开发分叉）时跳过更新。云端开关（`cloud_auto_update_enabled`）与强制更新开关每轮检查，强制开启时检查间隔缩短到 1 秒。
+「先写盘再更新」是关键顺序：git reset/pull 即使报错也可能已部分改写源码，因此一旦开始更新，恢复只能走「依赖同步后重启」一条路。更新检查本身分两条路：`GitOverCdn` 开启时读 CDN 状态（`uptodate`/`behind`/`failed`，failed 回退 git）；否则 `git fetch` 后对比 `..origin/{Branch}`，本地存在上游没有的提交（开发分叉）时跳过更新。更新总开关已移除；每轮只检查云端强制更新开关，开启时发现更新立即执行，并将检查间隔缩短到 1 秒。强制开关不可访问时按关闭处理，继续正常版本检查。
 
 ### 更新检查的调度
 
@@ -266,10 +266,15 @@ worker 启停:  API/MCP ──lifecycle lock──> ProcessManager.start/stop_by
        _preview_queue(≤2) ──预览转发线程(校验 runId)──> hub.publish ──回调──>
        socket.preview_producer ──event('preview')──> 浏览器（每实例仅最新一帧）
 
-更新:  云端开关/GitOverCdn/git fetch ──> updater.state ──> update_service 快照
+更新:  云端强制更新开关/GitOverCdn/git fetch ──> updater.state ──> update_service 快照
        run_update ──event.set()──> worker 任务边界退出 ──> reloadalas + pending 标记落盘
        ──restart_event──> gui.py 父监督器 ──依赖同步──> 重建 WebUI ──restart_processes──> 恢复实例
 ```
+
+预览是可丢帧的被动通道。复制预览副本或后台 JPEG 编码发生 `MemoryError` 时只丢当前预览帧，
+下次截图继续尝试；不能因额外预览分配失败中止已经取得有效截图的游戏任务。
+实际截图后端、识别与保存的内存异常仍沿原任务异常路径处理，不由预览通道吞掉。
+定向回归见 `tests.test_console_runtime.RuntimeTests` 的复制/编码失败与下一帧恢复用例。
 
 ## 9. 状态模型
 
@@ -308,8 +313,9 @@ stateDiagram-v2
 | `Update.AutoRestartTime` | str\|null | null | 每日定时更新时刻（ISO time）；null 则移除定时任务 |
 | `Update.EnableReload` | bool | true | false 时 `State.restart_event` 为 None，更新器拒绝执行热重载更新 |
 | `Git.GitOverCdn` | bool | false | 走 GitOverCdn 检查/更新，failed 时回退 `git pull` |
-| `RemoteAccess.RemoteAccessMode` | select | auto | `auto`/`webrtc`/`ssh`，决定激活哪个远程访问 provider |
+| `RemoteAccess.RemoteAccessMode` | select | auto | `auto`/`webrtc`/`ssh`/`cloudflare`，决定激活哪个远程访问 provider；Quick Tunnel 显式选择 |
 | `RemoteAccess.EnableRemoteAccess` | bool | false | 启动时挂载远程访问保活任务 |
+| `RemoteAccess.CloudflareRegistry` / `CloudflareDeviceId` | str | 注册服务入口 / 空 | Quick Tunnel 的 HTTPS 注册地址与安装 ID；空 ID 由身份文件首次生成并持久化 |
 | `RemoteAccess.SSHServer` / `SignalingServer` / `StunServers` / `TurnServers` | str\|null | null | 隧道与信令配置；未配置信令时从 SSHServer 推导 |
 | `Webui.Password` | str\|null | null | WebUI 与 MCP 共用密码；公网监听未设置时自动生成并回写 |
 | `Optimization.WhenSchedulerStopped`（实例配置） | select | stay_there | 手动停止后的收尾动作，`scheduler_stop` 消费 |
@@ -326,8 +332,8 @@ stateDiagram-v2
 | 启动收尾进程失败/超时 | 设备依赖异常、动作超过 30 秒 | 记录告警；超时收尾进程被终止，不影响已完成的停止 |
 | 更新等不到实例退出 | worker 卡在不可中断的设备操作 | 等待 10 分钟后 `stop()` 强停；仍有存活则取消更新并重启实例 |
 | git 更新失败 | 网络、锁文件、分叉 | 不回滚恢复计划——reset/pull 可能已部分完成，交父进程以「同步后重启」收场 |
-| 更新检查线程异常 | 云端开关不可达、git 命令失败 | `state = 0`（或 failed），下个周期重试；不中断调度任务 |
-| 云端开关不可访问 | 控制点网络失败 | `_check_update` 跳过本轮检查（`fatal=False`） |
+| 更新检查线程异常 | git 命令失败等 | `state = 0`（或 failed），下个周期重试；不中断调度任务 |
+| 云端强制更新开关不可访问 | 控制点网络失败 | 强制更新按关闭处理，继续正常版本检查 |
 | TaskHandler 任务抛异常 | 业务任务 bug | `logger.exception` 后立即移除该任务，其余任务不受影响 |
 | 预览队列异常（EOF/OSError） | worker 或队列消亡 | 转发线程退出；丢帧不中断实际任务，队列满时丢弃旧帧 |
 
@@ -345,7 +351,7 @@ stateDiagram-v2
 | TaskHandler 调度线程 | 服务子进程 daemon 线程 | `task_handler.start()` | `stop()` 置 `_alive=False` 后 join（2 秒超时） |
 | 更新检查线程 | 服务子进程 daemon 线程 | `updater.check_update` | 单次检查即结束 |
 | 日志/预览转发线程 ×2/实例 | 服务子进程线程 | `start_log_queue_handler` | 检测到本轮进程退出后 `join(1)` 回收 |
-| 远程访问线程 | 服务子进程**非 daemon** 线程 | provider.start() | stop_event 或进程内唯一线程时退出 |
+| SSH / WebRTC 远程访问线程 | 服务子进程**非 daemon** 线程 | provider.start() | stop_event 或进程内唯一线程时退出 |
 | preview 编码线程 | **worker 进程内** daemon 线程 | `preview.initialize` | 队列断开即退出 |
 
 同步约束：
@@ -400,7 +406,7 @@ TUI 使用相同服务边界；配置弹窗显示时，时钟刷新查询主屏�
 - **新增 WebUI 后台周期任务**：在 `module/api/lifecycle.startup` 中 `task_handler.add(生成器, 初始延迟)`；生成器第一个 `yield` 接收 TaskHandler，可动态改 `th._task.delay`（参照 `updater.check_update_loop`）或 `th.remove_current_task()` 自毁。
 - **新增 worker 启动形态**：`_run_process` 的 `func` 分发已覆盖 `alas` / 单任务 / submodule / submodule 单功能四种；新增形态在此添加分支并让 `get_config_mod` 能解析对应配置名。
 - **新增停止收尾动作**：在 `scheduler_stop.STOP_ACTIONS` 加选项、`execute_stop_action` 加分支，并在 `module/config/argument/argument.yaml` 的 `WhenSchedulerStopped` 选项中登记（五个 i18n 文件补翻译）。
-- **新增远程访问 provider**：继承 `RemoteAccessProvider`（start/stop/is_alive/get_state/get_entry_point/get_connection_state/get_error 七个接口），接入 `AutoRemoteAccessProvider` 的模式分派。
+- **新增远程访问 provider**：实现 `RemoteAccessProvider` 的 start/stop/is_alive/get_state/get_entry_point/get_connection_state/get_error 七个接口，接入 `AutoRemoteAccessProvider` 的模式分派；Quick Tunnel 为独立实现。
 - **新增部署设置字段**：`deploy_settings.py` 的 `DEPLOY_GROUPS` 加 `DeployField`，`deploy/config.py` 加模板默认值，`gui.yaml` 补 `Gui.DeploySetting.*` 翻译；类型解析在 `_parse_value` 扩展。
 - **新增 MCP 端点保护**：只需扩展 `mcp_auth.ROUTE_METHODS` 与 `route_of` 的末尾匹配，`authorize` 会自动覆盖。
 
@@ -421,7 +427,7 @@ TUI 使用相同服务边界；配置弹窗显示时，时钟刷新查询主屏�
 - **`event_calculator.py` 当前没有生产消费者**（截至 2026-09）：自旧 PyWebIO 前端迁移而来，逻辑与单测完整，但新 React 前端尚未实现活动计算器页面。它是预留能力，接线前不会生效。启动器命令通道与免密令牌已由 `module/api/launcher_api.py` 接入 `create_app`。
 - worker 的更新退出依赖任务边界轮询（`wait_until` 每 5 秒、任务间每次循环），**正在执行的长任务会推迟更新等待**，因此事务里有 10 分钟超时强停兜底；强停可能让该实例下次启动时状态不完整。
 - `alive` 在登记不可验证时保守返回 False，配合 `start()` 的二次验证避免重复启动；但这意味着登记文件损坏期间（自愈前）实例可能显示为已停止。
-- 远程访问线程是非 daemon 线程，其退出依赖 `stop_event` 或「进程内唯一线程」检测；极端情况下（其他线程意外全部退出）可能延迟进程退出。
+- SSH / WebRTC 远程访问线程是非 daemon 线程，其退出依赖 `stop_event` 或「进程内唯一线程」检测；极端情况下（其他线程意外全部退出）可能延迟进程退出。Quick Tunnel 使用 daemon 线程及显式取消与子进程回收。
 - 预览每实例仅保留一帧且队列容量 2，快速连续截图时中间帧会被丢弃；这是设计（前端只看最新画面），不提供回放。
 - `restart_processes` 从 `reloadalas` 恢复实例时不校验实例是否仍存在（文件由 updater 按当时运行名单写入）；恢复一个刚被删除的实例会以启动失败告终并记录日志。
 

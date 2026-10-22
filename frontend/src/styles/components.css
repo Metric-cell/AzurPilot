@@ -464,14 +464,6 @@
 .storage-field .button {justify-self: start}
 .edit-status { margin-top: 6px; font-size: 12px; color: var(--muted); }
 .edit-error { color: var(--red); }
-.remote-address {display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 18px 21px}
-.remote-address code {flex: 1 1 260px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface-muted); font: 13px/1.7 var(--theme-font-mono, "JetBrains Mono", "JetBrains Mono NL", "Cascadia Code", "Consolas", "Microsoft YaHei", monospace); overflow-wrap: anywhere; user-select: all}
-.remote-hint {margin: 0; padding: 0 21px 16px; font-size: 12px}
-.remote-badge {padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 550; white-space: nowrap}
-.remote-badge-ready {background: #269a8120; color: #269a81}
-.remote-badge-starting {background: #b8860b20; color: #a97b0a}
-.remote-badge-failed {background: #bd555520; color: var(--red)}
-.remote-badge-disabled {background: var(--surface-muted); color: var(--muted)}
 
 /* 配置管理：一行一份配置，右侧依次是状态徽章与操作按钮。 */
 .config-list {display: grid; gap: 12px}
