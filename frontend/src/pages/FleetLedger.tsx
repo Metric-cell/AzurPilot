@@ -1,18 +1,46 @@
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useId, useMemo, useRef, useState} from 'react'
 import {api} from '../api/client'
 import type {DockCard, DockReport} from '../api/types'
 import {useApp, useConnection} from '../app/context'
+import {useDraftInput} from '../components/FormControls'
 import {ErrorBox, Loading} from '../components/ui'
+import type {MindCatalog} from '../mind/types'
 import './fleet-ledger.css'
 
 const rarities = ['', 'N', 'R', 'SR', 'SSR', 'UR'] as const
 type Rarity = typeof rarities[number]
 type Draft = {revision: string; rows: DockCard[]; deleted: number[]}
+const columns = [
+  ['id', 'id'], ['name', 'name'], ['group_type', 'group'], ['level', 'level'],
+  ['rarity', 'rarity'], ['base_rarity', 'baseRarity'], ['extra_exp', 'extraExp'],
+  ['review', 'reviewFlag'], ['excluded', 'excluded'],
+] as const
+type SortField = typeof columns[number][0]
+type Sort = {field: SortField; direction: 1 | -1}
+
+function ShipName({value, label, list, placeholder, disabled, onCommit}: {
+  value: string; label: string; list: string; placeholder: string; disabled: boolean; onCommit: (name: string) => void
+}) {
+  // 名称提交后才参与排序，避免打字时换行或翻页而丢失焦点。
+  const draft = useDraftInput(value, text => onCommit(text.trim()), true)
+  return <input {...draft} list={list} maxLength={100} aria-label={label} placeholder={placeholder} disabled={disabled}/>
+}
+
+function ShipNumber({value, label, disabled, max, nullable = false, onCommit}: {
+  value: number | null; label: string; disabled: boolean; max?: number; nullable?: boolean; onCommit: (value: number | null) => void
+}) {
+  const draft = useDraftInput(value === null ? '' : String(value), text => onCommit(nullable && text === '' ? null : Number(text)))
+  return <input {...draft} type="number" min={0} max={max} step={1} placeholder={nullable ? 'NULL' : undefined} aria-label={label} disabled={disabled}/>
+}
+
 export function FleetLedger({instance, report, onReport, onBusy, onDirty, locked = false}: {
   instance: string; report?: DockReport; locked?: boolean; onReport: (report: DockReport) => void
   onBusy: (busy: boolean) => void; onDirty: (dirty: boolean) => void
 }) {
-  const {ui, notify} = useApp(), connection = useConnection()
+  const {language, ui, notify} = useApp(), connection = useConnection()
+  const catalogId = useId()
+  const [catalog, setCatalog] = useState<MindCatalog>(), [catalogError, setCatalogError] = useState('')
+  const [catalogAttempt, setCatalogAttempt] = useState(0), [sort, setSort] = useState<Sort>()
   const [draft, setDraft] = useState<Draft>(), [error, setError] = useState(''), [busy, setBusy] = useState(false)
   const [targets, setTargets] = useState<Record<string, string>>({})
   const [query, setQuery] = useState(''), [filter, setFilter] = useState('all'), [page, setPage] = useState(0)
@@ -28,6 +56,16 @@ export function FleetLedger({instance, report, onReport, onBusy, onDirty, locked
     return () => {scope.current.token++}
   }, [instance]) // Connection changes deliberately preserve the draft.
   useEffect(() => {setTargets({})}, [report?.pending_revision])
+  useEffect(() => {setCatalog(undefined); setCatalogError(''); setSort(undefined)}, [instance])
+  useEffect(() => {
+    if (connection !== 'ready') return
+    let active = true
+    setCatalogError('')
+    void api.request('mind.catalog', {instance}).then(value => {
+      if (active) setCatalog(value)
+    }).catch(error => {if (active) setCatalogError((error as Error).message)})
+    return () => {active = false}
+  }, [instance, connection, catalogAttempt])
   function remember(value?: Draft) {
     setDraft(value); onDirty(!!value)
     try {if (value) sessionStorage.setItem(key, JSON.stringify(value)); else sessionStorage.removeItem(key)}
@@ -38,12 +76,21 @@ export function FleetLedger({instance, report, onReport, onBusy, onDirty, locked
     const value = draft ?? {revision: report.revision, rows: report.ships.map(row => ({...row})), deleted: []}
     remember({...value, rows: value.rows.map(row => row.id === id ? {...row, ...update} : row)})
   }
+  function rename(row: DockCard, name: string) {
+    // 目录名称已区分同名舰；不以原始别名或第一个模糊匹配猜测群组。
+    const matches = catalog?.ships.filter(ship => ship.name === name && ship.group_type !== undefined) ?? []
+    const ship = matches.length === 1 ? matches[0] : undefined
+    if (ship && ship.group_type !== undefined) {
+      if (row.name !== ship.name || row.group_type !== ship.group_type || row.rarity !== ship.rarity || row.base_rarity !== ship.base_rarity)
+        change(row.id, {name: ship.name, group_type: ship.group_type, rarity: ship.rarity, base_rarity: ship.base_rarity})
+    } else if (name !== row.name) change(row.id, {name, group_type: null, review: true})
+  }
   function add() {
     if (!report) return
     const value = draft ?? {revision: report.revision, rows: report.ships.map(row => ({...row})), deleted: []}
     const id = Math.min(0, ...value.rows.map(row => row.id)) - 1
     remember({...value, rows: [...value.rows, {id, name: '', group_type: null, level: 1, rarity: 'N', base_rarity: 'N', extra_exp: null, review: false, excluded: false, source: 'manual'}]})
-    setQuery(''); setFilter('all'); setPage(Math.floor(value.rows.length / 50))
+    setQuery(''); setFilter('all'); setSort(undefined); setPage(Math.floor(value.rows.length / 50))
   }
   function remove(id: number) {
     if (!report) return
@@ -83,8 +130,22 @@ export function FleetLedger({instance, report, onReport, onBusy, onDirty, locked
     } catch (e) {if (scope.current.token === token) setError((e as Error).message)}
     finally {if (scope.current.token === token) {writing.current = false; setBusy(false); onBusy(false)}}
   }
-  const rows = (draft?.rows ?? report?.ships ?? []).filter(row => `${row.name} ${row.id}`.toLowerCase().includes(query.toLowerCase())
-    && (filter === 'unknown' ? row.extra_exp === null : filter === 'review' ? row.review : true))
+  const collator = useMemo(() => new Intl.Collator(language, {numeric: true, sensitivity: 'base'}), [language])
+  const rows = useMemo(() => {
+    const result = (draft?.rows ?? report?.ships ?? []).filter(row => `${row.name} ${row.id} ${row.group_type ?? ''}`.toLowerCase().includes(query.toLowerCase())
+      && (filter === 'unknown' ? row.extra_exp === null : filter === 'review' ? row.review : true))
+    if (sort) result.sort((left, right) => {
+      const a = left[sort.field], b = right[sort.field]
+      // 未知值始终排在已知值后，额外经验 0 不等于未知。
+      if (a === null || a === '') return b === null || b === '' ? left.id - right.id : 1
+      if (b === null || b === '') return -1
+      const comparison = sort.field === 'rarity' || sort.field === 'base_rarity'
+        ? rarities.indexOf(a as Rarity) - rarities.indexOf(b as Rarity)
+        : typeof a === 'string' && typeof b === 'string' ? collator.compare(a, b) : Number(a) - Number(b)
+      return comparison * sort.direction || left.id - right.id
+    })
+    return result
+  }, [draft?.rows, report?.ships, query, filter, sort, collator])
   const pages = Math.max(1, Math.ceil(rows.length / 50)), currentPage = Math.min(page, pages - 1)
   const disabled = busy || locked || connection !== 'ready' || !report
   const rowLabel = (label: string, row: DockCard) => `${label} · ${row.name || ui('analysis.new')} #${row.id}`
@@ -109,6 +170,9 @@ export function FleetLedger({instance, report, onReport, onBusy, onDirty, locked
   const operations = {add: 'analysis.operationAdd', update: 'analysis.operationUpdate', remove: 'analysis.operationRemove', resolve: 'analysis.operationResolve'} as const
   return <div className="fleet-ledger">
     <p>{ui('analysis.ledgerHint')}</p>
+    <p className="muted">{ui('analysis.editHint')}</p>
+    {catalogError && <ErrorBox message={catalogError} retry={() => setCatalogAttempt(value => value + 1)}/>}
+    {!catalog && !catalogError && <p role="status">{ui('analysis.catalogLoading')}</p>}
     {error && <ErrorBox message={error}/>}
     {!report && <Loading/>}
     {draft && <p role="status">{ui(stale ? 'analysis.stale' : 'analysis.dirty')}</p>}
@@ -121,16 +185,21 @@ export function FleetLedger({instance, report, onReport, onBusy, onDirty, locked
       <button className="button primary" disabled={disabled || !draft || stale} onClick={() => void save()}>{ui('analysis.save')}</button>
       <button className="button secondary" disabled={busy || !draft} onClick={() => {remember(); setError('')}}>{ui('analysis.discard')}</button>
     </div>
-    <div className="ledger-table-wrap"><table><thead><tr>{(['id', 'name', 'group', 'level', 'rarity', 'baseRarity', 'extraExp', 'reviewFlag', 'excluded', 'sourceMetadata', 'delete'] as const).map(field => <th key={field}>{ui(`analysis.${field}`)}</th>)}</tr></thead>
+    <datalist id={catalogId}>{catalog?.ships.map(ship => <option key={`${ship.group_type}:${ship.name}`} value={ship.name}>{ship.rarity}</option>)}</datalist>
+    <div className="ledger-table-wrap"><table><thead><tr>{columns.map(([field, label]) => <th key={field} scope="col" aria-sort={sort?.field === field ? sort.direction === 1 ? 'ascending' : 'descending' : 'none'}>
+      <button type="button" className="ledger-sort" onClick={() => {setSort({field, direction: sort?.field === field && sort.direction === 1 ? -1 : 1}); setPage(0)}}>
+        {ui(`analysis.${label}`)} <span aria-hidden="true">{sort?.field === field ? sort.direction === 1 ? '↑' : '↓' : '↕'}</span>
+      </button>
+    </th>)}<th scope="col">{ui('analysis.sourceMetadata')}</th><th scope="col">{ui('analysis.delete')}</th></tr></thead>
       <tbody>{rows.slice(currentPage * 50, (currentPage + 1) * 50).map(row => <tr key={row.id} className={draft?.deleted.includes(row.id) ? 'ledger-deleted' : ''}>
         <td>{row.id < 0 ? `${ui('analysis.new')} ${-row.id}` : row.id}</td>
-        <td><input aria-label={rowLabel(ui('analysis.name'), row)} value={row.name} disabled={disabled} onChange={e => change(row.id, {name: e.target.value})}/></td>
-        <td><input type="number" min={1} aria-label={rowLabel(ui('analysis.group'), row)} value={row.group_type ?? ''} disabled={disabled} onChange={e => change(row.id, {group_type: e.target.value === '' ? null : Number(e.target.value)})}/></td>
-        <td><input type="number" min={0} max={125} aria-label={rowLabel(ui('analysis.level'), row)} value={row.level} disabled={disabled} onChange={e => change(row.id, {level: Number(e.target.value)})}/></td>
+        <td><ShipName value={row.name} label={rowLabel(ui('analysis.name'), row)} list={catalogId} placeholder={ui('analysis.chooseShip')} disabled={disabled || !catalog} onCommit={name => rename(row, name)}/></td>
+        <td><span title={ui('analysis.groupAuto')}>{row.group_type ?? '—'}</span></td>
+        <td><ShipNumber value={row.level} max={125} label={rowLabel(ui('analysis.level'), row)} disabled={disabled} onCommit={level => change(row.id, {level: level ?? 0})}/></td>
         {(['rarity', 'base_rarity'] as const).map(field => <td key={field}><select aria-label={rowLabel(ui(field === 'rarity' ? 'analysis.rarity' : 'analysis.baseRarity'), row)} value={row[field]} disabled={disabled} onChange={e => change(row.id, {[field]: e.target.value})}>
           {rarities.map(value => <option key={value} value={value}>{value || '—'}</option>)}
         </select></td>)}
-        <td><input type="number" min={0} placeholder="NULL" aria-label={rowLabel(ui('analysis.extraExp'), row)} value={row.extra_exp ?? ''} disabled={disabled} onChange={e => change(row.id, {extra_exp: e.target.value === '' ? null : Number(e.target.value)})}/></td>
+        <td><ShipNumber value={row.extra_exp} nullable label={rowLabel(ui('analysis.extraExp'), row)} disabled={disabled} onCommit={extra_exp => change(row.id, {extra_exp})}/></td>
         <td><input type="checkbox" aria-label={rowLabel(ui('analysis.reviewFlag'), row)} checked={row.review} disabled={disabled} onChange={e => change(row.id, {review: e.target.checked})}/></td>
         <td><input type="checkbox" aria-label={rowLabel(ui('analysis.excluded'), row)} checked={row.excluded} disabled={disabled} onChange={e => change(row.id, {excluded: e.target.checked})}/></td>
         <td>{row.source}</td><td><button className="button secondary" aria-label={rowLabel(ui(draft?.deleted.includes(row.id) ? 'analysis.restore' : 'analysis.delete'), row)} disabled={disabled} onClick={() => remove(row.id)}>{ui(draft?.deleted.includes(row.id) ? 'analysis.restore' : 'analysis.delete')}</button></td>
