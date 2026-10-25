@@ -20,9 +20,12 @@ class FleetTechService:
         fields = self.configs.read(instance)[0].get('DockScan', {}).get('Dock', {})
         min_level = snapshot['min_level'] if dock_data.has_snapshot(data) else fields.get('MinLevel', 1)
         max_level = snapshot['max_level'] if dock_data.has_snapshot(data) else fields.get('MaxLevel', 125)
+        record = dock_data.technology_record(data)
+        # last_scan 是已确认底账的有效群组投影，不以全图鉴或旧累计记录补齐成员。
+        groups = [gid for gid, _ in (record.get('last_scan') or {}).get('ships', [])]
         return dict(instance=instance, min_level=min_level, max_level=max_level,
                     legacy_imported=data['legacy_imported'],
-                    **tech.report(dock_data.technology_record(data)))
+                    **tech.report(record, group_types=groups))
 
     def patch(self, instance, expected_revision, changes, nations):
         path = self.configs.path(instance)

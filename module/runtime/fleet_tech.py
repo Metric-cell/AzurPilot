@@ -215,16 +215,21 @@ def ship_type(value):
     return 1 if value in (20, 21) else 22 if value in (22, 23, 24) else value
 
 
-def report(record):
-    """按确认状态计算科技点、舰船加成及已录入的阵营科技加成。"""
+def report(record, *, group_types=None):
+    """指定底账范围时仅报告底账与非空人工记录的并集；省略时保留全目录投影。"""
     rows, bonuses = [], defaultdict(lambda: defaultdict(int))
     confirmed_points = completed = pending_star = 0
+    members = None if group_types is None else {str(gid) for gid in group_types}
+    if members is not None:
+        members.update(str(gid) for gid, entry in record.get('manual', {}).items() if entry)
 
     def add(types, attr, value):
         for target in {ship_type(t) for t in types}:
             bonuses[str(target)][str(attr)] += value
 
     for info in catalog()['ships']:
+        if members is not None and str(info['group_type']) not in members:
+            continue
         row = progress(record, info['group_type'])
         owned, full_star, lv120 = row['owned'], row['full_star'], row['lv120']
         tech = info['technology']

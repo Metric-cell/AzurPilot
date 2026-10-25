@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
+import {useEffect, useId, useMemo, useRef, useState, type ReactNode} from 'react'
 import {useParams} from 'react-router-dom'
 import {api} from '../api/client'
 import {useApp, useConnection} from '../app/context'
@@ -15,6 +15,7 @@ const has = (value: object, key: string) => Object.hasOwn(value, key)
 
 export function FleetTechnology() {
   const {instance = ''} = useParams(), {language, ui, notify} = useApp(), connection = useConnection()
+  const addShipListId = useId(), [addShip, setAddShip] = useState('')
   const tr = (key: string) => translateFleetTech(language, key)
   const [catalog, setCatalog] = useState<Catalog>(), [report, setReport] = useState<Report>()
   const catalogLoaded = useRef<Catalog | undefined>(undefined)
@@ -53,7 +54,7 @@ export function FleetTechnology() {
     const token = scope.current.token
     let active = true
     saved.current = undefined; writing.current = false; epoch.current++
-    setReport(undefined); setCatalog(undefined); catalogLoaded.current = undefined; setBusy(false); setError(''); setPage(0); setView('history'); setEdit(false)
+    setReport(undefined); setCatalog(undefined); catalogLoaded.current = undefined; setBusy(false); setError(''); setPage(0); setView('history'); setEdit(false); setAddShip('')
     pending.current = {}; nationPending.current = {}
     try {
       const draft = JSON.parse(sessionStorage.getItem(draftKey) ?? 'null')
@@ -104,6 +105,11 @@ export function FleetTechnology() {
   const rows = useMemo(() => latest && catalog && report?.last_scan ? scanRows(catalog, report.last_scan) : historyRows,
     [latest, catalog, report, historyRows])
   function nation(value: number) {const label = tr(`nation.${value}`); return label.startsWith('nation.') ? `${tr('collaboration')} · ${value}` : label}
+  const supplementalShips = (catalog?.ships ?? []).map(ship => {
+    const name = ship.names[language === 'en-US' ? 'en' : language === 'ja-JP' ? 'jp' : language === 'zh-TW' ? 'tw' : 'cn'] || ship.name
+    return {group_type: ship.group_type, label: `${name} · ${nation(ship.nationality)} · ${tr(`type.${shipType(ship.type)}`)} · #${ship.code}`}
+  })
+  const supplementalShip = supplementalShips.find(ship => ship.label === addShip)
   function rarity(value: string) {return value === 'PR' || value === 'DR' ? tr(`rarity.${value}`) : ui(`mind.rarity.${value}` as 'mind.rarity.N')}
   function effect(row: Row, stage: 'get' | 'level') {
     const t = row.technology
@@ -154,6 +160,12 @@ export function FleetTechnology() {
       <button aria-pressed={latest} disabled={!hasScan || busy} onClick={() => {setView('latest'); setEdit(false); setPage(0)}}>{tr('latestScan')}</button>
       <button aria-pressed={!latest} disabled={busy} onClick={() => {setView('history'); setPage(0)}}>{tr('history')}</button>
     </div><small>{tr(latest ? 'latestHint' : 'historyHint')}</small></section>
+    {edit && <div className="ft-manual-add">
+      <label>{tr('addShip')}<input list={addShipListId} placeholder={tr('addShipPlaceholder')} value={addShip} disabled={busy || connection !== 'ready'} onChange={event => setAddShip(event.target.value)}/></label>
+      <datalist id={addShipListId}>{supplementalShips.map(ship => <option key={ship.group_type} value={ship.label}/>)}</datalist>
+      <button className="button secondary" disabled={busy || connection !== 'ready' || !supplementalShip || !!drafts[supplementalShip.group_type] || historyRows.some(row => row.group_type === supplementalShip.group_type && row.owned)}
+        onClick={() => {if (supplementalShip) commit({group_type: supplementalShip.group_type, owned: true})}}>{tr('addOwned')}</button>
+    </div>}
     {report.last_scan && <p className="ft-scan-summary">{tr('latestScan')} · {tr('matched')} {report.last_scan.matched_count} · {tr('review')} {report.review_ships.length} · {tr('scanTime')} {report.last_scan.updated_at.replace('T', ' ')}</p>}
     {!!report.review_ships.length && <details className="ft-reviews"><summary>{tr('review')} ({report.review_ships.length})</summary><p>{tr('reviewHint')}</p>
       {report.review_ships.map((ship, index) => <div key={index}><span>{ship.name} · {ship.level ? `Lv.${ship.level}` : tr('unknown')}</span>
