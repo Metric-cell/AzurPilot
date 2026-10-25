@@ -190,7 +190,7 @@ export function FleetLedger({instance, report, onReport, onBusy, onDirty, locked
       <button type="button" className="ledger-sort" onClick={() => {setSort({field, direction: sort?.field === field && sort.direction === 1 ? -1 : 1}); setPage(0)}}>
         {ui(`analysis.${label}`)} <span aria-hidden="true">{sort?.field === field ? sort.direction === 1 ? '↑' : '↓' : '↕'}</span>
       </button>
-    </th>)}<th scope="col">{ui('analysis.sourceMetadata')}</th><th scope="col">{ui('analysis.delete')}</th></tr></thead>
+    </th>)}<th scope="col">{ui('analysis.delete')}</th><th scope="col">{ui('analysis.sourceMetadata')}</th></tr></thead>
       <tbody>{rows.slice(currentPage * 50, (currentPage + 1) * 50).map(row => <tr key={row.id} className={draft?.deleted.includes(row.id) ? 'ledger-deleted' : ''}>
         <td>{row.id < 0 ? `${ui('analysis.new')} ${-row.id}` : row.id}</td>
         <td><ShipName value={row.name} label={rowLabel(ui('analysis.name'), row)} list={catalogId} placeholder={ui('analysis.chooseShip')} disabled={disabled || !catalog} onCommit={name => rename(row, name)}/></td>
@@ -202,7 +202,8 @@ export function FleetLedger({instance, report, onReport, onBusy, onDirty, locked
         <td><ShipNumber value={row.extra_exp} nullable label={rowLabel(ui('analysis.extraExp'), row)} disabled={disabled} onCommit={extra_exp => change(row.id, {extra_exp})}/></td>
         <td><input type="checkbox" aria-label={rowLabel(ui('analysis.reviewFlag'), row)} checked={row.review} disabled={disabled} onChange={e => change(row.id, {review: e.target.checked})}/></td>
         <td><input type="checkbox" aria-label={rowLabel(ui('analysis.excluded'), row)} checked={row.excluded} disabled={disabled} onChange={e => change(row.id, {excluded: e.target.checked})}/></td>
-        <td>{row.source}</td><td><button className="button secondary" aria-label={rowLabel(ui(draft?.deleted.includes(row.id) ? 'analysis.restore' : 'analysis.delete'), row)} disabled={disabled} onClick={() => remove(row.id)}>{ui(draft?.deleted.includes(row.id) ? 'analysis.restore' : 'analysis.delete')}</button></td>
+        <td><button className="button secondary" aria-label={rowLabel(ui(draft?.deleted.includes(row.id) ? 'analysis.restore' : 'analysis.delete'), row)} disabled={disabled} onClick={() => remove(row.id)}>{ui(draft?.deleted.includes(row.id) ? 'analysis.restore' : 'analysis.delete')}</button></td>
+        <td><span className="ledger-source" title={row.source}>{row.source}</span></td>
       </tr>)}</tbody></table></div>
     {!rows.length && <p>{ui('analysis.emptyLedger')}</p>}
     <div className="mind-toolbar"><button className="button secondary" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>{ui('analysis.previous')}</button><span>{ui('analysis.page')} {currentPage + 1} / {pages} · {rows.length}</span><button className="button secondary" disabled={currentPage + 1 >= pages} onClick={() => setPage(currentPage + 1)}>{ui('analysis.next')}</button></div>
