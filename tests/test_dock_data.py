@@ -3,7 +3,6 @@ import copy
 import unittest
 
 from module.api.protocol import MindShip
-from module.config.deep import deep_set
 from module.runtime import dock_data as dock
 from module.runtime import fleet_tech as tech
 from module.runtime.mind_calculator import calculate
@@ -45,35 +44,24 @@ class DockDataTests(unittest.TestCase):
         self.assertEqual(result['history']['current']['10102'], 105)
         self.assertEqual(result['history']['observed']['10102'], 125)
 
-    def test_空模板不是快照而显式空清单优先(self):
-        data = {}
-        deep_set(data, dock.RESULT_PATH, {})
-        deep_set(data, 'MindCalculatorScan.MindCalculator.Result',
-                 dict(ships=[ship()], updated_at='2026-10-24T12:00:00'))
+    def test_旧配置全部忽略且显式空快照有效(self):
+        data = {
+            'DockScan': {'Dock': {'Result': snapshot([ship(level=125)])}},
+            'MindCalculatorScan': {'MindCalculator': {'Result': {'ships': [ship()]},
+                                                       'Analysis': {'extra': [ship()]}}},
+            'FleetTechScan': {'FleetTech': {'Record': {'observed': {'10102': 125},
+                                                       'manual': {'10102': {'owned': True}}}}},
+        }
         before = copy.deepcopy(data)
         self.assertFalse(dock.has_snapshot(data))
-        self.assertEqual(dock.read_snapshot(data)['source'], 'legacy_mind')
+        self.assertEqual(dock.read_snapshot(data)['source'], 'empty')
+        self.assertEqual(dock.read_snapshot(data)['ships'], [])
+        self.assertFalse(tech.progress(dock.technology_record(data), 10102)['owned'])
         self.assertEqual(data, before)
-        deep_set(data, dock.RESULT_PATH, snapshot([]))
+        data['snapshot'] = snapshot([])
         self.assertTrue(dock.has_snapshot(data))
         self.assertEqual(dock.report_snapshot(data)['ships'], [])
         self.assertEqual(dock.report_snapshot(data)['source'], 'scan')
-
-    def test_旧来源仅选择较新可信日期且从不冒充全量(self):
-        data = {}
-        deep_set(data, 'MindCalculatorScan.MindCalculator.Result',
-                 dict(ships=[ship()], updated_at='不是日期'))
-        deep_set(data, tech.RECORD_PATH,
-                 dict(observed={'10102': 125}, manual={'10102': {'owned': False}},
-                      last_scan=dict(ships=[[30507, 120]], updated_at='2026-10-25T12:00:00', complete=True)))
-        before = copy.deepcopy(data)
-        result = dock.read_snapshot(data)
-        self.assertEqual(result['source'], 'legacy_tech')
-        self.assertEqual(len(result['ships']), 1)
-        self.assertEqual(result['ships'][0]['name'], '加贺')
-        self.assertFalse(result['complete'])
-        self.assertEqual(result['history']['observed'], {'10102': 125})
-        self.assertEqual(data, before)
 
     def test_心智限定名及特殊船排除不改变共享源(self):
         result = snapshot([ship(30507), ship(30702), ship(10220)])
@@ -86,36 +74,31 @@ class DockDataTests(unittest.TestCase):
         self.assertEqual((report['included'], report['excluded']), (2, 1))
         self.assertEqual(result, before)
 
-    def test_科技合并保留人工阵营和旧历史且只读(self):
-        data = {}
-        old = dict(observed={'10103': 125}, manual={'10102': {'owned': False}}, nations={'1': 3})
-        deep_set(data, tech.RECORD_PATH, old)
-        deep_set(data, dock.RESULT_PATH, snapshot([ship()], min_level=95))
+    def test_科技合并保留人工阵营且只读(self):
+        previous = snapshot([ship(10103, 125)])
+        current = snapshot([ship()], min_level=95, previous=previous)
+        options = dict(manual={'10102': {'owned': False}}, nations={'1': 3})
+        data = dict(snapshot=current, technology=options, mind={})
         before = copy.deepcopy(data)
         record = dock.technology_record(data)
-        self.assertEqual(record['manual'], old['manual'])
-        self.assertEqual(record['nations'], old['nations'])
+        self.assertEqual(record['manual'], options['manual'])
+        self.assertEqual(record['nations'], options['nations'])
         self.assertEqual(record['observed']['10103'], 125)
         self.assertFalse(tech.progress(record, 10102)['owned'])
         self.assertEqual(data, before)
 
-    def test_无共享数据不影响旧科技且默认全范围(self):
-        data = {}
-        deep_set(data, tech.RECORD_PATH, {'manual': {'10102': {'owned': True}}})
-        self.assertEqual(dock.technology_record(data), tech.read_record(data))
-        report = dock.report_snapshot({})
+    def test_无快照仍读取独立人工设置且默认全范围(self):
+        data = dict(snapshot=None, mind={}, technology={'manual': {'10102': {'owned': True}}})
+        self.assertTrue(tech.progress(dock.technology_record(data), 10102)['owned'])
+        report = dock.report_snapshot(data)
         self.assertEqual((report['min_level'], report['max_level'], report['source']), (1, 125, 'empty'))
 
-    def test_旧科技历史继承不携带人工字段且局部扫描不降级(self):
-        data = {}
-        deep_set(data, tech.RECORD_PATH, dict(observed={'10102': 125}, current={'10102': 125},
-                                            manual={'10102': {'owned': False}}, nations={'1': 3}))
-        legacy = dock.read_snapshot(data)
-        result = snapshot([ship(level=105)], min_level=95, previous=legacy)
+    def test_局部扫描继承自动历史且不携带人工字段(self):
+        previous = snapshot([ship(level=125)])
+        result = snapshot([ship(level=105)], min_level=95, previous=previous)
         self.assertEqual(result['history']['current']['10102'], 125)
         self.assertFalse({'manual', 'nations', 'last_scan'} & result['history'].keys())
-        deep_set(data, dock.RESULT_PATH, result)
-        self.assertEqual(dock.technology_record(data)['current']['10102'], 125)
+        self.assertEqual(dock.technology_record({'snapshot': result})['current']['10102'], 125)
 
     def test_心智合并确认副本而疑点卡位保持独立(self):
         rows = [ship(level=105), ship(level=120), ship(None, 0), ship(None, 0)]

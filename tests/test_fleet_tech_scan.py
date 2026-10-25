@@ -13,7 +13,8 @@ from PIL import Image
 from module.api.config_service import ConfigService
 from module.api.fleet_tech_service import FleetTechService
 from module.api.protocol import ApiError, FleetTechChange
-from module.config.deep import deep_get, deep_set
+from module.config.deep import deep_set
+from module.runtime.fleet_database import FleetDatabase
 from module.runtime import fleet_tech as tech
 from module.runtime.fleet_tech_identity import FleetTechIdentity, surface_icon
 from module.runtime.mind_recognition import Card, ScanMerger, aircraft_icon, color_rows, recognize_cards
@@ -48,7 +49,7 @@ class FleetTechRecordTests(unittest.TestCase):
         self.assertEqual(empty['current'], reduced['current'])
         self.assertEqual(empty['manual'], before)
 
-    def test_mind_cost_exclusions_do_not_filter_explicit_technology_import(self):
+    def test_legacy_sync_endpoint_never_imports_mind_analysis(self):
         from module.api.mind_calculator_service import MindCalculatorService
         with tempfile.TemporaryDirectory() as directory:
             configs = ConfigService(fixture(directory))
@@ -57,7 +58,8 @@ class FleetTechRecordTests(unittest.TestCase):
             self.assertEqual(saved['excluded'], 1)
             self.assertFalse(next(row for row in service.report('testpilot')['ships'] if row['group_type'] == 10220)['owned'])
             imported = service.sync_mind('testpilot')
-            self.assertTrue(next(row for row in imported['ships'] if row['group_type'] == 10220)['owned'])
+            self.assertFalse(next(row for row in imported['ships'] if row['group_type'] == 10220)['owned'])
+            self.assertEqual(imported, service.report('testpilot'))
 
     def test_level_toggle_survives_reload_and_restores_actual_level(self):
         for level, low, high in [(105, 105, 120), (120, 100, 120), (125, 100, 125)]:
@@ -69,7 +71,7 @@ class FleetTechRecordTests(unittest.TestCase):
                 for target in [level < 120, level >= 120, level < 120]:
                     current = service.patch('testpilot', current['revision'],
                                             [FleetTechChange(group_type=10220, toggle='complete', target=target)], {})
-                    # 重新创建服务模拟重启，既验证 JSON 落盘，也不依赖前端内存。
+                    # 重新创建服务模拟重启，既验证数据库落盘，也不依赖前端内存。
                     service = FleetTechService(ConfigService(configs.root))
                     current = service.report('testpilot')
                     row = next(row for row in current['ships'] if row['group_type'] == 10220)
@@ -100,24 +102,25 @@ class FleetTechRecordTests(unittest.TestCase):
         tech.toggle(record, 10224, 'complete', False)
         self.assertEqual(tech.progress(record, 10224)['level'], 100)
 
-    def test_legacy_record_is_read_without_write_and_migrated_without_losing_manual_history(self):
+    def test_legacy_record_is_ignored_and_patch_does_not_rewrite_config(self):
         with tempfile.TemporaryDirectory() as directory:
             configs = ConfigService(fixture(directory))
             data, _ = configs.read('testpilot')
             legacy = dict(observed={'10102': 105}, manual={'10103': dict(owned=True, level=111)}, nations={'1': 3})
-            deep_set(data, tech.LEGACY_RECORD_PATH, legacy)
+            deep_set(data, 'MindCalculatorScan.MindCalculator.FleetTechRecord', legacy)
+            deep_set(data, 'FleetTechScan.FleetTech.Record', legacy)
             configs.path('testpilot').write_text(json.dumps(data), encoding='utf-8')
             before = configs.path('testpilot').read_bytes()
             service = FleetTechService(configs)
             initial = service.report('testpilot')
-            self.assertEqual(before, configs.path('testpilot').read_bytes())
+            self.assertEqual(initial['completed'], 0)
+            self.assertFalse(next(row for row in initial['ships'] if row['group_type'] == 10103)['owned'])
             service.patch('testpilot', initial['revision'], [FleetTechChange(group_type=10102, toggle='complete', target=True)], {})
-            saved, _ = configs.read('testpilot')
-            self.assertEqual(deep_get(saved, tech.LEGACY_RECORD_PATH), legacy)
-            migrated = tech.read_record(saved)
-            self.assertEqual(migrated['manual']['10103'], legacy['manual']['10103'])
-            self.assertEqual(migrated['nations'], legacy['nations'])
-            self.assertEqual(migrated['manual']['10102']['level_toggle']['low'], 105)
+            self.assertEqual(before, configs.path('testpilot').read_bytes())
+            stored = FleetDatabase(configs.path('testpilot')).load()['technology']
+            self.assertNotIn('10103', stored['manual'])
+            self.assertEqual(stored.get('nations', {}), {})
+            self.assertEqual(stored['manual']['10102']['level'], 120)
 
     def test_partial_filtered_uncertain_and_count_mismatch_scans_never_clear_old_evidence(self):
         original = dict(observed={'10103': 125})
@@ -291,7 +294,7 @@ class FleetTechIdentityTests(unittest.TestCase):
         from module.config.config import TaskEnd
         from module.ui.page import page_dock, page_main
         scanner = object.__new__(FleetTechScan)
-        scanner.config = SimpleNamespace(Dock_MinLevel=98, Dock_MaxLevel=125, data={})
+        scanner.config = SimpleNamespace(config_name='testpilot', Dock_MinLevel=98, Dock_MaxLevel=125, data={})
         scanner.device = SimpleNamespace(image=None)
         scanner.ui_ensure = scanner._close_search = scanner.dock_reset = scanner.dock_sort_method_dsc_set = lambda *args: None
         scanner.ui_ensure = Mock()
@@ -299,12 +302,13 @@ class FleetTechIdentityTests(unittest.TestCase):
         scroll = SimpleNamespace(set_top=lambda _: None, appear=lambda _: True, at_top=lambda _: True, length=1, total=2)
         with patch('module.retire.dock_scan.DOCK_SCROLL', scroll), \
                 patch('module.retire.enhancement.OCR_DOCK_AMOUNT.ocr', return_value=(100, 0, 100)), \
-                patch('module.ocr.al_ocr.AlOcr'), patch('module.config.transaction.config_transaction') as transaction:
+                patch('module.ocr.al_ocr.AlOcr'), patch('module.retire.dock_scan.FleetDatabase') as database:
+            database.return_value.load.return_value = dict(snapshot=None, mind={}, technology={})
             for error in [TaskEnd('cancelled'), MindCalculatorScanError('OCR failed')]:
                 scanner.ui_ensure.reset_mock()
                 with patch.object(scanner, '_scan_pages', side_effect=error), self.assertRaises(type(error)):
                     scanner.run()
-                transaction.assert_not_called()
+                database.return_value.save_scan.assert_not_called()
                 self.assertEqual(scanner.ui_ensure.call_args_list, [call(page_main), call(page_dock)])
 
     def test_real_ocr_saves_distinct_kaga_amagi_and_keeps_same_type_ambiguities(self):

@@ -11,13 +11,11 @@ from xml.etree.ElementTree import ParseError
 
 from pydantic import ValidationError
 
-from deploy.atomic import atomic_write
-from module.api.protocol import ApiError, MindShip
 from module.config.transaction import config_transaction
+from module.api.protocol import ApiError, MindShip
 from module.runtime import dock_data, mind_analysis
+from module.runtime.fleet_database import FleetDatabase
 from module.runtime.mind_calculator import RARITY_NAMES, calculate, catalog
-
-TASK, GROUP = 'MindCalculatorScan', 'MindCalculator'
 
 
 def input_ship(ship):
@@ -136,32 +134,28 @@ class MindCalculatorService:
 
     def report(self, instance):
         """返回指定实例保存的舰船列表及版本信息。"""
-        data, _ = self.configs.read(instance)
-        saved = data.get(TASK, {}).get(GROUP, {}).get('Result', {})
-        ships = mind_analysis.ships(data)
+        data = FleetDatabase(self.configs.path(instance)).load()
         snapshot = dock_data.read_snapshot(data)
-        if dock_data.has_snapshot(data):
-            saved = snapshot
-        fields = data.get(TASK, {}).get(GROUP, {})
-        return dict(instance=instance, revision=mind_analysis.revision(data), updated_at=saved.get('updated_at', ''),
-                    min_level=saved.get('min_level', fields.get('MinLevel', 95)),
-                    max_level=saved.get('max_level', fields.get('MaxLevel', 125)),
-                    **calculate(ships))
+        fields = self.configs.read(instance)[0].get('DockScan', {}).get('Dock', {})
+        min_level = snapshot['min_level'] if dock_data.has_snapshot(data) else fields.get('MinLevel', 1)
+        max_level = snapshot['max_level'] if dock_data.has_snapshot(data) else fields.get('MaxLevel', 125)
+        return dict(instance=instance, revision=mind_analysis.revision(data),
+                    updated_at=snapshot.get('updated_at') or mind_analysis.settings(data).get('updated_at', ''),
+                    min_level=min_level, max_level=max_level,
+                    **calculate(mind_analysis.ships(data)))
 
     def save(self, instance, expected_revision, ships):
-        """按版本校验保存实例的心智计算器清单。"""
-        with self.configs.lock, config_transaction(self.configs.path(instance)):
-            data, _ = self.configs.read(instance)
-            fields = data.setdefault(TASK, {}).setdefault(GROUP, {})
-            if mind_analysis.revision(data) != expected_revision:
-                raise ApiError('CONFLICT', '舰船数据已变化，请重新载入后再保存')
-            updated_at = datetime.now().isoformat(timespec='seconds')
-            if dock_data.has_snapshot(data):
-                fields['Analysis'] = mind_analysis.save_settings(data, ships, updated_at)
-            else:
-                fields['Result'] = dict(ships=ships, updated_at=updated_at)
-            atomic_write(str(self.configs.path(instance)), json.dumps(data, ensure_ascii=False, indent=2))
-            return self.report(instance)
+        """在数据库事务内校验版本，仅保存心智分析差异。"""
+        path = self.configs.path(instance)
+        with self.configs.lock, config_transaction(path):
+            self.configs.path(instance)
+            database = FleetDatabase(path)
+            with database.edit() as data:
+                if mind_analysis.revision(data) != expected_revision:
+                    raise ApiError('CONFLICT', '舰船数据已变化，请重新载入后再保存')
+                updated_at = datetime.now().isoformat(timespec='seconds')
+                data['mind'] = mind_analysis.save_settings(data, ships, updated_at)
+        return self.report(instance)
 
     def catalog(self, instance):
         """返回用于计算与人工核对的舰船资料。"""

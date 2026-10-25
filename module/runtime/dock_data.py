@@ -1,17 +1,13 @@
-"""共享船坞物理卡位快照及离线分析投影；读取不迁移或写配置。"""
+"""独立舰船数据库的纯分析投影；不读取旧任务配置中的舰船数据。"""
 import copy
-from datetime import datetime
-
-from module.config.deep import deep_get
 from module.runtime import fleet_tech as tech
 from module.runtime import mind_calculator as mind
 
-RESULT_PATH = 'DockScan.Dock.Result'
 HISTORY_FIELDS = ('observed', 'current', 'absent')
 
 
 def has_snapshot(data):
-    value = deep_get(data, RESULT_PATH)
+    value = data.get('snapshot')
     return isinstance(value, dict) and isinstance(value.get('ships'), list)
 
 
@@ -44,48 +40,17 @@ def build_snapshot(ships, *, min_level, max_level, reached_bottom, filters_clear
     return output
 
 
-def _timestamp(value):
-    try:
-        return datetime.fromisoformat(value).timestamp()
-    except (TypeError, ValueError, OverflowError, OSError):
-        return float('-inf')
-
-
 def read_snapshot(data):
-    """新快照优先；旧来源择较新的一份展示，不拼接成完整船坞。"""
+    """仅接受数据库快照；无扫描时返回空状态，不回退到配置 JSON。"""
     if has_snapshot(data):
-        output = copy.deepcopy(deep_get(data, RESULT_PATH))
+        output = copy.deepcopy(data['snapshot'])
         output['source'] = 'scan'
         output.setdefault('revision', tech.revision(output))
         return output
-    saved = deep_get(data, mind.RESULT_PATH, {})
-    record = tech.read_record(data)
-    scan = record.get('last_scan', {})
-    candidates = []
-    if isinstance(saved, dict) and isinstance(saved.get('ships'), list):
-        candidates.append((saved.get('updated_at', ''), 'legacy_mind', saved['ships'], saved))
-    if isinstance(scan, dict) and isinstance(scan.get('ships'), list):
-        catalog = {row['group_type']: row for row in tech.catalog()['ships']}
-        rows = []
-        for gid, level in scan['ships']:
-            info = catalog.get(gid, {})
-            rarity = {'PR': 'SSR', 'DR': 'UR'}.get(info.get('rarity'), info.get('rarity', ''))
-            rows.append(dict(group_type=gid, name=info.get('name', '未识别舰船'), level=level,
-                             rarity=rarity, base_rarity=rarity, review=not bool(info), source='旧科技扫描'))
-        candidates.append((scan.get('updated_at', ''), 'legacy_tech', rows, scan))
-    if not candidates:
-        return dict(version=1, ships=[], updated_at='', min_level=1, max_level=125,
-                    reached_bottom=False, filters_clear=False, physical_count=0,
-                    expected_count=None, complete=False, review_count=0,
-                    history=_history(record), revision=tech.revision({}), source='empty')
-    updated_at, source, rows, original = max(candidates, key=lambda item: _timestamp(item[0]))
-    output = dict(version=1, ships=copy.deepcopy(rows), updated_at=updated_at,
-                  min_level=original.get('min_level', 1), max_level=original.get('max_level', 125),
-                  reached_bottom=False, filters_clear=False, physical_count=len(rows), expected_count=None,
-                  complete=False, review_count=sum(bool(row.get('review')) for row in rows),
-                  history=_history(record), source=source)
-    output['revision'] = tech.revision(output)
-    return output
+    return dict(version=1, ships=[], updated_at='', min_level=1, max_level=125,
+                reached_bottom=False, filters_clear=False, physical_count=0,
+                expected_count=None, complete=False, review_count=0,
+                history={}, revision=tech.revision({}), source='empty')
 
 
 def mind_ships(snapshot):
@@ -115,11 +80,12 @@ def mind_ships(snapshot):
 
 
 def technology_record(data):
-    """合并共享自动证据和原科技人工记录，不改写任一来源。"""
+    """合并数据库中的扫描证据与独立科技设置，不改写来源。"""
     record = tech.read_record(data)
     if not has_snapshot(data):
         return record
     snapshot = read_snapshot(data)
+    record['snapshot_revision'] = snapshot['revision']
     history = snapshot.get('history', {})
     for gid, level in history.get('observed', {}).items():
         observed = record.setdefault('observed', {})
@@ -127,9 +93,15 @@ def technology_record(data):
     record.setdefault('current', {}).update(history.get('current', {}))
     positive = set(history.get('current', {})) - set(history.get('absent', []))
     record['absent'] = sorted((set(record.get('absent', [])) | set(history.get('absent', []))) - positive, key=int)
-    return tech.merge_scan(record, snapshot['ships'], **{key: snapshot[key] for key in
-                           ('min_level', 'max_level', 'reached_bottom', 'filters_clear',
-                            'physical_count', 'expected_count', 'updated_at')})
+    record = tech.merge_scan(record, snapshot['ships'], **{key: snapshot[key] for key in
+                             ('min_level', 'max_level', 'reached_bottom', 'filters_clear',
+                              'physical_count', 'expected_count', 'updated_at')})
+    # 科技成就不会因退役或本轮只剩低级副本而消失；原始船坞缺失证据留在快照中。
+    # 合并自动正向历史后再由 progress() 应用人工覆盖（包括显式否定）。
+    record['current'] = {gid: max(level, record.get('current', {}).get(gid, 0))
+                         for gid, level in record.get('observed', {}).items()}
+    record['absent'] = []
+    return record
 
 
 def report_snapshot(data):

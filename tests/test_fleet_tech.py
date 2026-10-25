@@ -13,6 +13,8 @@ from module.api.fleet_tech_service import FleetTechService
 from module.api.mind_calculator_service import MindCalculatorService
 from module.api.protocol import ApiError, FleetTechChange, FleetTechPatchParams
 from module.runtime import fleet_tech as tech
+from module.runtime import dock_data
+from module.runtime.fleet_database import FleetDatabase
 from module.runtime.mind_recognition import ScanPolicy
 from tests.test_api import fixture
 
@@ -132,13 +134,17 @@ class FleetTechTests(unittest.TestCase):
             (root / 'config/second.json').write_text(configs.path('testpilot').read_text(encoding='utf-8'), encoding='utf-8')
             service = FleetTechService(configs)
             initial = service.report('testpilot')
-            self.assertEqual((initial['min_level'], initial['max_level']), (95, 125))
+            self.assertEqual((initial['min_level'], initial['max_level']), (1, 125))
             updated = service.patch('testpilot', initial['revision'], [FleetTechChange(group_type=10102, owned=False)], {})
             with self.assertRaises(ApiError) as error:
                 service.patch('testpilot', initial['revision'], [FleetTechChange(group_type=10102, owned=True)], {})
             self.assertEqual(error.exception.code, 'CONFLICT')
             mind = MindCalculatorService(configs)
             mind.save('testpilot', mind.report('testpilot')['revision'], [ship()])
+            database = FleetDatabase(configs.path('testpilot'))
+            snapshot = dock_data.build_snapshot([dict(ship(), group_type=10102)], min_level=1, max_level=125,
+                reached_bottom=True, filters_clear=True, physical_count=1, expected_count=1, updated_at='fixture')
+            database.save_scan(snapshot, dock_data.read_snapshot(database.load())['revision'])
             service.sync_mind('testpilot')
             row = next(row for row in service.report('testpilot')['ships'] if row['group_type'] == 10102)
             self.assertFalse(row['owned'])
@@ -149,8 +155,7 @@ class FleetTechTests(unittest.TestCase):
             self.assertEqual(restored['completed'], 1)
             self.assertTrue(next(row for row in restored['ships'] if row['group_type'] == 10102)['full_star'])
             self.assertEqual(service.sync_mind('testpilot')['revision'], restored['revision'])
-            data, _ = configs.read('testpilot')
-            self.assertEqual(data['MindCalculatorScan']['MindCalculator']['Result']['ships'][0]['level'], 125)
+            self.assertEqual(database.load()['snapshot']['ships'][0]['level'], 125)
 
     def test_invalid_patch_does_not_write_any_partial_change(self):
         schema = FleetTechChange.model_json_schema()
@@ -173,8 +178,8 @@ class FleetTechTests(unittest.TestCase):
             root = fixture(directory)
             path = root / 'config/testpilot.json'
             data = json.loads(path.read_text(encoding='utf-8'))
-            data['FleetTechScan']['FleetTech']['MinLevel'] = 90
-            data['FleetTechScan']['FleetTech']['MaxLevel'] = 120
+            data['DockScan']['Dock']['MinLevel'] = 90
+            data['DockScan']['Dock']['MaxLevel'] = 120
             path.write_text(json.dumps(data), encoding='utf-8')
             result = FleetTechService(ConfigService(root)).report('testpilot')
             self.assertEqual((result['min_level'], result['max_level']), (90, 120))
@@ -195,9 +200,9 @@ class FleetTechTests(unittest.TestCase):
             self.assertFalse(row['lv120'])
             with patch.dict('os.environ', {'DEMO': '1'}):
                 self.assertTrue(router.dispatch('fleetTech.catalog', {'instance': 'testpilot'})['ships'])
-                with self.assertRaises(ApiError): router.dispatch('fleetTech.syncMind', {'instance': 'testpilot'})
+                self.assertEqual(router.dispatch('fleetTech.syncMind', {'instance': 'testpilot'}), updated)
             with self.assertRaises(ApiError) as error:
-                configs.patch('testpilot', configs.get('testpilot')['revision'], [ConfigChange(path=tech.RECORD_PATH, value={})])
+                configs.patch('testpilot', configs.get('testpilot')['revision'], [ConfigChange(path='FleetTechScan.FleetTech.Record', value={})])
             self.assertEqual(error.exception.code, 'READ_ONLY')
 
     def test_scan_transaction_preserves_manual_edit_made_during_scan(self):
@@ -236,12 +241,11 @@ class FleetTechTests(unittest.TestCase):
 
             runner._scan_pages = scan
             runner.run()
-            saved, _ = configs.read('testpilot')
-            fields = saved['FleetTechScan']['FleetTech']
-            self.assertEqual(saved['DockScan']['Dock']['Result']['history']['observed']['10102'], 125)
-            self.assertEqual(saved['DockScan']['Dock']['Result']['ships'][0]['group_type'], 10102)
-            self.assertFalse(fields['Record']['manual']['10102']['owned'])
-            self.assertFalse(saved['MindCalculatorScan']['MindCalculator']['Result'].get('ships'))
+            saved = FleetDatabase(path).load()
+            self.assertEqual(saved['snapshot']['history']['observed']['10102'], 125)
+            self.assertEqual(saved['snapshot']['ships'][0]['group_type'], 10102)
+            self.assertFalse(saved['technology']['manual']['10102']['owned'])
+            self.assertFalse(saved['mind'].get('extra'))
 
     def test_extractor_parses_nested_faction_bonuses_and_rejects_duplicate_groups(self):
         from dev_tools.ship_data_extractor import extract_fleet_tech

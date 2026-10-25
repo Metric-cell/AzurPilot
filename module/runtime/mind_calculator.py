@@ -13,7 +13,6 @@ MIND_COSTS = {
     'N': (60, 120, 180, 300), 'R': (80, 160, 240, 400),
     'SR': (120, 240, 360, 600), 'SSR': (200, 400, 600, 1000), 'UR': (300, 600, 900, 1500),
 }
-RESULT_PATH = 'MindCalculatorScan.MindCalculator.Result'
 SHIP_DATA_FILE = Path(__file__).parents[2] / 'assets/ship/ship_data.json'
 
 

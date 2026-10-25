@@ -17,6 +17,7 @@ from module.logger import logger
 from module.retire.assets import DOCK_EMPTY, DOCK_SEARCH_ACTIVE, DOCK_SEARCH_CLOSED
 from module.retire.dock import CARD_GRIDS, DOCK_SCROLL, Dock
 from module.runtime import dock_data
+from module.runtime.fleet_database import FleetDatabase, FleetDatabaseConflict
 from module.runtime.fleet_tech_identity import FleetTechIdentity
 from module.runtime.mind_recognition import Card, ScanMerger, ScanPolicy, ScrollMotion, grid_rows, recognize_cards
 from module.ui.page import page_dock, page_main
@@ -73,7 +74,6 @@ class DockScan(Dock):
             in: Any
             out: page_dock
         """
-        from module.config.deep import deep_get, deep_set
         from module.config.transaction import config_transaction
         from module.config.utils import filepath_config
         from module.ocr.al_ocr import AlOcr
@@ -90,7 +90,8 @@ class DockScan(Dock):
         self._scan_evidence_paths = set()
         self._scan_slots = []
         self._scan_metadata = dict(reached_bottom=False, physical_count=0)
-        original = dock_data.read_snapshot(self.config.data)
+        database = FleetDatabase(filepath_config(self.config.config_name))
+        original = dock_data.read_snapshot(database.load())
         logger.attr('船坞扫描等级范围', f'{self._policy.min_level}–{self._policy.max_level}（含边界）')
         self.ui_ensure(page_main)
         self.ui_ensure(page_dock)
@@ -115,20 +116,18 @@ class DockScan(Dock):
                 raise MindCalculatorScanError('扫描内存不足，保留共享扫描数据') from exc
         if not self.appear(DOCK_SEARCH_CLOSED):
             raise MindCalculatorScanError('扫描结束时搜索状态变化，保留共享扫描数据')
-        with config_transaction(filepath_config(self.config.config_name)):
-            latest = self.config.read_file(self.config.config_name)
-            previous = dock_data.read_snapshot(latest)
-            if previous['revision'] != original['revision']:
-                raise MindCalculatorScanError('共享船坞数据已更新，保留最新结果；请重新扫描')
-            snapshot = dock_data.build_snapshot(
-                self._scan_slots, min_level=self._policy.min_level, max_level=self._policy.max_level,
-                filters_clear=True, expected_count=expected_count,
-                updated_at=datetime.now().isoformat(timespec='seconds'), previous=previous, **self._scan_metadata)
-            if hasattr(self.config, '_loaded_data'):
-                deep_set(self.config._loaded_data, dock_data.RESULT_PATH,
-                         copy.deepcopy(deep_get(latest, dock_data.RESULT_PATH, {})))
-            self.config.modified[dock_data.RESULT_PATH] = snapshot
-            self.config.save()
+        snapshot = dock_data.build_snapshot(
+            self._scan_slots, min_level=self._policy.min_level, max_level=self._policy.max_level,
+            filters_clear=True, expected_count=expected_count,
+            updated_at=datetime.now().isoformat(timespec='seconds'), previous=original, **self._scan_metadata)
+        try:
+            # 与实例删除共用生命周期锁；扫描期间不持有配置锁。
+            with config_transaction(filepath_config(self.config.config_name)):
+                if not Path(filepath_config(self.config.config_name)).is_file():
+                    raise MindCalculatorScanError('实例配置已删除，未保存本次扫描')
+                database.save_scan(snapshot, expected_revision=original['revision'])
+        except FleetDatabaseConflict as exc:
+            raise MindCalculatorScanError('共享船坞数据已更新，保留最新结果；请重新扫描') from exc
         self._prune_scan_evidence()
         logger.info(f'[船坞扫描] 已保存 {len(snapshot["ships"])} 个物理船位，'
                     f'待核对 {snapshot["review_count"]} 条；完整扫描：{snapshot["complete"]}')

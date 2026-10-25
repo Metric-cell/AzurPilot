@@ -573,7 +573,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_completed_scan_preserves_concurrent_analysis_and_rejects_snapshot_overwrite(self):
         from module.config.config import AzurLaneConfig
-        from module.config.deep import deep_get, deep_set
+        from module.runtime.fleet_database import FleetDatabase
         from module.exception import MindCalculatorScanError
         from module.retire.assets import DOCK_SEARCH_CLOSED
         from module.retire.mind_scan import MindCalculatorScan
@@ -581,13 +581,12 @@ class ServiceTests(unittest.TestCase):
         for changed in ('analysis', 'snapshot'):
             with self.subTest(changed=changed):
                 path = str(self.configs.path('testpilot'))
-                data, _ = self.configs.read('testpilot')
+                database = FleetDatabase(self.configs.path('testpilot'))
                 original = dock_data.build_snapshot(
                     [dict(ship('拉菲'), group_type=10117)], min_level=1, max_level=125,
                     reached_bottom=True, filters_clear=True, physical_count=1, expected_count=1,
                     updated_at='2026-10-25T00:00:00')
-                deep_set(data, dock_data.RESULT_PATH, original)
-                Path(path).write_text(json.dumps(data), encoding='utf-8')
+                database.save_scan(original, dock_data.read_snapshot(database.load())['revision'])
                 with patch('module.config.utils.filepath_config', return_value=path), \
                         patch('module.config.config.filepath_config', return_value=path), \
                         patch('module.config.config_updater.filepath_config', return_value=path), \
@@ -614,12 +613,10 @@ class ServiceTests(unittest.TestCase):
                             rows[0]['excluded'] = True
                             self.service.save('testpilot', self.service.report('testpilot')['revision'], rows)
                         else:
-                            latest, _ = self.configs.read('testpilot')
                             replacement = copy.deepcopy(original)
                             replacement['updated_at'] = '2026-10-25T01:00:00'
                             replacement['revision'] = 'concurrent-snapshot'
-                            deep_set(latest, dock_data.RESULT_PATH, replacement)
-                            Path(path).write_text(json.dumps(latest), encoding='utf-8')
+                            database.save_scan(replacement, original['revision'])
                         scanner._scan_slots = [dict(ship('拉菲', level=110), group_type=10117)]
                         scanner._scan_metadata = dict(reached_bottom=True, physical_count=1)
                     scanner._scan_pages = Mock(side_effect=collect)
@@ -631,8 +628,7 @@ class ServiceTests(unittest.TestCase):
                         scanner.run()
                         scanner._prune_scan_evidence.assert_called_once_with()
                         self.assertTrue(self.service.report('testpilot')['ships'][0]['excluded'])
-                    saved, _ = self.configs.read('testpilot')
-                    result = deep_get(saved, dock_data.RESULT_PATH)
+                    result = database.load()['snapshot']
                     if changed == 'snapshot':
                         self.assertEqual(result['revision'], 'concurrent-snapshot')
                     else:

@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {useParams, useSearchParams} from 'react-router-dom'
 import {api} from '../api/client'
 import type {DockReport} from '../api/types'
@@ -13,6 +13,8 @@ export function FleetAnalysis() {
   const {ui, instances, notify} = useApp(), connection = useConnection()
   const [report, setReport] = useState<DockReport>(), [error, setError] = useState(''), [busy, setBusy] = useState(false)
   const [min, setMin] = useState('1'), [max, setMax] = useState('125')
+  const importing = useRef(false), epoch = useRef(0), scope = useRef({instance, token: 0})
+  if (scope.current.instance !== instance) scope.current = {instance, token: scope.current.token + 1}
   const tab = params.get('tab') === 'technology' ? 'technology' : 'mind'
   const current = instances.find(item => item.name === instance)
   const scanning = current?.status === 'running' && ['DockScan', 'dock_scan'].includes(current.currentTask ?? '')
@@ -21,20 +23,21 @@ export function FleetAnalysis() {
     : current.status === 'updating' ? ui('mind.scanUpdating') : current.region && current.region !== 'cn' ? ui('mind.scanUnsupported') : ''
   useEffect(() => {
     let active = true
-    setReport(undefined); setError('')
+    setReport(undefined); setError(''); setBusy(false); importing.current = false; epoch.current++
     if (connection !== 'ready') return
     const load = async (initial = false) => {
+      const version = epoch.current
       try {
         const value = await api.request('dock.report', {instance})
-        if (active) {
+        if (active && !importing.current && version === epoch.current) {
           setReport(value)
           if (initial) {setMin(String(value.min_level)); setMax(String(value.max_level))}
         }
-      } catch (e) {if (active) setError((e as Error).message)}
+      } catch (e) {if (active && !importing.current && version === epoch.current) setError((e as Error).message)}
     }
     void load(true)
     const timer = setInterval(() => void load(), 5000)
-    return () => {active = false; clearInterval(timer)}
+    return () => {active = false; scope.current.token++; clearInterval(timer)}
   }, [instance, connection])
   async function run(stop = false) {
     setBusy(true); setError('')
@@ -49,8 +52,19 @@ export function FleetAnalysis() {
       }
     } catch (e) {setError((e as Error).message)} finally {setBusy(false)}
   }
+  async function importLegacy() {
+    if (busy || importing.current || !report || report.legacy_imported || connection !== 'ready') return
+    const token = scope.current.token
+    importing.current = true; epoch.current++; setBusy(true); setError('')
+    try {
+      const value = await api.request('dock.importLegacy', {instance, revision: report.revision})
+      if (scope.current.token !== token) return
+      setReport(value); notify(ui('analysis.legacyImported'))
+    } catch (e) {if (scope.current.token === token) setError((e as Error).message)}
+    finally {if (scope.current.token === token) {epoch.current++; importing.current = false; setBusy(false)}}
+  }
   const range = report?.scan_range ?? report
-  const sourceKey = report?.source === 'legacy_mind' ? 'analysis.legacy_mind' : report?.source === 'legacy_tech' ? 'analysis.legacy_tech' : report?.source === 'scan' ? 'analysis.source_scan' : 'analysis.source_empty'
+  const sourceKey = report?.source === 'scan' ? 'analysis.source_scan' : 'analysis.source_empty'
   return <div className="mind-calculator">
     <PageTitle title={ui('analysis.title')}/><p>{ui('analysis.hint')}</p>
     <section className="mind-panel" aria-label={ui('analysis.source')}>
@@ -63,8 +77,10 @@ export function FleetAnalysis() {
         <label>{ui('mind.maxLevel')}<input type="number" min={1} max={125} value={max} disabled={busy || !!reason} onChange={e => setMax(e.target.value)}/></label>
         <button className="button primary" title={reason} disabled={busy || !!reason} onClick={() => void run()}>{ui(scanning ? 'mind.scanning' : 'analysis.scan')}</button>
         {scanning && <button className="button secondary" disabled={busy || connection !== 'ready'} onClick={() => void run(true)}>{ui('mind.stop')}</button>}
+        <button className="button secondary" disabled={busy || connection !== 'ready' || !report || !!report.legacy_imported}
+          onClick={() => void importLegacy()}>{ui(report?.legacy_imported ? 'analysis.legacyImported' : 'analysis.importLegacy')}</button>
         {reason && <p role="status">{reason}</p>}
-      </div><p className="muted">{ui('analysis.scanHint')}</p>
+      </div><p className="muted">{ui('analysis.legacyHint')}</p><p className="muted">{ui('analysis.scanHint')}</p>
     </section>
     <div className="ft-chips" role="tablist" aria-label={ui('analysis.title')}>
       {(['mind', 'technology'] as const).map(value => <button key={value} role="tab" aria-selected={tab === value} aria-controls={`analysis-${value}`} id={`tab-${value}`} onClick={() => setParams({tab: value}, {replace: true})}>{ui(value === 'mind' ? 'analysis.mind' : 'analysis.technology')}</button>)}

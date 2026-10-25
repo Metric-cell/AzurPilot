@@ -8,15 +8,12 @@ from pathlib import Path
 
 from module.runtime.mind_calculator import normalize_name
 
-RECORD_PATH = 'FleetTechScan.FleetTech.Record'
-LEGACY_RECORD_PATH = 'MindCalculatorScan.MindCalculator.FleetTechRecord'
 ROOT = Path(__file__).parents[2]
 
 
 def read_record(data):
-    """新记录优先；首次写入前只读兼容旧路径，不原地修改迁移备份。"""
-    from module.config.deep import deep_get
-    value = deep_get(data, RECORD_PATH, {}) or deep_get(data, LEGACY_RECORD_PATH, {})
+    """科技人工记录只来自独立舰船数据库，忽略旧配置内容。"""
+    value = data.get('technology', {})
     if not isinstance(value, dict):
         raise ValueError('舰船科技记录格式无效，已保留原始数据')
     return copy.deepcopy(value)

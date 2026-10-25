@@ -60,12 +60,25 @@ class ScrollEvidenceTests(unittest.TestCase):
 
 
 class ScanFailureTests(unittest.TestCase):
-    def test_failed_scan_keeps_old_list_and_disables_only_its_ocr_debug(self):
+    def test_failed_scan_preserves_database_and_disables_only_its_ocr_debug(self):
         import copy
         from module.exception import MindCalculatorScanError
         from module.retire.mind_scan import MindCalculatorScan
         from unittest.mock import call
-        config = SimpleNamespace(Dock_MinLevel=95, Dock_MaxLevel=120,
+        from pathlib import Path
+        from module.runtime import dock_data
+        from module.runtime.fleet_database import FleetDatabase
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        config_path = Path(temporary.name) / 'testpilot.json'
+        database = FleetDatabase(config_path)
+        snapshot = dock_data.build_snapshot(
+            [dict(name='拉菲', group_type=10117, level=100, review=False)],
+            min_level=1, max_level=125, reached_bottom=True, filters_clear=True,
+            physical_count=1, expected_count=1, updated_at='2026-10-25T00:00:00')
+        database.save_scan(snapshot, dock_data.read_snapshot(database.load())['revision'])
+        database_before = database.path.read_bytes()
+        config = SimpleNamespace(config_name='testpilot', Dock_MinLevel=95, Dock_MaxLevel=120,
                                  data={'MindCalculatorScan': {'MindCalculator': {'Result': {'ships': [
                                      {'name': '拉菲', 'level': 100, 'source': '旧清单'}]}}}}, modified={})
         previous = copy.deepcopy(config.data)
@@ -79,13 +92,15 @@ class ScanFailureTests(unittest.TestCase):
                                (MemoryError('模拟分配失败'), '内存不足.*保留共享扫描数据')):
             with self.subTest(error=type(error).__name__):
                 scanner._scan_pages = Mock(side_effect=error)
-                with patch('module.retire.dock_scan.server.server', 'cn'), \
+                with patch('module.config.utils.filepath_config', return_value=str(config_path)), \
+                        patch('module.retire.dock_scan.server.server', 'cn'), \
                         patch('module.retire.dock_scan.DOCK_SCROLL') as scroll, patch('module.ocr.al_ocr.AlOcr') as ocr, \
                         patch('module.retire.enhancement.OCR_DOCK_AMOUNT.ocr', return_value=(1, 0, 1)):
                     scroll.appear.return_value = scroll.at_top.return_value = True
                     with self.assertRaisesRegex(MindCalculatorScanError, message):
                         scanner.run()
                 self.assertEqual(config.data, previous)
+                self.assertEqual(database.path.read_bytes(), database_before)
                 self.assertEqual(config.modified, {})
                 scanner._prune_scan_evidence.assert_not_called()
                 self.assertEqual(ocr.call_args_list, [call(config=config, name='ppocr_v6', save_debug_images=False),
@@ -94,7 +109,6 @@ class ScanFailureTests(unittest.TestCase):
     def check_suffix_reread(self, recovered, signatures=None, extra_screenshots=0, kind='suffix', capture_error=False):
         import copy
         from module.retire.mind_scan import MindCalculatorScan
-        from module.exception import MindCalculatorScanError
         class ImmediateTimer:
             def __init__(self, limit, *args, **kwargs): self.limit = limit
             def start(self): return self
@@ -302,16 +316,16 @@ class RangeTests(unittest.TestCase):
             configs = ConfigService(fixture(temp))
             service = MindCalculatorService(configs)
             report = service.report('testpilot')
-            self.assertEqual((report['min_level'], report['max_level']), (95, 125))
+            self.assertEqual((report['min_level'], report['max_level']), (1, 125))
             configs.patch('testpilot', configs.get('testpilot')['revision'], [
-                ConfigChange(path='MindCalculatorScan.MindCalculator.MinLevel', value=90),
-                ConfigChange(path='MindCalculatorScan.MindCalculator.MaxLevel', value=115),
+                ConfigChange(path='DockScan.Dock.MinLevel', value=90),
+                ConfigChange(path='DockScan.Dock.MaxLevel', value=115),
             ])
             report = service.report('testpilot')
             self.assertEqual((report['min_level'], report['max_level']), (90, 115))
             with self.assertRaises(ApiError):
                 configs.patch('testpilot', configs.get('testpilot')['revision'], [
-                    ConfigChange(path='MindCalculatorScan.MindCalculator.MaxLevel', value=126),
+                    ConfigChange(path='DockScan.Dock.MaxLevel', value=126),
                 ])
 
 

@@ -369,7 +369,14 @@ class ConfigService:
         """
         # 先归一化，落盘名与返回给客户端的实例名才是同一个。
         name = validate_name(name)
-        with self.lock:
+        with self.lock, config_transaction(self.path(name, exists=False)):
+            from module.runtime.fleet_database import FleetDatabase
+            path = self.path(name, exists=False)
+            if not path.exists():
+                database = FleetDatabase(path)
+                database.load()
+                if database.path.exists():
+                    raise ApiError('ALREADY_EXISTS', '同名舰船数据库仍存在，请先备份并移走后再创建实例')
             if import_file:
                 data = self.read_import(import_file)
             elif source:
@@ -600,7 +607,21 @@ class ConfigService:
             target = backup / f'{name}-{datetime.now():%Y%m%d-%H%M%S-%f}.json'
             import shutil
             shutil.copy2(self.path(name), target)
+            from module.runtime.fleet_database import FleetDatabase
+            path = self.path(name)
+            database = FleetDatabase(path)
+            # 先验证舰船库，再归档其他运行数据，避免损坏数据库导致删除半途失败。
+            database.load()
             from module.scheduler.store import ProgramStore
-            ProgramStore(self.directory, store=self.database).archive(name, backup / target.stem)
-            self.path(name).unlink()
+            fleet_backup = backup / f'{target.stem}.fleet.sqlite3'
+            archived_fleet = database.path.exists()
+            if archived_fleet:
+                database.path.replace(fleet_backup)
+            try:
+                ProgramStore(self.directory, store=self.database).archive(name, backup / target.stem)
+                path.unlink()
+            except BaseException:
+                if archived_fleet:
+                    fleet_backup.replace(database.path)
+                raise
             return {'deleted': name}

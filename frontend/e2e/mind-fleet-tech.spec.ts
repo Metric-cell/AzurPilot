@@ -27,21 +27,132 @@ async function choose(page: Page, label: string, option: string) {
   await page.getByRole('option', {name: option, exact: true}).click()
 }
 
+test('旧舰船数据只在显式点击后从本实例导入一次', async ({page, techInstances}) => {
+  const instance = techInstances.alt
+  const requests: {method: string; params: Record<string, unknown>}[] = []
+  let imported = false, release: (() => void) | undefined
+  await page.routeWebSocket('**/api/v1/ws', socket => {
+    const server = socket.connectToServer()
+    socket.onMessage(message => {
+      const value = JSON.parse(String(message))
+      requests.push(value)
+      if (value.method === 'dock.report' || value.method === 'dock.importLegacy') {
+        const respond = () => socket.send(JSON.stringify({v: 1, type: 'response', id: value.id, ok: true,
+          result: {instance, revision: imported ? 'after-import' : 'before-import', legacy_imported: imported,
+            updated_at: null, min_level: 1, max_level: 125, ships: [], complete: false,
+            review_count: 0, source: 'empty'}}))
+        if (value.method === 'dock.importLegacy') release = () => {imported = true; respond()}
+        else respond()
+      } else server.send(message)
+    })
+    server.onMessage(message => socket.send(message))
+  })
+  await page.goto(`/#/i/${instance}/task/FleetAnalysis`)
+  const button = page.getByRole('button', {name: '导入本实例旧舰船数据', exact: true})
+  await expect(button).toBeEnabled()
+  expect(requests.filter(request => request.method === 'dock.importLegacy')).toEqual([])
+  await page.reload()
+  await expect(button).toBeEnabled()
+  await page.getByRole('tab', {name: '舰船科技分析', exact: true}).click()
+  await page.getByRole('tab', {name: '心智分析', exact: true}).click()
+  expect(requests.filter(request => request.method === 'dock.importLegacy')).toEqual([])
+  await expect(page.getByRole('region', {name: '共享船坞数据'}).locator('input[type="file"]')).toHaveCount(0)
+  await button.click()
+  await expect.poll(() => !!release).toBe(true)
+  await expect(button).toBeDisabled()
+  expect(requests.filter(request => request.method === 'dock.importLegacy')).toEqual([
+    expect.objectContaining({method: 'dock.importLegacy', params: {instance, revision: 'before-import'}}),
+  ])
+  release!()
+  const completed = page.getByRole('button', {name: '本实例旧舰船数据已导入', exact: true})
+  await expect(completed).toBeDisabled()
+  await page.reload()
+  await expect(completed).toBeDisabled()
+  expect(requests.filter(request => request.method === 'dock.importLegacy')).toHaveLength(1)
+  expect(requests.filter(request => request.method === 'tasks.run')).toEqual([])
+})
+
+test('重新载入默认显示扫描与人工科技状态的合并记录且只读', async ({page, techInstances}) => {
+  const instance = techInstances.alt
+  const requests: string[] = []
+  const ships = [
+    {group_type: 10102, code: 4, name: '杜威'},
+    {group_type: 10103, code: 5, name: '卡辛'},
+  ].map(ship => ({...ship, names: {cn: ship.name}, nationality: 1, rarity: 'R', type: 1,
+    handbook_type: 0, blueprint: false, technology: null}))
+  const report = {instance, revision: 'saved-manual', ships: ships.map((ship, index) => ({
+    group_type: ship.group_type, owned: index === 1, full_star: false, lv120: false,
+    level: index === 1 ? 100 : null, observed_level: index === 0 ? 125 : null,
+    completion_target: 120, acquire_level: 100, acquire_lv120: false,
+    status: index === 1 ? 'unfinished' : 'unowned', manual: true, points: 0,
+  })), nation_levels: {'1': 3}, bonuses: {}, confirmed_points: 0, completed: 0, pending_star: 0,
+  min_level: 1, max_level: 125, review_ships: [],
+  last_scan: {min_level: 1, max_level: 125, complete: true, reached_bottom: true,
+    physical_count: 1, expected_count: 1, matched_count: 1, review_count: 0,
+    updated_at: '2026-10-25T12:00:00', fingerprint: 'raw-scan', ships: [[10102, 125]]}}
+  await page.routeWebSocket('**/api/v1/ws', socket => {
+    const server = socket.connectToServer()
+    socket.onMessage(message => {
+      const value = JSON.parse(String(message))
+      requests.push(value.method)
+      const result = value.method === 'fleetTech.catalog' ? {ships, nations: {}, updated_at: '',
+        source_commit: '', max_points: 0, nation_points: {}}
+        : value.method === 'fleetTech.report' ? report : undefined
+      if (result) socket.send(JSON.stringify({v: 1, type: 'response', id: value.id, ok: true, result}))
+      else server.send(message)
+    })
+    server.onMessage(message => socket.send(message))
+  })
+  await page.goto(`/#/i/${instance}/task/FleetAnalysis?tab=technology`)
+  const technology = page.locator('.fleet-technology')
+  const merged = technology.getByRole('button', {name: '合并记录', exact: true})
+  await expect(merged).toHaveAttribute('aria-pressed', 'true')
+  await expect(technology.locator('tr[data-group="10102"]')).toHaveClass('ft-unowned')
+  await expect(technology.locator('tr[data-group="10103"]')).toHaveClass('ft-unfinished')
+  const before = requests.filter(method => method === 'fleetTech.report').length
+  await technology.getByRole('button', {name: '重新载入', exact: true}).click()
+  await expect.poll(() => requests.filter(method => method === 'fleetTech.report').length).toBeGreaterThan(before)
+  await expect(technology.locator('tr[data-group="10102"]')).toHaveClass('ft-unowned')
+  await expect(technology.locator('tr[data-group="10103"]')).toHaveClass('ft-unfinished')
+  await page.reload()
+  await expect(merged).toHaveAttribute('aria-pressed', 'true')
+  await expect(technology.locator('tr[data-group="10102"]')).toHaveClass('ft-unowned')
+  await expect(technology.locator('tr[data-group="10103"]')).toHaveClass('ft-unfinished')
+  await technology.getByRole('button', {name: '本轮扫描', exact: true}).click()
+  await expect(technology.locator('tr[data-group="10102"]')).toHaveClass('ft-complete')
+  await expect(technology.locator('tr[data-group="10103"]')).toHaveCount(0)
+  await page.evaluate(name => {location.hash = `/i/${name}/task/FleetAnalysis?tab=technology`}, techInstances.main)
+  await expect(merged).toHaveAttribute('aria-pressed', 'true')
+  await expect(technology.locator('tr[data-group="10103"]')).toHaveClass('ft-unfinished')
+  await page.evaluate(name => sessionStorage.setItem(`azurpilot.fleet-tech.${name}`, JSON.stringify({
+    changes: {'10103': {group_type: 10103, toggle: 'owned', target: false}}, nations: {'1': 4},
+  })), techInstances.main)
+  await page.reload()
+  await expect(technology.locator('tr[data-group="10103"]')).toHaveClass('ft-unowned')
+  await technology.getByRole('button', {name: '重新载入', exact: true}).click()
+  await expect(technology.locator('tr[data-group="10103"]')).toHaveClass('ft-unowned')
+  expect(await page.evaluate(name => JSON.parse(sessionStorage.getItem(`azurpilot.fleet-tech.${name}`)!).nations,
+    techInstances.main)).toEqual({'1': 4})
+  expect(requests.filter(method => ['tasks.run', 'fleetTech.syncMind', 'fleetTech.patch'].includes(method))).toEqual([])
+})
+
 test.beforeEach(async ({page}) => {
   await page.addInitScript(() => {localStorage.setItem('azurpilot.theme', 'light'); localStorage.setItem('azurpilot.language', 'zh-CN')})
 })
 
-test('完整科技目录、扫描历史、人工校正及恢复自动记录', async ({page, techInstances}) => {
+test('完整科技目录、独立人工科技记录及恢复未记录状态', async ({page, techInstances}) => {
   const instance = techInstances.alt
   await page.goto(`/#/i/${instance}/task/FleetTechnology`)
   await expect(page.getByRole('heading', {name: '舰队科技列表', exact: true})).toBeVisible()
-  await expect(page.getByLabel('最低等级', {exact: true})).toHaveValue('95')
-  await expect(page.getByLabel('最高等级', {exact: true})).toHaveValue('125')
+  await expect(page.getByLabel('最低扫描等级', {exact: true})).toHaveValue('1')
+  await expect(page.getByLabel('最高扫描等级', {exact: true})).toHaveValue('125')
   const catalog = await rpc(page, 'fleetTech.catalog', {instance})
   await expect(page.locator('.ft-summary')).toContainText(catalog.max_points.toLocaleString('en-US'))
-  const mind = await rpc(page, 'mind.report', {instance})
-  await rpc(page, 'mind.save', {instance, revision: mind.revision, ships: [{name: '杜威', level: 125}, {name: '卡辛', level: 95}]})
-  await page.getByRole('button', {name: '同步已有心智扫描', exact: true}).click()
+  const initial = await rpc(page, 'fleetTech.report', {instance})
+  await rpc(page, 'fleetTech.patch', {instance, revision: initial.revision, changes: [
+    {group_type: 10102, level: 125, full_star: true}, {group_type: 10103, level: 95},
+  ]})
+  await page.getByRole('button', {name: '重新载入', exact: true}).click()
   await page.getByLabel('搜索舰名或编号').fill('杜威')
   const dewey = page.locator('tr[data-group="10102"]')
   await expect(dewey).toHaveCount(1)
@@ -60,11 +171,11 @@ test('完整科技目录、扫描历史、人工校正及恢复自动记录', as
   await expect(page.getByRole('button', {name: '满星 杜威 (4)', exact: true})).toHaveAttribute('aria-pressed', 'false')
   await page.getByRole('button', {name: '解锁 杜威 (4)', exact: true}).click()
   await expect(dewey).toHaveClass('ft-unowned')
-  await page.getByRole('button', {name: '同步已有心智扫描', exact: true}).click()
+  await page.getByRole('button', {name: '重新载入', exact: true}).click()
   await expect(dewey).toHaveClass('ft-unowned')
   await dewey.getByRole('button', {name: '恢复自动记录', exact: true}).click()
-  await expect(dewey).toHaveClass('ft-complete')
-  await expect(page.getByRole('button', {name: '满星 杜威 (4)', exact: true})).toHaveAttribute('aria-pressed', 'true')
+  await expect(dewey).toHaveClass('ft-unowned')
+  await expect(page.getByRole('button', {name: '满星 杜威 (4)', exact: true})).toHaveAttribute('aria-pressed', 'false')
   await page.getByRole('button', {name: '总属性加成', exact: true}).click()
   await page.setViewportSize({width: 1795, height: 1380})
   await choose(page, '白鹰 阵营科技等级', '1')
@@ -88,20 +199,20 @@ test('范围校验、跨实例隔离、导航和窄屏表格', async ({page, tec
   })
   await page.goto(`/#/i/${instance}/task/FleetTechnology`)
   const catalog = await rpc(page, 'fleetTech.catalog', {instance})
-  await page.getByLabel('最低等级', {exact: true}).fill('126')
+  await page.getByLabel('最低扫描等级', {exact: true}).fill('126')
   await page.getByRole('button', {name: '扫描船坞', exact: true}).click()
   await expect(page.getByRole('alert')).toContainText('等级范围必须满足')
   expect(requests.filter(r => r.method === 'tasks.run')).toHaveLength(0)
   // 操作后的报告刷新不能立即抹去校验失败提示。
   await rpc(page, 'fleetTech.report', {instance})
   await expect(page.getByRole('alert')).toContainText('等级范围必须满足')
-  await page.getByLabel('最低等级', {exact: true}).fill('90')
-  await page.getByLabel('最高等级', {exact: true}).fill('124')
+  await page.getByLabel('最低扫描等级', {exact: true}).fill('90')
+  await page.getByLabel('最高扫描等级', {exact: true}).fill('124')
   await page.getByRole('button', {name: '扫描船坞', exact: true}).click()
   await expect.poll(() => requests.filter(r => r.method === 'tasks.run').length).toBe(1)
-  expect(requests.find(r => r.method === 'tasks.run')!.params).toEqual({instance, task: 'FleetTechScan'})
+  expect(requests.find(r => r.method === 'tasks.run')!.params).toEqual({instance, task: 'DockScan'})
   const config = await rpc(page, 'config.get', {instance})
-  expect(config.values.FleetTechScan.FleetTech.MaxLevel).toBe(124)
+  expect(config.values.DockScan.Dock.MaxLevel).toBe(124)
   expect(config.values.MindCalculatorScan.MindCalculator.MaxLevel).toBe(125)
   await expect(page.getByRole('button', {name: '停止扫描', exact: true})).toBeVisible()
   await page.getByRole('button', {name: '停止扫描', exact: true}).click()
@@ -109,7 +220,7 @@ test('范围校验、跨实例隔离、导航和窄屏表格', async ({page, tec
   await expect(page.locator('.ft-summary')).toContainText(`0 / ${catalog.ships.filter((ship: any) => ship.technology).length}`)
   await page.getByRole('button', {name: '舰队管理', exact: true}).hover()
   const menu = page.getByRole('menu', {name: '舰队管理', exact: true})
-  await expect(menu.getByRole('menuitem', {name: '舰队科技', exact: true})).toHaveAttribute('href', /task\/FleetTechnology$/)
+  await expect(menu.getByRole('menuitem', {name: '舰队数据分析', exact: true})).toHaveAttribute('href', /task\/FleetAnalysis$/)
   await page.mouse.move(0, 0)
   await choose(page, '科技条目', '无科技')
   await expect(page.locator('.ft-search')).toContainText(String(catalog.ships.filter((ship: any) => !ship.technology).length))

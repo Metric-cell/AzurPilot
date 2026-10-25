@@ -135,6 +135,7 @@ export interface LauncherStatus {
 }
 
 export interface DockReport {
+  legacy_imported?: boolean
   scan_range?: {min_level: number; max_level: number}
   instance: string; revision: string; updated_at: string | null; min_level: number; max_level: number
   ships: MindShip[]; complete: boolean; review_count: number; source: string
@@ -143,6 +144,7 @@ export interface DockReport {
 export interface Results {
   'dock.report': DockReport
   'dock.configure': DockReport
+  'dock.importLegacy': DockReport
   'launcher.status': LauncherStatus
   'launcher.autostart.set': {commandId: string; status: 'pending'}
   'launcher.command.get': LauncherCommand

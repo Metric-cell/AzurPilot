@@ -23,7 +23,7 @@ export function FleetTechnology() {
   if (scope.current.instance !== instance) scope.current = {instance, token: scope.current.token + 1}
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
   const [edit, setEdit] = useState(false), [bonuses, setBonuses] = useState(false), [extra, setExtra] = useState(false)
-  const [view, setView] = useState<'latest' | 'history'>('latest')
+  const [view, setView] = useState<'latest' | 'history'>('history')
   const [query, setQuery] = useState(''), [mode, setMode] = useState('all'), [stage, setStage] = useState('all')
   const [filters, setFilters] = useState<Record<string, string[]>>({}), [page, setPage] = useState(0)
   const [sort, setSort] = useState({key: 'code', direction: 1})
@@ -53,7 +53,7 @@ export function FleetTechnology() {
     const token = scope.current.token
     let active = true
     saved.current = undefined; writing.current = false; epoch.current++
-    setReport(undefined); setCatalog(undefined); catalogLoaded.current = undefined; setBusy(false); setError(''); setPage(0); setView('latest'); setEdit(false)
+    setReport(undefined); setCatalog(undefined); catalogLoaded.current = undefined; setBusy(false); setError(''); setPage(0); setView('history'); setEdit(false)
     pending.current = {}; nationPending.current = {}
     try {
       const draft = JSON.parse(sessionStorage.getItem(draftKey) ?? 'null')

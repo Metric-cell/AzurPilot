@@ -1,11 +1,9 @@
 """心智分析的人工覆盖；不修改共享识别结果或舰船科技记录。"""
 import copy
 
-from module.config.deep import deep_get
 from module.runtime import dock_data
 from module.runtime import mind_calculator as mind
 
-ANALYSIS_PATH = 'MindCalculatorScan.MindCalculator.Analysis'
 FIELDS = ('name', 'level', 'rarity', 'base_rarity', 'excluded', 'review', 'source')
 
 
@@ -31,28 +29,11 @@ def base_ships(data):
 
 
 def settings(data):
-    saved = deep_get(data, ANALYSIS_PATH, {})
-    if saved:
-        return copy.deepcopy(saved)
-    # 旧清单没有逐字段编辑历史，只继承可确认的计费设置和手工录入项；原清单保留。
-    overrides, extra = {}, []
-    for key, ship in keyed(deep_get(data, mind.RESULT_PATH, {}).get('ships', [])):
-        info = mind.find_ship(ship['name'])
-        values = {}
-        if ship.get('excluded'):
-            values['excluded'] = True
-        if info and ship.get('base_rarity') and ship['base_rarity'] != info['base_rarity']:
-            values['base_rarity'] = ship['base_rarity']
-        if values:
-            overrides[key] = values
-        if not ship.get('source'):
-            extra.append(ship)
-    return dict(overrides=overrides, removed=[], extra=extra)
+    """仅使用数据库中的人工分析设置，不继承旧任务结果。"""
+    return copy.deepcopy(data.get('mind') or dict(overrides={}, removed=[], extra=[]))
 
 
 def ships(data):
-    if not dock_data.has_snapshot(data):
-        return copy.deepcopy(deep_get(data, mind.RESULT_PATH, {}).get('ships', []))
     options = settings(data)
     snapshot_revision = dock_data.read_snapshot(data)['revision']
     output = []
@@ -70,9 +51,9 @@ def ships(data):
 
 def revision(data):
     rows = ships(data)
-    if not dock_data.has_snapshot(data):
-        return mind.revision(rows)
-    return mind.revision([dock_data.read_snapshot(data)['revision'], rows, settings(data)])
+    options = settings(data)
+    options.pop('updated_at', None)
+    return mind.revision([dock_data.read_snapshot(data)['revision'], rows, options])
 
 
 def save_settings(data, submitted, updated_at):

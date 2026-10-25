@@ -6741,20 +6741,12 @@
     "MaxLevel": {
       "name": "Maximum scan level",
       "help": "Read dock cards into shared data for mental-chip and fleet-technology analysis; does not upgrade or swap ships."
-    },
-    "Result": {
-      "name": "Shared scan result",
-      "help": "Read dock cards into shared data for mental-chip and fleet-technology analysis; does not upgrade or swap ships."
     }
   },
   "MindCalculator": {
     "_info": {
       "name": "Cognitive chip calculator",
       "help": "Calculate Cognitive Chips I and coins to reach level 120."
-    },
-    "Analysis": {
-      "name": "Mental-chip analysis settings",
-      "help": "Read dock cards into shared data for mental-chip and fleet-technology analysis; does not upgrade or swap ships."
     },
     "MinLevel": {
       "name": "Minimum scan level",
@@ -6763,14 +6755,6 @@
     "MaxLevel": {
       "name": "Maximum scan level",
       "help": "Inclusive. Import ships at or below this level."
-    },
-    "Result": {
-      "name": "Ship scan results",
-      "help": "Stores ships, levels and review states per instance."
-    },
-    "FleetTechRecord": {
-      "name": "Fleet technology records",
-      "help": "Stores cumulative scan evidence, manual overrides and faction technology levels per instance."
     }
   },
   "FleetTech": {
@@ -6785,10 +6769,6 @@
     "MaxLevel": {
       "name": "Maximum level",
       "help": "Inclusive, up to level 125."
-    },
-    "Record": {
-      "name": "Fleet technology records",
-      "help": "Store groups, manual corrections, level toggle history and scan coverage per instance."
     }
   },
   "FleetRotation": {

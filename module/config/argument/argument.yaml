@@ -2472,30 +2472,14 @@ Dock:
   MaxLevel:
     value: 125
     validate: "^[1-9][0-9]?$|^1[01][0-9]$|^12[0-5]$"
-  Result:
-    type: stored
-    value: {}
-    display: hide
 
 MindCalculator:
-  Analysis:
-    type: stored
-    value: {}
-    display: hide
   MinLevel:
     value: 95
     validate: "^[1-9][0-9]?$|^1[01][0-9]$|^12[0-5]$"
   MaxLevel:
     value: 125
     validate: "^[1-9][0-9]?$|^1[01][0-9]$|^12[0-5]$"
-  Result:
-    type: stored
-    value: {}
-    display: hide
-  FleetTechRecord:
-    type: stored
-    value: {}
-    display: hide
 
 FleetTech:
   MinLevel:
@@ -2504,10 +2488,6 @@ FleetTech:
   MaxLevel:
     value: 125
     validate: "^[1-9][0-9]?$|^1[01][0-9]$|^12[0-5]$"
-  Record:
-    type: stored
-    value: {}
-    display: hide
 
 FleetRotation:
   Enabled: false

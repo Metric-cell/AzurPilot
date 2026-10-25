@@ -440,3 +440,5 @@ clean 不注册 `stock.status`、`stock.request`、`stock.rebuild`，也不接�
 `dock.report({instance})` 返回共享扫描报告（`revision`、`updated_at`、`min_level`、`max_level`、`ships`、`complete`、`review_count`、`source`、`scan_range`）。`dock.configure({instance,min_level,max_level})` 保存 1–125 级范围并返回报告；点击统一扫描入口才调用 `tasks.run({instance,task:"DockScan"})`。扫描读取船坞舰名和等级，需要导航与滚动，不进行升级、突破、觉醒或换船。页面展示扫描时间、实际快照范围 `scan_range`、数据来源、完成情况与待核对数量；`min_level`/`max_level` 是下一次扫描设置，修改设置不会伪装成已扫描数据。
 
 心智的编辑、导入、截图识别和导出继续使用 `mind.*`；舰船科技的人工历史修订继续使用 `fleetTech.patch`。两者的草稿和人工设置独立，分析页面本身不触发游戏任务。
+
+`mind.report/save` 和 `fleetTech.report/patch` 从同一底账派生，人工编辑保存在各自分析设置中，不互相修改或复制原始快照。扫描批次、逐卡副本与人工设置均保存在 `config/fleet/<实例名>.sqlite3`，报告默认不读取旧任务 JSON 数据。`dock.importLegacy` 仅在用户显式操作后读取当前实例本地 JSON，将旧船坞、心智和科技数据一次性归档并转换为 SQLite；已有数据库值优先，成功提交后清理配置中的旧舰船数据字段，不接受上传或任意文件路径。科技重载合并累计扫描证据与人工设置，人工值优先。旧 `fleetTech.syncMind` 始终只读返回报告，不再复制数据。沿用登录、实例隔离、演示只读与版本冲突规则。见 [船坞数据分析](fleet-analysis.md)。
