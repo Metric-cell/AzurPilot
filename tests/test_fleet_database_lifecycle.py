@@ -29,7 +29,9 @@ class FleetDatabaseLifecycleTest(unittest.TestCase):
         self.database = FleetDatabase(self.configs.path('pilot'))
         with self.database.edit() as state:
             state['technology'] = {'manual': {'10102': {'owned': True}}, 'nations': {'1': 3}}
-            state['mind'] = {'extra': [{'name': '杜威', 'level': 100}]}
+        from module.runtime import dock_data
+        self.database.patch_cards([dict(name='杜威', group_type=10102, level=100, excluded=True)],
+                                  dock_data.read_snapshot(self.database.load())['revision'])
 
     def test_delete_archives_sqlite_and_json_and_recreation_is_empty(self):
         self.configs.delete('pilot', self.configs.read('pilot')[1])
@@ -42,16 +44,16 @@ class FleetDatabaseLifecycleTest(unittest.TestCase):
             self.assertEqual(connection.execute(
                 "SELECT owned FROM technology WHERE group_type='10102'").fetchone()[0], 1)
             self.assertEqual(connection.execute(
-                "SELECT COUNT(*) FROM mind_settings WHERE kind='extra'").fetchone()[0], 1)
+                "SELECT COUNT(*) FROM ships WHERE excluded=1").fetchone()[0], 1)
         self.assertFalse(self.database.path.exists())
         self.configs.create('pilot')
-        self.assertEqual(self.database.load(), {'snapshot': None, 'mind': {}, 'technology': {}})
+        self.assertEqual(self.database.load(), {'snapshot': None, 'mind': {}, 'technology': {}, 'pending_revision': None, 'pending_changes': []})
         self.assertFalse(self.database.path.exists())
 
     def test_clone_configuration_does_not_copy_fleet_records(self):
         self.configs.create('clone', source='pilot')
         clone = FleetDatabase(self.configs.path('clone'))
-        self.assertEqual(clone.load(), {'snapshot': None, 'mind': {}, 'technology': {}})
+        self.assertEqual(clone.load(), {'snapshot': None, 'mind': {}, 'technology': {}, 'pending_revision': None, 'pending_changes': []})
         self.assertFalse(clone.path.exists())
         self.assertTrue(self.database.load()['technology']['manual']['10102']['owned'])
 
@@ -121,13 +123,13 @@ class FleetDatabaseLifecycleTest(unittest.TestCase):
 
     def test_waiting_api_writer_cannot_recreate_deleted_database(self):
         from module.api.fleet_tech_service import FleetTechService
-        from module.api.mind_calculator_service import MindCalculatorService
+        from module.api.dock_service import DockService
 
-        for kind in ('mind', 'technology'):
+        for kind in ('dock', 'technology'):
             with self.subTest(kind=kind):
                 if not self.configs.path('pilot', exists=False).exists():
                     self.configs.create('pilot')
-                service = MindCalculatorService(self.configs) if kind == 'mind' else FleetTechService(self.configs)
+                service = DockService(self.configs) if kind == 'dock' else FleetTechService(self.configs)
                 report = service.report('pilot')
                 checked = threading.Event()
                 failures = []
@@ -142,8 +144,8 @@ class FleetDatabaseLifecycleTest(unittest.TestCase):
 
                 def write():
                     try:
-                        if kind == 'mind':
-                            service.save('pilot', report['revision'], [])
+                        if kind == 'dock':
+                            service.patch('pilot', report['revision'], [dict(name='拉菲', level=100)])
                         else:
                             service.patch('pilot', report['revision'], [], {'1': 2})
                     except BaseException as exc:

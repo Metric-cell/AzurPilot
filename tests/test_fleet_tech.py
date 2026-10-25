@@ -10,7 +10,6 @@ from pydantic import ValidationError
 
 from module.api.config_service import ConfigService
 from module.api.fleet_tech_service import FleetTechService
-from module.api.mind_calculator_service import MindCalculatorService
 from module.api.protocol import ApiError, FleetTechChange, FleetTechPatchParams
 from module.runtime import fleet_tech as tech
 from module.runtime import dock_data
@@ -139,12 +138,14 @@ class FleetTechTests(unittest.TestCase):
             with self.assertRaises(ApiError) as error:
                 service.patch('testpilot', initial['revision'], [FleetTechChange(group_type=10102, owned=True)], {})
             self.assertEqual(error.exception.code, 'CONFLICT')
-            mind = MindCalculatorService(configs)
-            mind.save('testpilot', mind.report('testpilot')['revision'], [ship()])
             database = FleetDatabase(configs.path('testpilot'))
             snapshot = dock_data.build_snapshot([dict(ship(), group_type=10102)], min_level=1, max_level=125,
                 reached_bottom=True, filters_clear=True, physical_count=1, expected_count=1, updated_at='fixture')
             database.save_scan(snapshot, dock_data.read_snapshot(database.load())['revision'])
+            pending = database.load()
+            self.assertEqual(pending['snapshot']['ships'], [])
+            database.review([dict(id=row['id'], accept=True) for row in pending['pending_changes']],
+                            dock_data.read_snapshot(pending)['revision'], pending['pending_revision'])
             service.sync_mind('testpilot')
             row = next(row for row in service.report('testpilot')['ships'] if row['group_type'] == 10102)
             self.assertFalse(row['owned'])
@@ -240,12 +241,13 @@ class FleetTechTests(unittest.TestCase):
                 return [dict(ship(), group_type=10102)]
 
             runner._scan_pages = scan
-            runner.run()
+            from module.exception import MindCalculatorScanError
+            with self.assertRaises(MindCalculatorScanError):
+                runner.run()
             saved = FleetDatabase(path).load()
-            self.assertEqual(saved['snapshot']['history']['observed']['10102'], 125)
-            self.assertEqual(saved['snapshot']['ships'][0]['group_type'], 10102)
+            self.assertEqual(saved['snapshot']['ships'], [])
+            self.assertEqual(saved['pending_changes'], [])
             self.assertFalse(saved['technology']['manual']['10102']['owned'])
-            self.assertFalse(saved['mind'].get('extra'))
 
     def test_extractor_parses_nested_faction_bonuses_and_rejects_duplicate_groups(self):
         from dev_tools.ship_data_extractor import extract_fleet_tech

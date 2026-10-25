@@ -7,6 +7,7 @@ import unittest
 from PIL import Image
 
 from module.api.config_service import ConfigService
+from module.api.dock_service import DockService
 from module.api.mind_calculator_service import MindCalculatorService, import_ships
 from module.runtime import fleet_tech
 from module.runtime.mind_calculator import calculate, find_ship, find_ships, highest_ships
@@ -75,7 +76,8 @@ class SameNameTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             configs = ConfigService(fixture(directory))
             service = MindCalculatorService(configs)
-            service.save('testpilot', service.report('testpilot')['revision'], rows)
+            dock = DockService(configs)
+            dock.patch('testpilot', dock.report('testpilot')['revision'], rows)
             saved = configs.path('testpilot').read_bytes()
             self.assertEqual(service.report('testpilot')['review'], 6)
             self.assertEqual(configs.path('testpilot').read_bytes(), saved)
@@ -86,7 +88,9 @@ class SameNameTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             configs = ConfigService(fixture(directory))
             service = MindCalculatorService(configs)
-            saved = service.save('testpilot', service.report('testpilot')['revision'], rows)
+            dock = DockService(configs)
+            dock.patch('testpilot', dock.report('testpilot')['revision'], rows)
+            saved = service.report('testpilot')
             self.assertEqual((saved['included'], saved['review']), (6, 1))
             exported = service.export('testpilot', 'json')
             imported = import_ships('ships.json', exported['content'])

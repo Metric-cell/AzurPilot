@@ -5,13 +5,11 @@ import csv
 import io
 import json
 import zipfile
-from datetime import datetime
 from pathlib import Path
 from xml.etree.ElementTree import ParseError
 
 from pydantic import ValidationError
 
-from module.config.transaction import config_transaction
 from module.api.protocol import ApiError, MindShip
 from module.runtime import dock_data, mind_analysis
 from module.runtime.fleet_database import FleetDatabase
@@ -140,22 +138,14 @@ class MindCalculatorService:
         min_level = snapshot['min_level'] if dock_data.has_snapshot(data) else fields.get('MinLevel', 1)
         max_level = snapshot['max_level'] if dock_data.has_snapshot(data) else fields.get('MaxLevel', 125)
         return dict(instance=instance, revision=mind_analysis.revision(data),
-                    updated_at=snapshot.get('updated_at') or mind_analysis.settings(data).get('updated_at', ''),
+                    updated_at=snapshot.get('updated_at', ''),
                     min_level=min_level, max_level=max_level,
                     **calculate(mind_analysis.ships(data)))
 
     def save(self, instance, expected_revision, ships):
-        """在数据库事务内校验版本，仅保存心智分析差异。"""
-        path = self.configs.path(instance)
-        with self.configs.lock, config_transaction(path):
-            self.configs.path(instance)
-            database = FleetDatabase(path)
-            with database.edit() as data:
-                if mind_analysis.revision(data) != expected_revision:
-                    raise ApiError('CONFLICT', '舰船数据已变化，请重新载入后再保存')
-                updated_at = datetime.now().isoformat(timespec='seconds')
-                data['mind'] = mind_analysis.save_settings(data, ships, updated_at)
-        return self.report(instance)
+        """汇总清单没有稳定副本身份，禁止用它覆盖底账或删除同名副本。"""
+        self.configs.path(instance)
+        raise ApiError('READ_ONLY', '心智分析基于舰船底账计算；请到“舰船数据”编辑舰船或排除标记')
 
     def catalog(self, instance):
         """返回用于计算与人工核对的舰船资料。"""

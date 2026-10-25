@@ -1,4 +1,4 @@
-"""心智分析的人工覆盖；不修改共享识别结果或舰船科技记录。"""
+"""从共享舰船底账计算心智分析；旧覆盖逻辑仅供显式迁移使用。"""
 import copy
 
 from module.runtime import dock_data
@@ -33,7 +33,8 @@ def settings(data):
     return copy.deepcopy(data.get('mind') or dict(overrides={}, removed=[], extra=[]))
 
 
-def ships(data):
+def legacy_ships(data):
+    """读取旧试验版覆盖，用于显式迁移时折叠旧数据。"""
     options = settings(data)
     snapshot_revision = dock_data.read_snapshot(data)['revision']
     output = []
@@ -49,11 +50,33 @@ def ships(data):
     return output
 
 
+def ships(data):
+    """保留底账的每个物理副本及排除标记，计费合并交给计算器。"""
+    by_group = {}
+    for info in mind.catalog()['ships'].values():
+        by_group.setdefault(info['group_type'], []).append(info)
+    output = []
+    for card in dock_data.read_snapshot(data)['ships']:
+        matches = by_group.get(card.get('group_type'), [])
+        info = next((row for row in matches if card.get('name') in (row['raw_name'], row['name'])), None)
+        if info is None and matches:
+            info = next((row for row in matches if row['group'] != '改造'), matches[0])
+        level = card.get('level', 0)
+        valid_level = type(level) is int and 1 <= level <= 125
+        row = dict(name=(info['name'] if info else card.get('name', '未识别舰船'))[:100],
+                   level=level if valid_level else 0,
+                   rarity=card.get('rarity') or (info['rarity'] if info else ''),
+                   base_rarity=card.get('base_rarity') or (info['base_rarity'] if info else ''),
+                   excluded=bool(card.get('excluded')), review=bool(card.get('review')) or not info or not valid_level,
+                   source=card.get('source', '')[:200])
+        if 'id' in card:
+            row['id'] = card['id']
+        output.append(row)
+    return output
+
+
 def revision(data):
-    rows = ships(data)
-    options = settings(data)
-    options.pop('updated_at', None)
-    return mind.revision([dock_data.read_snapshot(data)['revision'], rows, options])
+    return dock_data.read_snapshot(data)['revision']
 
 
 def save_settings(data, submitted, updated_at):

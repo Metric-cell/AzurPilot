@@ -72,6 +72,8 @@ class Router:
             'dock.report': Method(p.InstanceParams, lambda x: self.dock.report(x.instance)),
             'dock.importLegacy': Method(p.RevisionParams, lambda x: self.dock.import_legacy(x.instance, x.revision), True),
             'dock.configure': Method(p.DockConfigureParams, lambda x: self.dock.configure(x.instance, x.min_level, x.max_level), True),
+            'dock.patch': Method(p.DockPatchParams, lambda x: self.dock.patch(x.instance, x.revision, [change.model_dump(exclude_unset=True) for change in x.changes]), True),
+            'dock.review': Method(p.DockReviewParams, lambda x: self.dock.review(x.instance, x.revision, x.pending_revision, [decision.model_dump(exclude_unset=True) for decision in x.decisions]), True),
             'mind.catalog': Method(p.InstanceParams, lambda x: self.mind.catalog(x.instance)),
             'fleetTech.catalog': Method(p.InstanceParams, lambda x: self.fleet_tech.catalog(x.instance)),
             'fleetTech.report': Method(p.InstanceParams, lambda x: self.fleet_tech.report(x.instance)),

@@ -18,6 +18,8 @@ export interface Parameters {
   "dock.report": { instance: string }
   "dock.importLegacy": { instance: string; revision: string }
   "dock.configure": { instance: string; min_level: number; max_level: number }
+  "dock.patch": { instance: string; revision: string; changes: Array<{ id?: number | null; delete?: boolean; group_type?: number | null; name?: string; level?: number; rarity?: "" | "N" | "R" | "SR" | "SSR" | "UR"; base_rarity?: "" | "N" | "R" | "SR" | "SSR" | "UR"; extra_exp?: number | null; excluded?: boolean; review?: boolean; source?: string }> }
+  "dock.review": { instance: string; revision: string; pending_revision: string; decisions: Array<{ id: string; accept: boolean; ship_id?: number | null }> }
   "mind.catalog": { instance: string }
   "fleetTech.catalog": { instance: string }
   "fleetTech.report": { instance: string }

@@ -53,7 +53,7 @@ export function createMockState({ empty = false } = {}) {
   function fleetStatePython(action, params) {
     const output = mindPython(action, {...params, state: fleetStates.get(params.instance),
       config: get(params.instance).values})
-    if (['tech.patch', 'mind.save', 'dock.importLegacy'].includes(action)) fleetStates.set(params.instance, output.state)
+    if (['tech.patch', 'dock.patch', 'dock.review', 'dock.importLegacy'].includes(action)) fleetStates.set(params.instance, output.state)
     if (action === 'dock.importLegacy') get(params.instance).values = output.config
     return output.result
   }
@@ -520,6 +520,8 @@ export function createMockState({ empty = false } = {}) {
       }
       case 'dock.report': return fleetStatePython('dock.report', params)
       case 'dock.importLegacy': return fleetStatePython('dock.importLegacy', params)
+      case 'dock.patch': return fleetStatePython('dock.patch', params)
+      case 'dock.review': return fleetStatePython('dock.review', params)
       case 'mind.catalog': return mindPython('catalog', params)
       case 'fleetTech.catalog': return fleetPython('catalog', params)
       case 'fleetTech.report': return fleetPython('report', params)

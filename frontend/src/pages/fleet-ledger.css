@@ -1,0 +1,8 @@
+.fleet-ledger { display: grid; gap: 1rem; }
+.ledger-table-wrap { overflow-x: auto; max-width: 100%; }
+.fleet-ledger table { border-collapse: collapse; width: 100%; }
+.fleet-ledger th, .fleet-ledger td { padding: .5rem; text-align: left; border-bottom: 1px solid var(--border-color, #8884); white-space: nowrap; }
+.fleet-ledger td input:not([type=checkbox]) { width: 7rem; }
+.fleet-ledger td:nth-child(2) input { width: 10rem; }
+.fleet-ledger .ledger-deleted td { opacity: .55; }
+.ledger-difference { padding: 1rem 0; border-top: 1px solid var(--border-color, #8884); overflow-wrap: anywhere; }

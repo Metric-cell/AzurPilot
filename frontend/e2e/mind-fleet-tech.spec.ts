@@ -27,7 +27,7 @@ async function choose(page: Page, label: string, option: string) {
   await page.getByRole('option', {name: option, exact: true}).click()
 }
 
-test('旧舰船数据只在显式点击后从本实例导入一次', async ({page, techInstances}) => {
+test('旧舰船数据只在显式点击后从本实例读取为候选', async ({page, techInstances}) => {
   const instance = techInstances.alt
   const requests: {method: string; params: Record<string, unknown>}[] = []
   let imported = false, release: (() => void) | undefined
@@ -40,7 +40,7 @@ test('旧舰船数据只在显式点击后从本实例导入一次', async ({pag
         const respond = () => socket.send(JSON.stringify({v: 1, type: 'response', id: value.id, ok: true,
           result: {instance, revision: imported ? 'after-import' : 'before-import', legacy_imported: imported,
             updated_at: null, min_level: 1, max_level: 125, ships: [], complete: false,
-            review_count: 0, source: 'empty'}}))
+            review_count: 0, source: 'empty', pending_revision: null, pending_changes: []}}))
         if (value.method === 'dock.importLegacy') release = () => {imported = true; respond()}
         else respond()
       } else server.send(message)
@@ -48,12 +48,12 @@ test('旧舰船数据只在显式点击后从本实例导入一次', async ({pag
     server.onMessage(message => socket.send(message))
   })
   await page.goto(`/#/i/${instance}/task/FleetAnalysis`)
-  const button = page.getByRole('button', {name: '导入本实例旧舰船数据', exact: true})
+  const button = page.getByRole('button', {name: '读取本实例旧舰船数据', exact: true})
   await expect(button).toBeEnabled()
   expect(requests.filter(request => request.method === 'dock.importLegacy')).toEqual([])
   await page.reload()
   await expect(button).toBeEnabled()
-  await page.getByRole('tab', {name: '舰船科技分析', exact: true}).click()
+  await page.getByRole('tab', {name: '舰队科技分析', exact: true}).click()
   await page.getByRole('tab', {name: '心智分析', exact: true}).click()
   expect(requests.filter(request => request.method === 'dock.importLegacy')).toEqual([])
   await expect(page.getByRole('region', {name: '共享船坞数据'}).locator('input[type="file"]')).toHaveCount(0)
@@ -64,7 +64,7 @@ test('旧舰船数据只在显式点击后从本实例导入一次', async ({pag
     expect.objectContaining({method: 'dock.importLegacy', params: {instance, revision: 'before-import'}}),
   ])
   release!()
-  const completed = page.getByRole('button', {name: '本实例旧舰船数据已导入', exact: true})
+  const completed = page.getByRole('button', {name: '本实例旧舰船数据已读取', exact: true})
   await expect(completed).toBeDisabled()
   await page.reload()
   await expect(completed).toBeDisabled()
@@ -118,7 +118,7 @@ test('重新载入默认显示扫描与人工科技状态的合并记录且只�
   await expect(merged).toHaveAttribute('aria-pressed', 'true')
   await expect(technology.locator('tr[data-group="10102"]')).toHaveClass('ft-unowned')
   await expect(technology.locator('tr[data-group="10103"]')).toHaveClass('ft-unfinished')
-  await technology.getByRole('button', {name: '本轮扫描', exact: true}).click()
+  await technology.getByRole('button', {name: '舰船底账', exact: true}).click()
   await expect(technology.locator('tr[data-group="10102"]')).toHaveClass('ft-complete')
   await expect(technology.locator('tr[data-group="10103"]')).toHaveCount(0)
   await page.evaluate(name => {location.hash = `/i/${name}/task/FleetAnalysis?tab=technology`}, techInstances.main)

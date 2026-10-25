@@ -424,6 +424,221 @@
         "type": "object"
       }
     },
+    "dock.patch": {
+      "mutates": true,
+      "params": {
+        "$defs": {
+          "DockCardChange": {
+            "additionalProperties": false,
+            "description": "按物理副本 ID 局部编辑底账；缺失 ID 表示新增。",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Id"
+              },
+              "delete": {
+                "title": "Delete",
+                "type": "boolean"
+              },
+              "group_type": {
+                "anyOf": [
+                  {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Group Type"
+              },
+              "name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "level": {
+                "maximum": 125,
+                "minimum": 0,
+                "title": "Level",
+                "type": "integer"
+              },
+              "rarity": {
+                "enum": [
+                  "",
+                  "N",
+                  "R",
+                  "SR",
+                  "SSR",
+                  "UR"
+                ],
+                "title": "Rarity",
+                "type": "string"
+              },
+              "base_rarity": {
+                "enum": [
+                  "",
+                  "N",
+                  "R",
+                  "SR",
+                  "SSR",
+                  "UR"
+                ],
+                "title": "Base Rarity",
+                "type": "string"
+              },
+              "extra_exp": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Extra Exp"
+              },
+              "excluded": {
+                "title": "Excluded",
+                "type": "boolean"
+              },
+              "review": {
+                "title": "Review",
+                "type": "boolean"
+              },
+              "source": {
+                "maxLength": 200,
+                "title": "Source",
+                "type": "string"
+              }
+            },
+            "title": "DockCardChange",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "instance": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Instance",
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Revision",
+            "type": "string"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/$defs/DockCardChange"
+            },
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Changes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instance",
+          "revision",
+          "changes"
+        ],
+        "title": "DockPatchParams",
+        "type": "object"
+      }
+    },
+    "dock.review": {
+      "mutates": true,
+      "params": {
+        "$defs": {
+          "DockReviewDecision": {
+            "additionalProperties": false,
+            "description": "每个候选项独立决定；可显式指定要更新的物理副本。",
+            "properties": {
+              "id": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Id",
+                "type": "string"
+              },
+              "accept": {
+                "title": "Accept",
+                "type": "boolean"
+              },
+              "ship_id": {
+                "anyOf": [
+                  {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Ship Id"
+              }
+            },
+            "required": [
+              "id",
+              "accept"
+            ],
+            "title": "DockReviewDecision",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "instance": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Instance",
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Revision",
+            "type": "string"
+          },
+          "pending_revision": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Pending Revision",
+            "type": "string"
+          },
+          "decisions": {
+            "items": {
+              "$ref": "#/$defs/DockReviewDecision"
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Decisions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instance",
+          "revision",
+          "pending_revision",
+          "decisions"
+        ],
+        "title": "DockReviewParams",
+        "type": "object"
+      }
+    },
     "mind.catalog": {
       "mutates": false,
       "params": {

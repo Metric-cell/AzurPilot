@@ -41,10 +41,10 @@ def build_snapshot(ships, *, min_level, max_level, reached_bottom, filters_clear
 
 
 def read_snapshot(data):
-    """仅接受数据库快照；无扫描时返回空状态，不回退到配置 JSON。"""
+    """仅接受数据库底账；无数据时返回空状态，不回退到配置 JSON。"""
     if has_snapshot(data):
         output = copy.deepcopy(data['snapshot'])
-        output['source'] = 'scan'
+        output.setdefault('source', 'scan')
         output.setdefault('revision', tech.revision(output))
         return output
     return dict(version=1, ships=[], updated_at='', min_level=1, max_level=125,
@@ -80,7 +80,7 @@ def mind_ships(snapshot):
 
 
 def technology_record(data):
-    """合并数据库中的扫描证据与独立科技设置，不改写来源。"""
+    """合并数据库中的已确认舰船与科技设置，不改写来源。"""
     record = tech.read_record(data)
     if not has_snapshot(data):
         return record

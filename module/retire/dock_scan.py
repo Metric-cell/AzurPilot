@@ -1,4 +1,4 @@
-"""共享船坞扫描：只导航、筛选和读取，保存物理卡位供各分析模块使用。"""
+"""共享船坞扫描：只导航、筛选和读取，生成等待玩家采纳的差异。"""
 import copy
 from datetime import datetime
 from hashlib import sha256
@@ -68,7 +68,7 @@ class DockScan(Dock):
                 continue
 
     def run(self):
-        """完成后事务保存一份原始快照；不执行养成、退役、换船或战斗。
+        """完成后事务保存待确认差异；不执行养成、退役、换船或战斗。
 
         Pages:
             in: Any
@@ -129,7 +129,7 @@ class DockScan(Dock):
         except FleetDatabaseConflict as exc:
             raise MindCalculatorScanError('共享船坞数据已更新，保留最新结果；请重新扫描') from exc
         self._prune_scan_evidence()
-        logger.info(f'[船坞扫描] 已保存 {len(snapshot["ships"])} 个物理船位，'
+        logger.info(f'[船坞扫描] 已读取 {len(snapshot["ships"])} 个物理船位，等待玩家采纳差异；'
                     f'待核对 {snapshot["review_count"]} 条；完整扫描：{snapshot["complete"]}')
 
     @staticmethod

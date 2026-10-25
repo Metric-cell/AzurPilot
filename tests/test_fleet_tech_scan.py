@@ -54,8 +54,11 @@ class FleetTechRecordTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             configs = ConfigService(fixture(directory))
             mind, service = MindCalculatorService(configs), FleetTechService(configs)
-            saved = mind.save('testpilot', mind.report('testpilot')['revision'], [dict(name='小克利夫兰', level=105)])
-            self.assertEqual(saved['excluded'], 1)
+            preview = mind.calculate('testpilot', [dict(name='小克利夫兰', level=105)])
+            self.assertEqual(preview['excluded'], 1)
+            with self.assertRaises(ApiError) as error:
+                mind.save('testpilot', mind.report('testpilot')['revision'], preview['ships'])
+            self.assertEqual(error.exception.code, 'READ_ONLY')
             self.assertFalse(next(row for row in service.report('testpilot')['ships'] if row['group_type'] == 10220)['owned'])
             imported = service.sync_mind('testpilot')
             self.assertFalse(next(row for row in imported['ships'] if row['group_type'] == 10220)['owned'])

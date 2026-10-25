@@ -154,7 +154,7 @@ export function FleetTechnology() {
       <button aria-pressed={latest} disabled={!hasScan || busy} onClick={() => {setView('latest'); setEdit(false); setPage(0)}}>{tr('latestScan')}</button>
       <button aria-pressed={!latest} disabled={busy} onClick={() => {setView('history'); setPage(0)}}>{tr('history')}</button>
     </div><small>{tr(latest ? 'latestHint' : 'historyHint')}</small></section>
-    {report.last_scan && <p className="ft-scan-summary">{tr(report.last_scan.complete ? 'fullScan' : 'partialScan')} · Lv.{report.last_scan.min_level}–{report.last_scan.max_level} · {tr('matched')} {report.last_scan.matched_count} · {tr('review')} {report.review_ships.length} · {tr('scanTime')} {report.last_scan.updated_at.replace('T', ' ')}</p>}
+    {report.last_scan && <p className="ft-scan-summary">{tr('latestScan')} · {tr('matched')} {report.last_scan.matched_count} · {tr('review')} {report.review_ships.length} · {tr('scanTime')} {report.last_scan.updated_at.replace('T', ' ')}</p>}
     {!!report.review_ships.length && <details className="ft-reviews"><summary>{tr('review')} ({report.review_ships.length})</summary><p>{tr('reviewHint')}</p>
       {report.review_ships.map((ship, index) => <div key={index}><span>{ship.name} · {ship.level ? `Lv.${ship.level}` : tr('unknown')}</span>
         {(ship.candidates?.length ? ship.candidates : ship.group_type ? [ship.group_type] : []).map(gid => {const row = historyRows.find(item => item.group_type === gid); return row && <button key={gid} className="button secondary" onClick={() => {setFilters({}); setMode('all'); setQuery(String(row.code)); setView('history'); setEdit(true); setPage(0)}}>{row.name} · {nation(row.nationality)} · {tr(`type.${shipType(row.type)}`)} · {row.code}</button>})}

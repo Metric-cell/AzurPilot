@@ -136,10 +136,18 @@ export interface LauncherStatus {
 
 export interface DockCard {
   id: number; group_type: number | null; name: string; level: number
-  rarity: string; base_rarity: string; extra_exp: number | null; review: boolean; source: string
+  rarity: string; base_rarity: string; extra_exp: number | null; review: boolean; source: string; excluded: boolean
+}
+
+export interface LedgerDifference {
+  id: string; kind: 'ship' | 'technology' | 'nation'; operation: 'add' | 'update' | 'remove' | 'resolve'
+  ship_id: number | null; group_type: number | null; name: string
+  before: Record<string, unknown> | null; after: Record<string, unknown> | null; fields: string[]
+  candidates: {id: number; name: string; level: number}[]
 }
 
 export interface DockReport {
+  pending_revision: string | null; pending_changes: LedgerDifference[]
   legacy_imported?: boolean
   scan_range?: {min_level: number; max_level: number}
   instance: string; revision: string; updated_at: string | null; min_level: number; max_level: number
@@ -150,6 +158,8 @@ export interface Results {
   'dock.report': DockReport
   'dock.configure': DockReport
   'dock.importLegacy': DockReport
+  'dock.patch': DockReport
+  'dock.review': DockReport
   'launcher.status': LauncherStatus
   'launcher.autostart.set': {commandId: string; status: 'pending'}
   'launcher.command.get': LauncherCommand

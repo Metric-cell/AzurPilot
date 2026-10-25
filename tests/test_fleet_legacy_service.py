@@ -52,7 +52,12 @@ class LocalLegacyImportTests(unittest.TestCase):
         return self.router.dispatch('dock.importLegacy', {
             'instance': 'testpilot', 'revision': self.dock.report('testpilot')['revision']})
 
-    def test_default_reports_ignore_old_data_then_explicit_local_import_cleans_config(self):
+    def accept_pending(self, report):
+        return self.router.dispatch('dock.review', dict(instance='testpilot', revision=report['revision'],
+            pending_revision=report['pending_revision'],
+            decisions=[dict(id=row['id'], accept=True) for row in report['pending_changes']]))
+
+    def test_default_reports_ignore_old_data_until_import_is_reviewed_and_keep_source(self):
         original = self.path.read_bytes()
         self.assertEqual(self.dock.report('testpilot')['ships'], [])
         self.assertEqual(self.mind.report('testpilot')['ships'], [])
@@ -62,6 +67,11 @@ class LocalLegacyImportTests(unittest.TestCase):
         self.assertFalse(self.database.path.exists())
         report = self.migrate()
         self.assertTrue(report['legacy_imported'])
+        self.assertEqual(report['ships'], [])
+        self.assertTrue(report['pending_changes'])
+        self.assertEqual(self.mind.report('testpilot')['ships'], [])
+        self.assertEqual(self.tech.report('testpilot')['completed'], 0)
+        report = self.accept_pending(report)
         self.assertEqual(len(report['ships']), 2)
         self.assertTrue(self.mind.report('testpilot')['ships'][0]['excluded'])
         self.assertEqual(self.mind.report('testpilot')['ships'][0]['level'], 110)
@@ -70,12 +80,13 @@ class LocalLegacyImportTests(unittest.TestCase):
         self.assertEqual(tech[10103]['level'], 125)
         self.assertEqual(self.tech.report('testpilot')['nation_levels']['1'], 3)
         saved = json.loads(self.path.read_text())
-        self.assertTrue(all(deep_get(saved, key) is None for key in LEGACY_PATHS))
+        self.assertEqual(self.path.read_bytes(), original)
+        self.assertTrue(all(deep_get(saved, key) == deep_get(self.data, key) for key in LEGACY_PATHS))
         self.assertEqual(saved['DockScan']['Dock']['MinLevel'], self.data['DockScan']['Dock']['MinLevel'])
         self.runtime.start.assert_not_called()
 
     def test_import_is_once_and_later_json_changes_are_not_consumed(self):
-        self.migrate()
+        self.accept_pending(self.migrate())
         self.write()
         before = self.database.path.read_bytes()
         with self.assertRaises(ApiError) as error:
@@ -96,7 +107,7 @@ class LocalLegacyImportTests(unittest.TestCase):
         snapshot['ships'] = snapshot['ships'][:1]
         snapshot['ships'][0]['level'] = 125
         snapshot['revision'] = 'new-snapshot'
-        self.database.save_scan(snapshot, dock_data.read_snapshot(self.database.load())['revision'])
+        self.database.patch_cards(snapshot['ships'], dock_data.read_snapshot(self.database.load())['revision'])
         stored_cards = self.database.load()['snapshot']['ships']
         with self.database.edit() as state:
             state['technology'] = {'manual': {'10102': {'owned': False, 'level': None}}, 'nations': {'1': 0}}
@@ -147,10 +158,12 @@ class LocalLegacyImportTests(unittest.TestCase):
         self.assertEqual(self.data, before)
         self.assertFalse(self.database.path.exists())
 
-    def test_config_cleanup_failure_keeps_committed_database_and_old_backup(self):
+    def test_import_never_attempts_config_cleanup_or_applies_candidates(self):
         before = self.path.read_bytes()
-        with patch('module.api.dock_service.atomic_write', side_effect=OSError('readonly config')):
+        with patch('module.api.dock_service.atomic_write', side_effect=OSError('readonly config')) as write:
             report = self.migrate()
+        write.assert_not_called()
         self.assertTrue(report['legacy_imported'])
         self.assertEqual(self.path.read_bytes(), before)
-        self.assertEqual(len(self.database.load()['snapshot']['ships']), 2)
+        self.assertIsNone(self.database.load()['snapshot'])
+        self.assertEqual(sum(row['kind'] == 'ship' for row in report['pending_changes']), 2)

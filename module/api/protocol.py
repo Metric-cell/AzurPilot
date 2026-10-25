@@ -120,6 +120,40 @@ class DockConfigureParams(InstanceParams):
     max_level: int = Field(ge=1, le=125, strict=True)
 
 
+class DockCardChange(Params):
+    """按物理副本 ID 局部编辑底账；缺失 ID 表示新增。"""
+    model_config = ConfigDict(extra='forbid', strict=True, json_schema_extra=_partial_update_schema)
+    id: StrictInt | None = Field(default=None, ge=1)
+    delete: StrictBool = False
+    group_type: StrictInt | None = Field(default=None, ge=1)
+    name: StrictStr = Field(default=None, min_length=1, max_length=100)
+    level: StrictInt = Field(default=None, ge=0, le=125)
+    rarity: Literal['', 'N', 'R', 'SR', 'SSR', 'UR'] = None
+    base_rarity: Literal['', 'N', 'R', 'SR', 'SSR', 'UR'] = None
+    extra_exp: StrictInt | None = Field(default=None, ge=0)
+    excluded: StrictBool = None
+    review: StrictBool = None
+    source: StrictStr = Field(default=None, max_length=200)
+
+
+class DockPatchParams(InstanceParams):
+    revision: StrictStr = Field(min_length=64, max_length=64)
+    changes: list[DockCardChange] = Field(min_length=1, max_length=5000)
+
+
+class DockReviewDecision(Params):
+    """每个候选项独立决定；可显式指定要更新的物理副本。"""
+    id: StrictStr = Field(min_length=1, max_length=100)
+    accept: StrictBool
+    ship_id: StrictInt | None = Field(default=None, ge=1)
+
+
+class DockReviewParams(InstanceParams):
+    revision: StrictStr = Field(min_length=64, max_length=64)
+    pending_revision: StrictStr = Field(min_length=64, max_length=64)
+    decisions: list[DockReviewDecision] = Field(min_length=1, max_length=10000)
+
+
 class FleetTechChange(Params):
     """只修改明确提供的人工字段；恢复自动记录使用独立标记。"""
     model_config = ConfigDict(extra='forbid', strict=True, json_schema_extra=_partial_update_schema)

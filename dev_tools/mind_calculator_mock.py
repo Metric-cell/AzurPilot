@@ -1,4 +1,5 @@
 """前端模拟服务调用真实计算器，只处理管道内的夹具数据。"""
+import base64
 import json
 import sys
 import tempfile
@@ -16,7 +17,7 @@ def dispatch(request):
     if action.startswith(('tech.', 'dock.', 'mind.')):
         from module.api.dock_service import DockService
         from module.api.fleet_tech_service import FleetTechService
-        from module.api.protocol import FleetTechChange
+        from module.api.protocol import DockCardChange, DockReviewDecision, FleetTechChange
         from module.runtime.fleet_database import FleetDatabase
         from module.runtime.fleet_tech import revision as tech_revision
         with tempfile.TemporaryDirectory() as directory:
@@ -28,12 +29,20 @@ def dispatch(request):
             database = FleetDatabase(path)
             current = request.get('state') or dict(snapshot=request.get('snapshot'), mind={},
                                                    technology=request.get('record', {}))
-            if current.get('snapshot') is not None:
-                database.save_scan(current['snapshot'], tech_revision({}))
-            if current.get('mind') or current.get('technology') or current.get('legacy_imported'):
-                with database.edit(import_legacy=bool(current.get('legacy_imported'))) as state:
-                    state['mind'] = current.get('mind', {})
-                    state['technology'] = current.get('technology', {})
+            if current.get('_database'):
+                # Keep actual SQLite rows, pending IDs and revisions across mock
+                # requests. Replaying a scan here would stage it a second time.
+                database.path.parent.mkdir(parents=True, exist_ok=True)
+                database.path.write_bytes(base64.b64decode(current['_database']))
+            else:
+                if current.get('snapshot') is not None:
+                    # A caller-supplied snapshot is an already-confirmed fixture,
+                    # unlike a production scanner result awaiting player review.
+                    database.patch_cards([{key: value for key, value in row.items() if key != 'id'}
+                        for row in current['snapshot']['ships']], tech_revision({}))
+                if current.get('technology'):
+                    with database.edit() as state:
+                        state['technology'] = current.get('technology', {})
             configs = SimpleNamespace(path=lambda _: path, lock=threading.RLock(),
                                       read=lambda _: (json.loads(path.read_text(encoding='utf-8')), ''))
             service = FleetTechService(configs)
@@ -50,6 +59,14 @@ def dispatch(request):
                 result = DockService(configs).report(request['instance'])
             elif action == 'dock.importLegacy':
                 result = DockService(configs).import_legacy(request['instance'], request['revision'])
+            elif action == 'dock.patch':
+                result = DockService(configs).patch(request['instance'], request['revision'],
+                    [DockCardChange.model_validate(change).model_dump(exclude_unset=True)
+                        for change in request.get('changes', [])])
+            elif action == 'dock.review':
+                result = DockService(configs).review(request['instance'], request['revision'],
+                    request['pending_revision'], [DockReviewDecision.model_validate(change).model_dump(exclude_unset=True)
+                        for change in request.get('decisions', [])])
             elif action == 'mind.report':
                 result = MindCalculatorService(configs).report(request['instance'])
             elif action == 'mind.save':
@@ -59,6 +76,8 @@ def dispatch(request):
             else:
                 raise ValueError('未知舰船模拟操作')
             stored = database.load(include_import_status=True)
+            if database.path.exists():
+                stored['_database'] = base64.b64encode(database.path.read_bytes()).decode('ascii')
             return dict(result=result, record=stored['technology'], state=stored,
                         config=configs.read('')[0])
     if action == 'catalog':
@@ -74,8 +93,9 @@ def dispatch(request):
             path = Path(directory) / 'fixture.json'
             path.write_text('{}', encoding='utf-8')
             database = FleetDatabase(path)
-            with database.edit() as state:
-                state['mind'] = dict(overrides={}, removed=[], extra=ships)
+            if ships:
+                from module.runtime.dock_data import read_snapshot
+                database.patch_cards(ships, read_snapshot(database.load())['revision'])
             service = MindCalculatorService(SimpleNamespace(path=lambda _: path, read=lambda _: ({}, '')))
             if action == 'export':
                 return service.export(request['instance'], request.get('format', 'xlsx'))

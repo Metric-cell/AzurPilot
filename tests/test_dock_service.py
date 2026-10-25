@@ -2,7 +2,7 @@
 import json
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from pydantic import ValidationError
 
@@ -32,7 +32,7 @@ class SharedAnalysisTests(unittest.TestCase):
     def write(self, data):
         self.configs.path('testpilot').write_text(json.dumps(data), encoding='utf-8')
 
-    def scan(self, level=105, rows=None, **extra):
+    def scan(self, level=105, rows=None, confirm=True, **extra):
         database = FleetDatabase(self.configs.path('testpilot'))
         state = database.load()
         if rows is None:
@@ -44,6 +44,10 @@ class SharedAnalysisTests(unittest.TestCase):
         params.update(extra)
         snapshot = dock_data.build_snapshot(rows, **params)
         database.save_scan(snapshot, dock_data.read_snapshot(state)['revision'])
+        pending = database.load()
+        if confirm and pending['pending_changes']:
+            database.review([dict(id=row['id'], accept=True) for row in pending['pending_changes']],
+                            dock_data.read_snapshot(pending)['revision'], pending['pending_revision'])
         return database.load()['snapshot']
 
     def test_同一底账自动供两份分析且读取不写盘不操作游戏(self):
@@ -60,17 +64,20 @@ class SharedAnalysisTests(unittest.TestCase):
         self.assertEqual(self.configs.path('testpilot').read_bytes(), before)
         runtime.start.assert_not_called()
 
-    def test_心智人工排除跨次保留且等级继续更新不污染科技(self):
-        self.scan()
+    def test_心智排除属于底账且扫描待采纳前不改变等级(self):
+        snapshot = self.scan()
         before = self.configs.path('testpilot').read_bytes()
+        card_id = snapshot['ships'][0]['id']
+        self.dock.patch('testpilot', snapshot['revision'], [dict(id=card_id, excluded=True)])
         report = self.mind.report('testpilot')
-        ships = [{key: value for key, value in ship.items() if key in
-                  ('name', 'level', 'rarity', 'base_rarity', 'excluded', 'review', 'source')}
-                 for ship in report['ships']]
-        ships[0]['excluded'] = True
-        saved = self.mind.save('testpilot', report['revision'], ships)
-        self.assertEqual(saved['excluded'], 1)
-        self.assertEqual(self.configs.path('testpilot').read_bytes(), before)
+        self.assertEqual(report['excluded'], 1)
+        with self.assertRaises(ApiError) as error:
+            self.mind.save('testpilot', report['revision'], [])
+        self.assertEqual(error.exception.code, 'READ_ONLY')
+        self.scan(110, confirm=False)
+        self.assertEqual(self.mind.report('testpilot')['ships'][0]['level'], 105)
+        self.assertTrue(self.mind.report('testpilot')['ships'][0]['excluded'])
+        self.assertTrue(self.dock.report('testpilot')['pending_changes'])
         self.scan(110)
         report = self.mind.report('testpilot')
         self.assertEqual(report['ships'][0]['level'], 110)
@@ -78,8 +85,8 @@ class SharedAnalysisTests(unittest.TestCase):
         row = next(row for row in self.tech.report('testpilot')['ships'] if row['group_type'] == 10102)
         self.assertEqual(row['level'], 110)
         self.assertTrue(row['owned'])
-        state = FleetDatabase(self.configs.path('testpilot')).load()
-        self.assertFalse(state['snapshot']['ships'][0].get('excluded', False))
+        self.assertTrue(FleetDatabase(self.configs.path('testpilot')).load()['snapshot']['ships'][0]['excluded'])
+        self.assertEqual(self.configs.path('testpilot').read_bytes(), before)
 
     def test_科技人工校正保留且不复制扫描快照(self):
         snapshot = self.scan()
@@ -88,7 +95,7 @@ class SharedAnalysisTests(unittest.TestCase):
         self.tech.patch('testpilot', report['revision'], [FleetTechChange(group_type=10102, level=125)], {'1': 1})
         self.assertEqual(self.configs.path('testpilot').read_bytes(), before)
         state = FleetDatabase(self.configs.path('testpilot')).load()
-        self.assertEqual(state['snapshot'], snapshot)
+        self.assertEqual(state['snapshot']['ships'], snapshot['ships'])
         stored = state['technology']
         self.assertNotIn('last_scan', stored)
         self.assertNotIn('observed', stored)
@@ -104,7 +111,7 @@ class SharedAnalysisTests(unittest.TestCase):
         tech = self.tech.report('testpilot')
         snapshot = self.scan(110)
         with self.assertRaises(ApiError) as error:
-            self.mind.save('testpilot', mind['revision'], [])
+            self.dock.patch('testpilot', mind['revision'], [dict(id=snapshot['ships'][0]['id'], excluded=True)])
         self.assertEqual(error.exception.code, 'CONFLICT')
         with self.assertRaises(ApiError) as error:
             self.tech.patch('testpilot', tech['revision'], [FleetTechChange(group_type=10102, level=120)], {})
@@ -126,6 +133,95 @@ class SharedAnalysisTests(unittest.TestCase):
         self.assertEqual(self.configs.path('testpilot').read_bytes(), before)
         runtime.start.assert_not_called()
 
+    def test_底账接口严格局部更新与双版本审核受演示模式保护(self):
+        runtime = Mock()
+        router = Router(self.configs, runtime)
+        initial = self.dock.report('testpilot')
+        report = router.dispatch('dock.patch', dict(instance='testpilot', revision=initial['revision'], changes=[
+            dict(name='杜威', group_type=10102, level=100),
+            dict(name='杜威', group_type=10102, level=120, excluded=True)]))
+        ids = [row['id'] for row in report['ships']]
+        self.assertNotEqual(*ids)
+        report = router.dispatch('dock.patch', dict(instance='testpilot', revision=report['revision'],
+            changes=[dict(id=ids[0], extra_exp=123)]))
+        self.assertEqual([row['level'] for row in report['ships']], [100, 120])
+        self.assertTrue(report['ships'][1]['excluded'])
+        before = FleetDatabase(self.configs.path('testpilot')).path.read_bytes()
+        for change in (dict(id=True, level=100), dict(id=ids[0], level=True), dict(id=ids[0], name=None)):
+            with self.subTest(change=change), self.assertRaises(ValidationError):
+                router.dispatch('dock.patch', dict(instance='testpilot', revision=report['revision'], changes=[change]))
+        self.assertEqual(FleetDatabase(self.configs.path('testpilot')).path.read_bytes(), before)
+        with self.assertRaises(ApiError) as stale:
+            router.dispatch('dock.patch', dict(instance='testpilot', revision=initial['revision'], changes=[dict(id=ids[0], excluded=True)]))
+        self.assertEqual(stale.exception.code, 'CONFLICT')
+        requests = [('dock.patch', dict(instance='testpilot', revision=report['revision'], changes=[dict(id=ids[0], excluded=True)])),
+                    ('dock.review', dict(instance='testpilot', revision=report['revision'], pending_revision='a' * 64,
+                                         decisions=[dict(id='ship:1', accept=True)]))]
+        for method, params in requests:
+            self.assertTrue(router.methods[method].mutates)
+            with patch.dict('os.environ', {'DEMO': '1'}), self.assertRaises(ApiError):
+                router.dispatch(method, params)
+        self.assertEqual(FleetDatabase(self.configs.path('testpilot')).path.read_bytes(), before)
+        runtime.start.assert_not_called()
+
+    def test_同次读取逐条匹配不能重复使用已经采纳的副本(self):
+        report = self.dock.patch('testpilot', self.dock.report('testpilot')['revision'], [
+            dict(name='杜威', group_type=10102, level=100),
+            dict(name='杜威', group_type=10102, level=100)])
+        first_id, second_id = [row['id'] for row in report['ships']]
+        self.scan(rows=[dict(name='杜威', group_type=10102, level=110),
+                        dict(name='杜威', group_type=10102, level=120)], confirm=False)
+        staged = self.dock.report('testpilot')
+        proposals = [row for row in staged['pending_changes'] if row['kind'] == 'ship']
+        self.assertEqual([row['operation'] for row in proposals], ['resolve', 'resolve'])
+        report = self.dock.review('testpilot', staged['revision'], staged['pending_revision'],
+            [dict(id=proposals[0]['id'], accept=True, ship_id=first_id)])
+        remaining = next(row for row in report['pending_changes'] if row['id'] == proposals[1]['id'])
+        self.assertEqual([row['id'] for row in remaining['candidates']], [second_id])
+        database = FleetDatabase(self.configs.path('testpilot'))
+        before = database.load()
+        with self.assertRaises(ApiError) as error:
+            self.dock.review('testpilot', report['revision'], report['pending_revision'],
+                [dict(id=remaining['id'], accept=True, ship_id=first_id)])
+        self.assertEqual(error.exception.code, 'INVALID_PARAMS')
+        self.assertEqual(database.load(), before)
+        report = self.dock.review('testpilot', report['revision'], report['pending_revision'],
+            [dict(id=remaining['id'], accept=True, ship_id=second_id)])
+        self.assertEqual([(row['id'], row['level']) for row in report['ships']],
+                         [(first_id, 110), (second_id, 120)])
+
+    def test_完全匹配的副本不能再分配给同次读取中的存疑卡片(self):
+        report = self.dock.patch('testpilot', self.dock.report('testpilot')['revision'], [
+            dict(name='杜威', group_type=10102, level=100) for _ in range(3)])
+        ids = [row['id'] for row in report['ships']]
+        self.scan(rows=[dict(name='杜威', group_type=10102, level=100),
+                        dict(name='杜威', group_type=10102, level=110)], confirm=False)
+        staged = self.dock.report('testpilot')
+        ambiguous, = [row for row in staged['pending_changes'] if row['kind'] == 'ship']
+        self.assertEqual(ambiguous['operation'], 'resolve')
+        self.assertEqual({row['id'] for row in ambiguous['candidates']}, set(ids[1:]))
+        before = FleetDatabase(self.configs.path('testpilot')).load()
+        with self.assertRaises(ApiError):
+            self.dock.review('testpilot', staged['revision'], staged['pending_revision'],
+                [dict(id=ambiguous['id'], accept=True, ship_id=ids[0])])
+        self.assertEqual(FleetDatabase(self.configs.path('testpilot')).load(), before)
+
+    def test_同批重复匹配失败时回滚已经处理的前一条决定(self):
+        report = self.dock.patch('testpilot', self.dock.report('testpilot')['revision'], [
+            dict(name='杜威', group_type=10102, level=100),
+            dict(name='杜威', group_type=10102, level=100)])
+        card_id = report['ships'][0]['id']
+        self.scan(rows=[dict(name='杜威', group_type=10102, level=110),
+                        dict(name='杜威', group_type=10102, level=120)], confirm=False)
+        staged = self.dock.report('testpilot')
+        proposals = [row for row in staged['pending_changes'] if row['kind'] == 'ship']
+        database = FleetDatabase(self.configs.path('testpilot'))
+        before = database.load()
+        with self.assertRaises(ApiError):
+            self.dock.review('testpilot', staged['revision'], staged['pending_revision'],
+                [dict(id=row['id'], accept=True, ship_id=card_id) for row in proposals])
+        self.assertEqual(database.load(), before)
+
     def test_空扫描不会复活旧清单(self):
         data, _ = self.configs.read('testpilot')
         deep_set(data, 'MindCalculatorScan.MindCalculator.Result', dict(ships=[
@@ -133,7 +229,7 @@ class SharedAnalysisTests(unittest.TestCase):
         self.write(data)
         self.scan(rows=[])
         self.assertEqual(self.mind.report('testpilot')['ships'], [])
-        self.assertEqual(self.tech.report('testpilot')['last_scan']['ships'], [])
+        self.assertIsNone(self.tech.report('testpilot')['last_scan'])
 
     def test_旧配置不会自动导入且分析保存不改配置(self):
         data, _ = self.configs.read('testpilot')
@@ -152,7 +248,9 @@ class SharedAnalysisTests(unittest.TestCase):
         self.assertEqual(self.mind.report('testpilot')['ships'], [])
         self.assertEqual(self.tech.report('testpilot')['completed'], 0)
         self.assertEqual(self.tech.sync_mind('testpilot'), self.tech.report('testpilot'))
-        self.mind.save('testpilot', self.mind.report('testpilot')['revision'], [dict(name='杜威', level=105)])
+        with self.assertRaises(ApiError) as error:
+            self.mind.save('testpilot', self.mind.report('testpilot')['revision'], [dict(name='杜威', level=105)])
+        self.assertEqual(error.exception.code, 'READ_ONLY')
         self.tech.patch('testpilot', self.tech.report('testpilot')['revision'],
                         [FleetTechChange(group_type=10102, owned=True)], {})
         self.assertEqual(self.configs.path('testpilot').read_bytes(), before)
@@ -202,7 +300,7 @@ class SharedAnalysisTests(unittest.TestCase):
                              [110] if rows is None else [])
             state = FleetDatabase(self.configs.path('testpilot')).load()
             self.assertEqual(state['snapshot']['history']['current'].get('10102'), 110 if rows is None else None)
-            self.assertEqual('10102' in state['snapshot']['history']['absent'], rows is not None)
+            self.assertEqual(state['snapshot']['history']['absent'], [])
         for change, expected in [(dict(level=100), (True, 100, False)),
                                  (dict(owned=False), (False, None, False))]:
             report = self.tech.patch('testpilot', self.tech.report('testpilot')['revision'],

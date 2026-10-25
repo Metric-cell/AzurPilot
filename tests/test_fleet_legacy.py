@@ -39,7 +39,7 @@ class FleetLegacyTests(unittest.TestCase):
         self.assertEqual(active['history']['observed']['10103'], 125)
         self.assertEqual(active['history']['observed']['10104'], 120)
         state = merge_legacy(dict(snapshot=None, mind={}, technology={}), result)
-        self.assertEqual(mind_analysis.ships(state)[0]['level'], 110)
+        self.assertEqual(mind_analysis.legacy_ships(state)[0]['level'], 110)
 
     def test_explicit_mind_analysis_wins_over_legacy_result_derivation(self):
         original = snapshot()
@@ -50,7 +50,7 @@ class FleetLegacyTests(unittest.TestCase):
                          'snapshot_revision': original['revision'], 'opaque_old_data': 'discard me'}}}}
         result = convert_legacy(data)
         state = merge_legacy(dict(snapshot=None, mind={}, technology={}), result)
-        rows = mind_analysis.ships(state)
+        rows = mind_analysis.legacy_ships(state)
         self.assertNotIn('opaque_old_data', result['mind'])
         self.assertEqual(rows[0]['level'], 105)
         self.assertTrue(rows[0]['excluded'])
@@ -149,13 +149,13 @@ class FleetLegacyTests(unittest.TestCase):
         stale = convert_legacy(data)
         self.assertEqual(stale['mind']['snapshot_revision'], 'stale')
         merged = merge_legacy(dict(snapshot=None, mind={}, technology={}), stale)
-        self.assertFalse(mind_analysis.ships(merged)[0]['excluded'])
+        self.assertFalse(mind_analysis.legacy_ships(merged)[0]['excluded'])
         data['MindCalculatorScan']['MindCalculator']['Analysis']['snapshot_revision'] = original['revision']
         matching = convert_legacy(data)
         self.assertEqual(matching['mind']['snapshot_revision'], matching['snapshot']['revision'])
-        self.assertTrue(mind_analysis.ships(merge_legacy(dict(snapshot=None, mind={}, technology={}), matching))[0]['excluded'])
+        self.assertTrue(mind_analysis.legacy_ships(merge_legacy(dict(snapshot=None, mind={}, technology={}), matching))[0]['excluded'])
         same_source = merge_legacy(dict(snapshot=original, mind={'snapshot_revision': original['revision']}, technology={}), matching)
-        self.assertTrue(mind_analysis.ships(same_source)[0]['excluded'])
+        self.assertTrue(mind_analysis.legacy_ships(same_source)[0]['excluded'])
         active = copy.deepcopy(original)
         active['updated_at'] = '2026-10-25T11:00:00'
         active['revision'] = tech.revision({field: value for field, value in active.items() if field != 'revision'})
@@ -165,14 +165,14 @@ class FleetLegacyTests(unittest.TestCase):
         self.assertNotIn(key, merged['mind'].get('overrides', {}))
         self.assertNotIn(key, merged['mind'].get('removed', []))
         self.assertEqual(len(merged['mind'].get('extra', [])), 1)
-        self.assertEqual(len(mind_analysis.ships(merged)), 1)
+        self.assertEqual(len(mind_analysis.legacy_ships(merged)), 1)
 
     def test_current_manual_extra_stays_effective_when_import_adds_automatic_base(self):
         extra = dict(row(level=100), excluded=True)
         state = dict(snapshot=None, mind={'extra': [extra]}, technology={})
         converted = convert_legacy({'DockScan': {'Dock': {'Result': snapshot(125)}}})
         merged = merge_legacy(state, converted)
-        rows = mind_analysis.ships(merged)
+        rows = mind_analysis.legacy_ships(merged)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]['level'], 100)
         self.assertTrue(rows[0]['excluded'])
@@ -186,8 +186,8 @@ class FleetLegacyTests(unittest.TestCase):
         converted = convert_legacy(data)
         self.assertIsNone(converted['snapshot'])
         merged = merge_legacy(dict(snapshot=None, mind={}, technology={}), converted)
-        self.assertEqual(mind_analysis.ships(merged)[0]['name'], '未确认的人工舰')
-        self.assertTrue(mind_analysis.ships(merged)[0]['review'])
+        self.assertEqual(mind_analysis.legacy_ships(merged)[0]['name'], '未确认的人工舰')
+        self.assertTrue(mind_analysis.legacy_ships(merged)[0]['review'])
 
     def test_current_extra_wins_over_imported_override_but_original_override_wins(self):
         data = {'DockScan': {'Dock': {'Result': snapshot(125)}},
@@ -195,10 +195,10 @@ class FleetLegacyTests(unittest.TestCase):
                 'group:10102': {'level': 120, 'excluded': False}}}}}}
         converted = convert_legacy(data)
         state = dict(snapshot=None, technology={}, mind={'extra': [dict(row(level=100), excluded=True)]})
-        rows = mind_analysis.ships(merge_legacy(state, converted))
+        rows = mind_analysis.legacy_ships(merge_legacy(state, converted))
         self.assertEqual((rows[0]['level'], rows[0]['excluded']), (100, True))
         state['mind']['overrides'] = {'group:10102': {'level': 105}}
-        rows = mind_analysis.ships(merge_legacy(state, converted))
+        rows = mind_analysis.legacy_ships(merge_legacy(state, converted))
         self.assertEqual((rows[0]['level'], rows[0]['excluded']), (105, True))
 
     def test_empty_analysis_is_not_useful_import_data(self):

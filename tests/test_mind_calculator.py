@@ -13,6 +13,9 @@ from PIL import Image
 from openpyxl import Workbook, load_workbook
 
 from module.api.config_service import ConfigService
+from module.api.dock_service import DockService
+from module.runtime.fleet_database import FleetDatabase
+from module.runtime import dock_data, mind_calculator
 from module.api.mind_calculator_service import MindCalculatorService, import_ships
 from module.api.protocol import ApiError, MindCalculateParams, MindShip
 from module.api.router import Router
@@ -452,20 +455,37 @@ class ServiceTests(unittest.TestCase):
         self.configs = ConfigService(fixture(self.temp.name))
         self.service = MindCalculatorService(self.configs)
 
-    def test_save_conflict_and_instances_are_separate(self):
+    def save_ledger(self, instance, revision, rows):
+        """显式重建测试夹具；生产修改按稳定副本 ID 局部提交。"""
+        database = FleetDatabase(self.configs.path(instance))
+        previous = dock_data.read_snapshot(database.load())['ships']
+        changes = [dict(id=row['id'], delete=True) for row in previous]
+        for value in rows:
+            row = {key: value[key] for key in ('name', 'level', 'rarity', 'base_rarity', 'excluded', 'review', 'source') if key in value}
+            info = mind_calculator.find_ship(row['name'])
+            row['group_type'] = info['group_type'] if info else None
+            changes.append(row)
+        DockService(self.configs).patch(instance, revision, changes)
+        return self.service.report(instance)
+
+    def test_mind_save_is_read_only_and_canonical_instances_are_separate(self):
         report = self.service.report('testpilot')
-        saved = self.service.save('testpilot', report['revision'], [ship()])
-        self.assertEqual(saved['mind'], 2200)
-        self.assertEqual(self.service.report('testpilot')['ships'][0]['name'], '测试舰')
         with self.assertRaises(ApiError) as caught:
-            self.service.save('testpilot', report['revision'], [])
+            self.service.save('testpilot', report['revision'], [ship()])
+        self.assertEqual(caught.exception.code, 'READ_ONLY')
+        self.assertFalse(FleetDatabase(self.configs.path('testpilot')).path.exists())
+        saved = self.save_ledger('testpilot', report['revision'], [ship('拉菲')])
+        self.assertEqual(saved['mind'], 1320)
+        self.assertEqual(saved['ships'][0]['name'], '拉菲')
+        with self.assertRaises(ApiError) as caught:
+            self.save_ledger('testpilot', report['revision'], [])
         self.assertEqual(caught.exception.code, 'CONFLICT')
         self.configs.create('other')
         self.assertEqual(self.service.report('other')['ships'], [])
 
     def test_unknown_level_review_survives_save_reload_and_all_exports(self):
         rows = [ship('拉菲', 100), ship('拉菲', 0, review=True, source='第 2 页第 3 列等级未确认')]
-        report = self.service.save('testpilot', self.service.report('testpilot')['revision'], rows)
+        report = self.save_ledger('testpilot', self.service.report('testpilot')['revision'], rows)
         self.assertEqual(report['review'], 1)
         self.assertEqual(report['included'], 1)
         self.assertEqual(self.service.report('testpilot')['ships'][1]['level'], 0)
@@ -479,7 +499,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_manual_original_rarity_survives_save_reload_and_export(self):
         rows = [ship('皇家财富号', base_rarity='SR'), ship('拉菲.改', 105)]
-        saved = self.service.save('testpilot', self.service.report('testpilot')['revision'], rows)
+        saved = self.save_ledger('testpilot', self.service.report('testpilot')['revision'], rows)
         reloaded = MindCalculatorService(ConfigService(self.configs.root)).report('testpilot')
         self.assertEqual(saved['mind'], 2520)
         self.assertEqual(reloaded['mind'], saved['mind'])
@@ -491,37 +511,41 @@ class ServiceTests(unittest.TestCase):
 
     def test_status_and_single_deletion_recalculate_and_persist_with_revision_checks(self):
         rows = [ship('拉菲', 100), ship('约克城II', 100), ship('特装型布里MKIII', 99)]
-        report = self.service.save('testpilot', self.service.report('testpilot')['revision'], rows)
+        report = self.save_ledger('testpilot', self.service.report('testpilot')['revision'], rows)
         self.assertEqual(report['mind'], 4620)
+        dock = DockService(self.configs)
+        first_id = report['ships'][0]['id']
         original_revision = report['revision']
         stale_revision = original_revision
         for status, expected in [('excluded', 3300), ('review', 3300), ('included', 4620)]:
-            rows[0].update(excluded=status == 'excluded', review=status == 'review')
-            report = self.service.save('testpilot', report['revision'], rows)
+            dock.patch('testpilot', report['revision'], [dict(id=first_id, excluded=status == 'excluded', review=status == 'review')])
+            report = self.service.report('testpilot')
             reloaded = self.service.report('testpilot')
             self.assertEqual(reloaded['ships'][0]['status'], status)
             self.assertEqual(reloaded['mind'], expected)
             self.assertEqual(reloaded['gold'], expected * 10)
             if status == 'excluded':
                 stale_revision = report['revision']
-        self.assertEqual(report['revision'], original_revision)
+        self.assertNotEqual(report['revision'], original_revision)
         with self.assertRaises(ApiError):
-            self.service.save('testpilot', stale_revision, rows[1:])
+            dock.patch('testpilot', stale_revision, [dict(id=first_id, delete=True)])
         self.assertEqual(len(self.service.report('testpilot')['ships']), 3)
-        report = self.service.save('testpilot', report['revision'], rows[1:])
+        dock.patch('testpilot', report['revision'], [dict(id=first_id, delete=True)])
+        report = self.service.report('testpilot')
         self.assertEqual(report['included'], 1)
         self.assertEqual(report['excluded'], 1)
         self.assertEqual(report['mind'], 3300)
         self.assertEqual(sum(row['count'] for row in report['summary']), 1)
         reloaded = MindCalculatorService(ConfigService(self.configs.root)).report('testpilot')
         self.assertEqual([row['name'] for row in reloaded['ships']], ['约克城II', '特装型布里MKIII'])
-        report = self.service.save('testpilot', report['revision'], [])
+        dock.patch('testpilot', report['revision'], [dict(id=row['id'], delete=True) for row in report['ships']])
+        report = self.service.report('testpilot')
         self.assertEqual(report['ships'], [])
         self.assertEqual(report['mind'], 0)
 
     def test_all_exports_import_back_without_losing_review_or_exclusion(self):
         rows = [ship('拉菲.改', 105, source='截图.png'), ship('待核对舰', review=True), ship('排除舰', excluded=True)]
-        self.service.save('testpilot', self.service.report('testpilot')['revision'], rows)
+        self.save_ledger('testpilot', self.service.report('testpilot')['revision'], rows)
         for format in ['json', 'csv', 'xlsx']:
             file = self.service.export('testpilot', format)
             restored = import_ships(file['filename'], file['content'])
@@ -555,7 +579,7 @@ class ServiceTests(unittest.TestCase):
             import_ships('bad.json', encoded(json.dumps([{'name': '错误', 'level': 126}]).encode()))
         with self.assertRaises(ApiError):
             import_ships('bad.csv', encoded('船名,等级\n测试,100.1'.encode()))
-        self.service.save('testpilot', self.service.report('testpilot')['revision'], [ship('=1+1')])
+        self.save_ledger('testpilot', self.service.report('testpilot')['revision'], [ship('=1+1')])
         file = self.service.export('testpilot', 'xlsx')
         book = load_workbook(io.BytesIO(base64.b64decode(file['content'])))
         self.assertEqual(book['舰船明细']['A2'].data_type, 's')
@@ -571,22 +595,18 @@ class ServiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             MindCalculateParams(instance='testpilot', ships=[dict(name='测试', level=True)])
 
-    def test_completed_scan_preserves_concurrent_analysis_and_rejects_snapshot_overwrite(self):
+    def test_completed_scan_stages_and_rejects_concurrent_canonical_edits(self):
         from module.config.config import AzurLaneConfig
-        from module.runtime.fleet_database import FleetDatabase
         from module.exception import MindCalculatorScanError
         from module.retire.assets import DOCK_SEARCH_CLOSED
         from module.retire.mind_scan import MindCalculatorScan
-        from module.runtime import dock_data
-        for changed in ('analysis', 'snapshot'):
+        for changed in (False, True):
             with self.subTest(changed=changed):
                 path = str(self.configs.path('testpilot'))
+                self.save_ledger('testpilot', self.service.report('testpilot')['revision'], [ship('拉菲')])
                 database = FleetDatabase(self.configs.path('testpilot'))
-                original = dock_data.build_snapshot(
-                    [dict(ship('拉菲'), group_type=10117)], min_level=1, max_level=125,
-                    reached_bottom=True, filters_clear=True, physical_count=1, expected_count=1,
-                    updated_at='2026-10-25T00:00:00')
-                database.save_scan(original, dock_data.read_snapshot(database.load())['revision'])
+                original = database.load()['snapshot']
+                card_id = original['ships'][0]['id']
                 with patch('module.config.utils.filepath_config', return_value=path), \
                         patch('module.config.config.filepath_config', return_value=path), \
                         patch('module.config.config_updater.filepath_config', return_value=path), \
@@ -608,31 +628,24 @@ class ServiceTests(unittest.TestCase):
                     scanner._prune_scan_evidence = Mock()
                     scrollbar.appear.return_value = scrollbar.at_top.return_value = True
                     def collect(*args):
-                        if changed == 'analysis':
-                            rows = self.service.report('testpilot')['ships']
-                            rows[0]['excluded'] = True
-                            self.service.save('testpilot', self.service.report('testpilot')['revision'], rows)
-                        else:
-                            replacement = copy.deepcopy(original)
-                            replacement['updated_at'] = '2026-10-25T01:00:00'
-                            replacement['revision'] = 'concurrent-snapshot'
-                            database.save_scan(replacement, original['revision'])
+                        if changed:
+                            database.patch_cards([dict(id=card_id, excluded=True)], original['revision'])
                         scanner._scan_slots = [dict(ship('拉菲', level=110), group_type=10117)]
                         scanner._scan_metadata = dict(reached_bottom=True, physical_count=1)
                     scanner._scan_pages = Mock(side_effect=collect)
-                    if changed == 'snapshot':
+                    if changed:
                         with self.assertRaisesRegex(MindCalculatorScanError, '共享船坞数据已更新'):
                             scanner.run()
                         scanner._prune_scan_evidence.assert_not_called()
                     else:
                         scanner.run()
                         scanner._prune_scan_evidence.assert_called_once_with()
-                        self.assertTrue(self.service.report('testpilot')['ships'][0]['excluded'])
-                    result = database.load()['snapshot']
-                    if changed == 'snapshot':
-                        self.assertEqual(result['revision'], 'concurrent-snapshot')
-                    else:
-                        self.assertEqual(result['ships'][0]['level'], 110)
+                    state = database.load()
+                    self.assertEqual(state['snapshot']['ships'][0]['level'], 100)
+                    self.assertEqual(state['snapshot']['ships'][0]['excluded'], changed)
+                    if not changed:
+                        proposal = next(row for row in state['pending_changes'] if row['kind'] == 'ship')
+                        self.assertEqual(proposal['after']['level'], 110)
 
 
 if __name__ == '__main__':
