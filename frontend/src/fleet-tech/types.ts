@@ -24,6 +24,43 @@ export function scanRows(catalog: Catalog, scan: ScanSummary): Row[] {
       completion_target: lv120 ? 100 : 120, acquire_level: level, acquire_lv120: lv120}]
   })
 }
+export function ledgerRows(catalog: Catalog, progress: Progress[]): Row[] {
+  // 使用服务端独立的底账投影，旧扫描摘要和人工记录不能补入当前底账。
+  const evidence = new Map(progress.map(row => [row.group_type, row.ledger]))
+  return catalog.ships.map(ship => {
+    const state = evidence.get(ship.group_type) ?? {owned: false, full_star: false, lv120: false, level: null}
+    const tech = ship.technology
+    return {...ship, ...state, observed_level: state.level, manual: false,
+      status: state.lv120 ? 'complete' : state.owned ? 'unfinished' : 'unowned',
+      points: tech ? (state.owned ? tech.pt_get : 0) + (state.full_star ? tech.pt_upgrage : 0)
+        + (state.lv120 ? tech.pt_level : 0) : 0,
+      completion_target: state.lv120 ? 100 : 120, acquire_level: state.level ?? 100, acquire_lv120: state.lv120}
+  })
+}
+export function summarize(catalog: Catalog, rows: Row[], nationLevels: Report['nation_levels']) {
+  const bonuses: Report['bonuses'] = {}
+  let confirmed_points = 0, completed = 0, pending_star = 0
+  function add(types: number[], attr: number, value: number) {
+    for (const type of new Set(types.map(shipType))) {
+      const values = bonuses[type] ??= {}
+      values[attr] = (values[attr] ?? 0) + value
+    }
+  }
+  for (const row of rows) {
+    const tech = row.technology
+    if (!tech) continue
+    confirmed_points += row.points
+    if (row.owned) {
+      add(tech.add_get_shiptype, tech.add_get_attr, tech.add_get_value)
+      if (row.full_star === null) pending_star++
+    }
+    if (row.lv120) {completed++; add(tech.add_level_shiptype, tech.add_level_attr, tech.add_level_value)}
+  }
+  for (const [nation, level] of Object.entries(nationLevels)) {
+    if (level) for (const [types, attr, value] of catalog.nations[nation]?.[level - 1] ?? []) add(types, attr, value)
+  }
+  return {confirmed_points, completed, pending_star, bonuses}
+}
 export const shipType = (value: number) => [20, 21].includes(value) ? 1 : [22, 23, 24].includes(value) ? 22 : value
 export function matches(row: Row, filters: Record<string, string[]>, query: string, scope: string, stage: string) {
   if (scope === 'tech' && !row.technology || scope === 'none' && row.technology) return false

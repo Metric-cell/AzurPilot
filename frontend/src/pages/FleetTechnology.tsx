@@ -5,7 +5,7 @@ import {useApp, useConnection} from '../app/context'
 import {ErrorBox, Loading, PageTitle} from '../components/ui'
 import {Select} from '../components/FormControls'
 import {translateFleetTech} from '../fleet-tech/i18n'
-import {matches, preview, scanRows, shipType, type Catalog, type Change, type Report, type Row} from '../fleet-tech/types'
+import {ledgerRows, matches, preview, shipType, summarize, type Catalog, type Change, type Report, type Row} from '../fleet-tech/types'
 import '../fleet-tech/style.css'
 
 const types = [1, 2, 3, 18, 4, 5, 7, 6, 13, 12, 10, 8, 17, 19, 22]
@@ -99,10 +99,11 @@ export function FleetTechnology() {
     const progress = new Map(report?.ships.map(row => [row.group_type, row]))
     return (catalog?.ships ?? []).flatMap(ship => progress.has(ship.group_type) ? [preview({...ship, ...progress.get(ship.group_type)!}, drafts[ship.group_type])] : [])
   }, [catalog, report, drafts])
-  const hasScan = Array.isArray(report?.last_scan?.ships)
-  const latest = view === 'latest' && hasScan && !edit
-  const rows = useMemo(() => latest && catalog && report?.last_scan ? scanRows(catalog, report.last_scan) : historyRows,
+  const latest = view === 'latest' && !edit
+  const rows = useMemo(() => latest && catalog ? ledgerRows(catalog, report?.ships ?? []) : historyRows,
     [latest, catalog, report, historyRows])
+  const summary = useMemo(() => latest && catalog && report ? summarize(catalog, rows, report.nation_levels) : report,
+    [latest, catalog, report, rows])
   function nation(value: number) {const label = tr(`nation.${value}`); return label.startsWith('nation.') ? `${tr('collaboration')} · ${value}` : label}
   function rarity(value: string) {return value === 'PR' || value === 'DR' ? tr(`rarity.${value}`) : ui(`mind.rarity.${value}` as 'mind.rarity.N')}
   function effect(row: Row, stage: 'get' | 'level') {
@@ -140,23 +141,24 @@ export function FleetTechnology() {
       onClick={() => commit({group_type: row.group_type, toggle: field, target: !active})}>{inner}</button>
       : <span className="ft-state-value">{inner}</span>
   }
-  if (!catalog || !report) return error ? <ErrorBox message={error} retry={() => void reload(true)}/> : <Loading/>
-  const nations = [...new Set(historyRows.map(row => row.nationality))].sort((a, b) => a - b)
+  if (!catalog || !report || !summary) return error ? <ErrorBox message={error} retry={() => void reload(true)}/> : <Loading/>
+  const nations = [...new Set(catalog.ships.map(row => row.nationality))].sort((a, b) => a - b)
+  const ledgerCount = report.ships.filter(row => row.ledger?.owned).length
   const dirty = Object.keys(drafts).length + Object.keys(nationDrafts).length
   return <div className="fleet-technology">
     <PageTitle title={tr('title')} actions={<button className="button secondary" disabled={busy || connection !== 'ready'} onClick={() => void reload(true)}>{ui('mind.reload')}</button>}/>
     {error && <ErrorBox message={error} retry={() => void reload(true)}/>}
-    <section className="ft-summary"><div><small>{tr('historySummary')}</small><p>{tr('max')}： <b>{number(catalog.max_points)}</b></p><p>{tr('four')}： {[1, 2, 3, 4].map(id => <span key={id}>{nation(id)} {number(catalog.nation_points[id] ?? 0)}　</span>)}</p><p>{tr('count')}： <b>{report.completed} / {historyRows.filter(row => row.technology).length}</b>　{tr('confirmed')}：{number(report.confirmed_points)}　<small>{tr('pendingStar')}{report.pending_star}</small></p></div><small>{tr('version')}：Lua · {catalog.updated_at}<br/>{tr('all')} {historyRows.length} · {tr('tech')} {historyRows.filter(row => row.technology).length} · {tr('none')} {historyRows.filter(row => !row.technology).length}</small></section>
+    <section className="ft-summary"><div><small>{tr(latest ? 'ledgerSummary' : 'historySummary')}</small><p>{tr('max')}： <b>{number(catalog.max_points)}</b></p><p>{tr('four')}： {[1, 2, 3, 4].map(id => <span key={id}>{nation(id)} {number(catalog.nation_points[id] ?? 0)}　</span>)}</p><p>{tr('count')}： <b>{summary.completed} / {rows.filter(row => row.technology).length}</b>　{tr('confirmed')}：{number(summary.confirmed_points)}　<small>{tr('pendingStar')}{summary.pending_star}</small></p></div><small>{tr('version')}：Lua · {catalog.updated_at}<br/>{tr('all')} {rows.length} · {tr('tech')} {rows.filter(row => row.technology).length} · {tr('none')} {rows.filter(row => !row.technology).length}</small></section>
     <section className="ft-toolbar">
       {dirty > 0 && <button className="button secondary" disabled={busy || connection !== 'ready'} onClick={() => void save()}>{tr('retry')} ({dirty})</button>}
       <small role="status">{busy ? ui('mind.processing') : dirty ? ui('mind.unsaved') : tr('hint')}</small>
     </section>
     <section className="ft-view" aria-label={tr('resultView')}><div className="ft-chips">
-      <button aria-pressed={latest} disabled={!hasScan || busy} onClick={() => {setView('latest'); setEdit(false); setPage(0)}}>{tr('latestScan')}</button>
+      <button aria-pressed={latest} disabled={busy} onClick={() => {setView('latest'); setEdit(false); setPage(0)}}>{tr('latestScan')}</button>
       <button aria-pressed={!latest} disabled={busy} onClick={() => {setView('history'); setPage(0)}}>{tr('history')}</button>
     </div><small>{tr(latest ? 'latestHint' : 'historyHint')}</small></section>
     {edit && <p className="ft-scan-summary">{tr('evidenceHint')}</p>}
-    {report.last_scan && <p className="ft-scan-summary">{tr('latestScan')} · {tr('matched')} {report.last_scan.matched_count} · {tr('review')} {report.review_ships.length} · {tr('scanTime')} {report.last_scan.updated_at.replace('T', ' ')}</p>}
+    {report.last_scan && <p className="ft-scan-summary">{tr('latestScan')} · {tr('matched')} {ledgerCount} · {tr('review')} {report.review_ships.length} · {tr('scanTime')} {report.last_scan.updated_at.replace('T', ' ')}</p>}
     {!!report.review_ships.length && <details className="ft-reviews"><summary>{tr('review')} ({report.review_ships.length})</summary><p>{tr('reviewHint')}</p>
       {report.review_ships.map((ship, index) => <div key={index}><span>{ship.name} · {ship.level ? `Lv.${ship.level}` : tr('unknown')}</span>
         {(ship.candidates?.length ? ship.candidates : ship.group_type ? [ship.group_type] : []).map(gid => {const row = historyRows.find(item => item.group_type === gid); return row && <button key={gid} className="button secondary" onClick={() => {setFilters({}); setMode('all'); setQuery(String(row.code)); setView('history'); setEdit(true); setPage(0)}}>{row.name} · {nation(row.nationality)} · {tr(`type.${shipType(row.type)}`)} · {row.code}</button>})}
@@ -172,13 +174,13 @@ export function FleetTechnology() {
       <div className="ft-filter-row"><strong>{tr('functions')}</strong><div className="ft-chips"><button aria-pressed={edit} onClick={() => {setView('history'); setEdit(!edit)}}>{tr('edit')}</button><button aria-pressed={bonuses} onClick={() => setBonuses(!bonuses)}>{tr('bonuses')}</button><button aria-pressed={extra} onClick={() => setExtra(!extra)}>{tr('extra')}</button></div></div>
     </section>
     {extra && <label className="ft-stage">{tr('stage')}<Select value={stage} onChange={e => {setStage(e.target.value); setPage(0)}}><option value="all">{tr('all')}</option><option value="get">{tr('unlock')}</option><option value="level">Lv.120</option></Select></label>}
-    {bonuses && <section className="ft-bonuses"><h2>{tr('bonuses')}</h2><div className="ft-nation-levels">{Object.entries(catalog.nations).map(([id, levels]) => <label key={id}>{nation(Number(id))} {tr('factionLevel')}<Select aria-label={`${nation(Number(id))} ${tr('factionLevel')}`} disabled={busy || connection !== 'ready'} value={(has(nationDrafts, id) ? nationDrafts[id] : report.nation_levels[id]) ?? ''} onChange={e => {nationPending.current[id] = e.target.value === '' ? null : Number(e.target.value); remember(); void save()}}><option value="">{tr('unknown')}</option>{Array.from({length: levels.length + 1}, (_, value) => <option key={value} value={value}>{value}</option>)}</Select></label>)}</div><p>{tr('factionHint')}</p><div className="ft-bonus-grid">{Object.entries(report.bonuses).map(([type, values]) => <div key={type}><b>{tr(`type.${type}`)}</b> {Object.entries(values).map(([attr, value]) => `${tr(`attr.${attr}`)}+${value}`).join(' · ')}</div>)}</div></section>}
+    {bonuses && <section className="ft-bonuses"><h2>{tr('bonuses')}</h2><div className="ft-nation-levels">{Object.entries(catalog.nations).map(([id, levels]) => <label key={id}>{nation(Number(id))} {tr('factionLevel')}<Select aria-label={`${nation(Number(id))} ${tr('factionLevel')}`} disabled={busy || connection !== 'ready'} value={(has(nationDrafts, id) ? nationDrafts[id] : report.nation_levels[id]) ?? ''} onChange={e => {nationPending.current[id] = e.target.value === '' ? null : Number(e.target.value); remember(); void save()}}><option value="">{tr('unknown')}</option>{Array.from({length: levels.length + 1}, (_, value) => <option key={value} value={value}>{value}</option>)}</Select></label>)}</div><p>{tr('factionHint')}</p><div className="ft-bonus-grid">{Object.entries(summary.bonuses).map(([type, values]) => <div key={type}><b>{tr(`type.${type}`)}</b> {Object.entries(values).map(([attr, value]) => `${tr(`attr.${attr}`)}+${value}`).join(' · ')}</div>)}</div></section>}
     <div className="ft-search"><input aria-label={tr('search')} placeholder={tr('search')} value={query} onChange={e => {setQuery(e.target.value); setPage(0)}}/><label>{tr('scope')}<Select aria-label={tr('scope')} value={mode} onChange={e => {setMode(e.target.value); setPage(0)}}>{['all', 'tech', 'none'].map(value => <option value={value} key={value}>{tr(value)}</option>)}</Select></label><span>{ui('mind.rowCount', {count: filtered.length})}</span></div>
     <div className="ft-table-wrap"><table><thead><tr>{head('code', tr('code'), 2)}{head('name', tr('name'), 2)}{latest && head('scanLevel', tr('observedLevel'), 2)}{head('nation', tr('nation'), 2)}{head('type', tr('shipClass'), 2)}<th colSpan={4}>{tr('points')}</th><th colSpan={2}>{tr('bonuses')}</th>{edit && <th rowSpan={2}>{tr('edit')}</th>}</tr><tr>{head('pt_get', tr('get'))}{head('pt_upgrage', tr('star'))}{head('pt_level', 'Lv.120')}{head('total', tr('total'))}{head('get', tr('unlock'))}{head('level', 'Lv.120')}</tr></thead><tbody>{filtered.slice(currentPage * 50, currentPage * 50 + 50).map(row => {
       const t = row.technology, level = edit && row.manual_state ? row.manual_state.level : row.level
       const name = row.names[language === 'en-US' ? 'en' : language === 'ja-JP' ? 'jp' : language === 'zh-TW' ? 'tw' : 'cn'] || row.name
       return <tr key={row.group_type} className={`ft-${row.status}`} data-group={row.group_type} title={[row.level ? `Lv.${row.level}` : '', row.manual ? tr('manual') : ''].filter(Boolean).join(' · ') || undefined}>
-        <td>{String(row.code).padStart(3, '0')}</td><td className={`ft-name ft-rarity-${row.rarity}`}>{name}</td>{latest && <td>Lv.{row.level}</td>}
+        <td>{String(row.code).padStart(3, '0')}</td><td className={`ft-name ft-rarity-${row.rarity}`}>{name}</td>{latest && <td>{row.level === null ? '—' : `Lv.${row.level}`}</td>}
         <td>{nation(row.nationality)}{row.variant && <small> · {tr(row.variant)}</small>}</td><td>{tr(`type.${shipType(row.type)}`)}</td>
         <td>{t?.pt_get ?? '—'}</td><td className="ft-state-cell">{t ? marker(row, 'star', t.pt_upgrage, tr('star')) : '—'}</td>
         <td>{t?.pt_level ?? '—'}</td><td>{t ? t.pt_get + t.pt_upgrage + t.pt_level : '—'}</td>
