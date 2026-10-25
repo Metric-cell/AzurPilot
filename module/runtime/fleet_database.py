@@ -1,5 +1,4 @@
-"""Independent, transactional fleet evidence and analysis storage per instance."""
-import json
+"""每实例一份精简舰船底账：当前卡片、科技进度与人工设置。"""
 import os
 import sqlite3
 import stat
@@ -8,28 +7,29 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-from module.runtime.fleet_tech import revision
+from module.runtime import fleet_tech as tech
 
 
 class FleetDatabaseConflict(ValueError):
-    """The completed scan was built from an outdated snapshot."""
+    """The current ledger changed while a scan was running."""
 
 
 class FleetDatabaseAlreadyImported(ValueError):
-    """This instance already completed its explicit legacy fleet import."""
+    """This instance already completed its explicit local JSON import."""
+
+
+MIND_FIELDS = ('name', 'level', 'rarity', 'base_rarity', 'excluded', 'review', 'source')
+MANUAL_FIELDS = ('owned', 'full_star', 'lv120', 'level', 'level_toggle')
+MIND_OPTIONS = ('overrides', 'removed', 'extra', 'updated_at', 'snapshot_revision')
 
 
 class FleetDatabase:
-    SCHEMA_VERSION = 1
+    SCHEMA_VERSION = 2
     BUSY_TIMEOUT_MS = 10000
 
     def __init__(self, config_path: Path):
         config_path = Path(config_path)
         self.path = config_path.parent / 'fleet' / (config_path.stem + '.sqlite3')
-
-    @staticmethod
-    def _json(value):
-        return json.dumps(value, ensure_ascii=False, allow_nan=False)
 
     @staticmethod
     def _check_file(path, *, directory=False):
@@ -101,71 +101,87 @@ class FleetDatabase:
         if version == self.SCHEMA_VERSION:
             return
         if version != 0 or not create:
-            raise ValueError(f'Unsupported fleet database schema version: {version}')
+            raise ValueError(f'Unsupported fleet database schema version: {version}; '
+                             '请先备份旧试验版舰船数据库，再使用新底账重新扫描或显式导入旧配置')
         if connection.execute("SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").fetchone():
             raise ValueError('Unversioned fleet database contains existing tables')
-        statements = (
-            'CREATE TABLE scan_batches (id INTEGER PRIMARY KEY, revision TEXT NOT NULL, '
-            'metadata TEXT NOT NULL, has_history INTEGER NOT NULL)',
-            'CREATE TABLE scan_cards (batch_id INTEGER NOT NULL REFERENCES scan_batches(id), '
-            'position INTEGER NOT NULL, payload TEXT NOT NULL, PRIMARY KEY(batch_id, position))',
-            'CREATE TABLE scan_history_fields (batch_id INTEGER NOT NULL REFERENCES scan_batches(id), '
-            'field TEXT NOT NULL, kind TEXT NOT NULL, payload TEXT, PRIMARY KEY(batch_id, field))',
-            'CREATE TABLE scan_evidence (batch_id INTEGER NOT NULL REFERENCES scan_batches(id), '
-            'field TEXT NOT NULL, position INTEGER NOT NULL, ship_key TEXT, payload TEXT NOT NULL, '
-            'PRIMARY KEY(batch_id, field, position))',
-            'CREATE TABLE analysis_fields (scope TEXT NOT NULL, field TEXT NOT NULL, '
-            'payload TEXT NOT NULL, PRIMARY KEY(scope, field))',
-            'CREATE TABLE mind_overrides (ship_key TEXT PRIMARY KEY, payload TEXT NOT NULL)',
-            'CREATE TABLE mind_removed (position INTEGER PRIMARY KEY, payload TEXT NOT NULL)',
-            'CREATE TABLE mind_extra (position INTEGER PRIMARY KEY, payload TEXT NOT NULL)',
-            'CREATE TABLE technology_manual (ship_key TEXT PRIMARY KEY, payload TEXT NOT NULL)',
-            'CREATE TABLE technology_nations (nation_key TEXT PRIMARY KEY, payload TEXT NOT NULL)',
-            'CREATE TABLE imports (name TEXT PRIMARY KEY, imported_at TEXT NOT NULL)',
-            'CREATE TABLE legacy_sections (name TEXT PRIMARY KEY, payload TEXT NOT NULL)',
-        )
-        for statement in statements:
-            connection.execute(statement)
+        # Execute statements individually: executescript would commit the caller's transaction.
+        for statement in Path(__file__).with_name('fleet_schema.sql').read_text(encoding='utf-8').split(';'):
+            if statement.strip():
+                connection.execute(statement)
+        connection.execute('INSERT INTO fleet_info (id) VALUES (1)')
         connection.execute(f'PRAGMA user_version={self.SCHEMA_VERSION}')
 
+    @staticmethod
+    def _row(connection, query):
+        cursor = connection.execute(query)
+        row = cursor.fetchone()
+        return dict(zip((item[0] for item in cursor.description), row)) if row else None
+
     def _snapshot(self, connection):
-        batch = connection.execute(
-            'SELECT id, metadata, has_history FROM scan_batches ORDER BY id DESC LIMIT 1').fetchone()
-        if batch is None:
+        info = self._row(connection, 'SELECT * FROM fleet_info WHERE id=1')
+        if info['revision'] is None:
             return None
-        batch_id, metadata, has_history = batch
-        snapshot = json.loads(metadata)
-        snapshot['ships'] = [json.loads(row[0]) for row in connection.execute(
-            'SELECT payload FROM scan_cards WHERE batch_id=? ORDER BY position', (batch_id,))]
-        if has_history:
-            history = snapshot['history'] = {}
-            for field, kind, payload in connection.execute(
-                    'SELECT field, kind, payload FROM scan_history_fields WHERE batch_id=?', (batch_id,)):
-                rows = connection.execute(
-                    'SELECT ship_key, payload FROM scan_evidence WHERE batch_id=? AND field=? '
-                    'ORDER BY position', (batch_id, field))
-                if kind == 'map':
-                    history[field] = {key: json.loads(value) for key, value in rows}
-                elif kind == 'list':
-                    history[field] = [json.loads(value) for _, value in rows]
-                elif kind == 'scalar':
-                    history[field] = json.loads(payload)
-                else:
-                    raise ValueError(f'Invalid fleet history kind: {kind}')
-        return snapshot
+        cursor = connection.execute('SELECT id, group_type, name, level, rarity, base_rarity, '
+                                    'extra_exp, review, source FROM ships ORDER BY position')
+        columns = [item[0] for item in cursor.description]
+        ships = [dict(zip(columns, row)) for row in cursor]
+        for ship in ships:
+            ship['review'] = bool(ship['review'])
+        keys = ('updated_at', 'min_level', 'max_level', 'reached_bottom', 'filters_clear',
+                'physical_count', 'expected_count')
+        metadata = {key: info[key] for key in keys}
+        for key in ('reached_bottom', 'filters_clear'):
+            metadata[key] = bool(metadata[key])
+        # Compatibility projection only: history is computed, never stored as scan records.
+        derived = tech.merge_scan({}, ships, **metadata)
+        observed = {str(gid): level for gid, level in connection.execute(
+            'SELECT group_type, max_observed_level FROM technology WHERE max_observed_level IS NOT NULL')}
+        history = dict(observed=observed, current=derived['current'], absent=derived['absent'])
+        return dict(version=1, revision=info['revision'], ships=ships, history=history,
+                    complete=bool(info['complete']), review_count=info['review_count'], source='scan', **metadata)
+
+    @staticmethod
+    def _unpack(row, names, mask, *, start=0):
+        return {name: row[name] for index, name in enumerate(names, start) if mask & (1 << index)}
 
     def _options(self, connection, scope):
-        options = {field: json.loads(payload) for field, payload in connection.execute(
-            'SELECT field, payload FROM analysis_fields WHERE scope=?', (scope,))}
-        fields = (('overrides', 'mind_overrides', True), ('removed', 'mind_removed', False),
-                  ('extra', 'mind_extra', False)) if scope == 'mind' else (
-                      ('manual', 'technology_manual', True), ('nations', 'technology_nations', True))
-        for field, table, mapping in fields:
-            if field in options:
-                rows = connection.execute(f'SELECT * FROM {table} ORDER BY 1')
-                options[field] = ({key: json.loads(value) for key, value in rows} if mapping else
-                                  [json.loads(value) for _, value in rows])
-        return options
+        info = self._row(connection, 'SELECT * FROM fleet_info WHERE id=1')
+        if scope == 'mind':
+            mask = info['mind_fields']
+            values = dict(overrides={}, removed=[], extra=[], updated_at=info['mind_updated_at'],
+                          snapshot_revision=info['mind_snapshot_revision'])
+            cursor = connection.execute('SELECT * FROM mind_settings ORDER BY ordinal, ship_key')
+            columns = [item[0] for item in cursor.description]
+            for raw in cursor:
+                row = dict(zip(columns, raw))
+                ship = self._unpack(row, MIND_FIELDS, row['fields'])
+                for key in ('excluded', 'review'):
+                    if ship.get(key) is not None:
+                        ship[key] = bool(ship[key])
+                if row['kind'] == 'override':
+                    values['overrides'][row['ship_key']] = ship
+                elif row['kind'] == 'removed':
+                    values['removed'].append(row['ship_key'])
+                else:
+                    values['extra'].append(ship)
+            return {key: values[key] for index, key in enumerate(MIND_OPTIONS) if mask & (1 << index)}
+        values = dict(manual={}, nations={})
+        cursor = connection.execute('SELECT * FROM technology WHERE manual_fields != 0 ORDER BY group_type')
+        columns = [item[0] for item in cursor.description]
+        for raw in cursor:
+            row = dict(zip(columns, raw))
+            entry = self._unpack(row, MANUAL_FIELDS[:-1], row['manual_fields'], start=1)
+            for key in ('owned', 'full_star', 'lv120'):
+                if entry.get(key) is not None:
+                    entry[key] = bool(entry[key])
+            if row['manual_fields'] & (1 << len(MANUAL_FIELDS)):
+                entry['level_toggle'] = ({} if row['low_level'] is None and row['high_level'] is None
+                                         else dict(low=row['low_level'], high=row['high_level']))
+            values['manual'][row['group_type']] = entry
+        values['nations'] = dict(connection.execute('SELECT nation_key, level FROM nation_technology ORDER BY nation_key'))
+        return {key: values[key] for index, key in enumerate(('manual', 'nations'))
+                if info['technology_fields'] & (1 << index)}
 
     def _load(self, connection):
         return dict(snapshot=self._snapshot(connection), mind=self._options(connection, 'mind'),
@@ -173,7 +189,7 @@ class FleetDatabase:
 
     @staticmethod
     def _legacy_imported(connection):
-        return connection.execute("SELECT 1 FROM imports WHERE name='legacy_fleet'").fetchone() is not None
+        return connection.execute('SELECT imported_at IS NOT NULL FROM fleet_info WHERE id=1').fetchone()[0] == 1
 
     def load(self, *, include_import_status=False):
         """Read without creating storage, migrating configuration, or changing evidence."""
@@ -213,27 +229,75 @@ class FleetDatabase:
         finally:
             connection.close()
 
+    @staticmethod
+    def _integer(value, label, low=0, high=None, *, nullable=True):
+        if value is None and nullable:
+            return None
+        if type(value) is not int or value < low or (high is not None and value > high):
+            raise ValueError(f'{label} must be an integer in range {low}..{high}')
+        return value
+
+    @staticmethod
+    def _boolean(value, label):
+        if value is not None and type(value) is not bool:
+            raise ValueError(f'{label} must be boolean or null')
+        return value
+
     def _write_options(self, connection, scope, options):
-        fields = (('overrides', 'mind_overrides', True), ('removed', 'mind_removed', False),
-                  ('extra', 'mind_extra', False)) if scope == 'mind' else (
-                      ('manual', 'technology_manual', True), ('nations', 'technology_nations', True))
-        normalized = {field for field, _, _ in fields}
-        connection.execute('DELETE FROM analysis_fields WHERE scope=?', (scope,))
-        for field, value in options.items():
-            if scope == 'technology' and field not in normalized:
-                continue
-            connection.execute('INSERT INTO analysis_fields VALUES (?, ?, ?)',
-                               (scope, field, 'null' if field in normalized else self._json(value)))
-        for field, table, mapping in fields:
-            connection.execute(f'DELETE FROM {table}')
-            values = options.get(field, {} if mapping else [])
-            rows = values.items() if mapping else enumerate(values)
-            connection.executemany(f'INSERT INTO {table} VALUES (?, ?)',
-                                   ((key, self._json(value)) for key, value in rows))
+        if scope == 'mind':
+            connection.execute('DELETE FROM mind_settings')
+            for kind, key in (('override', 'overrides'), ('removed', 'removed'), ('extra', 'extra')):
+                rows = options.get(key, {} if kind == 'override' else [])
+                items = rows.items() if kind == 'override' else enumerate(rows)
+                for ordinal, (ship_key, value) in enumerate(items):
+                    if kind == 'removed':
+                        ship_key, value = value, {}
+                    elif kind == 'extra':
+                        ship_key = str(ship_key)
+                    mask = sum(1 << index for index, field in enumerate(MIND_FIELDS) if field in value)
+                    values = [value.get(field) for field in MIND_FIELDS]
+                    self._integer(value.get('level'), 'mind level', 0, 125)
+                    for field in ('excluded', 'review'):
+                        self._boolean(value.get(field), field)
+                    connection.execute('INSERT INTO mind_settings VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                       (kind, ship_key, ordinal, mask, *values))
+            mask = sum(1 << index for index, key in enumerate(MIND_OPTIONS) if key in options)
+            connection.execute('UPDATE fleet_info SET mind_fields=?, mind_updated_at=?, '
+                               'mind_snapshot_revision=? WHERE id=1',
+                               (mask, options.get('updated_at'), options.get('snapshot_revision')))
+            return
+        # Only manual columns are replaced. Accumulated automatic levels survive every edit.
+        connection.execute('UPDATE technology SET manual_fields=0, owned=NULL, full_star=NULL, '
+                           'lv120=NULL, level=NULL, low_level=NULL, high_level=NULL')
+        for gid, entry in options.get('manual', {}).items():
+            if not isinstance(gid, str) or not gid.isdecimal():
+                raise ValueError('technology group_type must be a numeric string')
+            for field in ('owned', 'full_star', 'lv120'):
+                self._boolean(entry.get(field), field)
+            self._integer(entry.get('level'), 'manual level', 1, 125)
+            pair = entry.get('level_toggle', {})
+            if pair:
+                self._integer(pair.get('low'), 'low level', 1, 119, nullable=False)
+                self._integer(pair.get('high'), 'high level', 120, 125, nullable=False)
+            mask = 1 | sum(1 << index for index, field in enumerate(MANUAL_FIELDS, 1) if field in entry)
+            connection.execute('INSERT INTO technology (group_type, manual_fields, owned, full_star, '
+                               'lv120, level, low_level, high_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?) '
+                               'ON CONFLICT(group_type) DO UPDATE SET manual_fields=excluded.manual_fields, '
+                               'owned=excluded.owned, full_star=excluded.full_star, lv120=excluded.lv120, '
+                               'level=excluded.level, low_level=excluded.low_level, high_level=excluded.high_level',
+                               (gid, mask, entry.get('owned'), entry.get('full_star'), entry.get('lv120'),
+                                entry.get('level'), pair.get('low'), pair.get('high')))
+        connection.execute('DELETE FROM technology WHERE max_observed_level IS NULL AND manual_fields=0')
+        connection.execute('DELETE FROM nation_technology')
+        for key, value in options.get('nations', {}).items():
+            self._integer(value, 'nation level')
+            connection.execute('INSERT INTO nation_technology VALUES (?, ?)', (key, value))
+        mask = sum(1 << index for index, key in enumerate(('manual', 'nations')) if key in options)
+        connection.execute('UPDATE fleet_info SET technology_fields=? WHERE id=1', (mask,))
 
     @contextmanager
     def edit(self, *, import_legacy=False):
-        """Serialize analysis edits; mutations of the yielded snapshot are never saved."""
+        """Serialize manual edits; the yielded current card list is read-only to this operation."""
         connection = self._connect(write=True)
         try:
             connection.execute('BEGIN IMMEDIATE')
@@ -245,13 +309,12 @@ class FleetDatabase:
             self._write_options(connection, 'mind', state['mind'])
             self._write_options(connection, 'technology', state['technology'])
             if import_legacy:
-                for snapshot in state.get('legacy_snapshots', []):
-                    self._append_snapshot(connection, snapshot)
-                connection.executemany('INSERT INTO legacy_sections VALUES (?, ?)',
-                                       ((name, self._json(value)) for name, value in
-                                        state.get('legacy_sources', {}).items()))
-                connection.execute('INSERT INTO imports VALUES (?, ?)',
-                                   ('legacy_fleet', datetime.now(timezone.utc).isoformat(timespec='seconds')))
+                if state.get('legacy_snapshot') is not None:
+                    # Import can add past technology achievements, not replace existing current cards.
+                    current = self._snapshot(connection)
+                    self._write_snapshot(connection, state['legacy_snapshot'], replace_cards=current is None)
+                connection.execute('UPDATE fleet_info SET imported_at=? WHERE id=1',
+                                   (datetime.now(timezone.utc).isoformat(timespec='seconds'),))
             connection.commit()
         except BaseException:
             connection.rollback()
@@ -260,16 +323,15 @@ class FleetDatabase:
             connection.close()
 
     def save_scan(self, snapshot, expected_revision):
-        """Append one completed batch, retaining every physical copy and history row."""
+        """Replace current rows atomically; no batch archive or guessed cross-scan identity."""
         connection = self._connect(write=True)
         try:
             connection.execute('BEGIN IMMEDIATE')
             self._schema(connection)
-            latest = connection.execute(
-                'SELECT revision FROM scan_batches ORDER BY id DESC LIMIT 1').fetchone()
-            if (latest[0] if latest else revision({})) != expected_revision:
+            latest = connection.execute('SELECT revision FROM fleet_info WHERE id=1').fetchone()[0]
+            if (latest if latest is not None else tech.revision({})) != expected_revision:
                 raise FleetDatabaseConflict('舰船数据库已更新，请重新扫描')
-            self._append_snapshot(connection, snapshot)
+            self._write_snapshot(connection, snapshot)
             connection.commit()
         except BaseException:
             connection.rollback()
@@ -277,21 +339,49 @@ class FleetDatabase:
         finally:
             connection.close()
 
-    def _append_snapshot(self, connection, snapshot):
-        metadata = {key: value for key, value in snapshot.items() if key not in ('ships', 'history')}
-        cursor = connection.execute('INSERT INTO scan_batches (revision, metadata, has_history) '
-                                    'VALUES (?, ?, ?)',
-                                    (snapshot['revision'], self._json(metadata), 'history' in snapshot))
-        batch_id = cursor.lastrowid
-        connection.executemany('INSERT INTO scan_cards VALUES (?, ?, ?)',
-                               ((batch_id, index, self._json(ship))
-                                for index, ship in enumerate(snapshot['ships'])))
-        for field, value in snapshot.get('history', {}).items():
-            kind = 'map' if isinstance(value, dict) else 'list' if isinstance(value, list) else 'scalar'
-            connection.execute('INSERT INTO scan_history_fields VALUES (?, ?, ?, ?)',
-                               (batch_id, field, kind, self._json(value) if kind == 'scalar' else None))
-            rows = value.items() if kind == 'map' else enumerate(value) if kind == 'list' else ()
-            connection.executemany('INSERT INTO scan_evidence VALUES (?, ?, ?, ?, ?)',
-                                   ((batch_id, field, index, key if kind == 'map' else
-                                     str(item) if field == 'absent' else None, self._json(item))
-                                    for index, (key, item) in enumerate(rows)))
+    def _write_snapshot(self, connection, snapshot, *, replace_cards=True):
+        if not isinstance(snapshot.get('revision'), str) or not snapshot['revision']:
+            raise ValueError('snapshot revision must be a nonempty string')
+        low = self._integer(snapshot.get('min_level', 1), 'min level', 1, 125, nullable=False)
+        high = self._integer(snapshot.get('max_level', 125), 'max level', low, 125, nullable=False)
+        rows = snapshot['ships']
+        physical_count = self._integer(snapshot.get('physical_count', len(rows)), 'physical count',
+                                       nullable=False)
+        expected_count = self._integer(snapshot.get('expected_count'), 'expected count')
+        reached_bottom = self._boolean(snapshot.get('reached_bottom', False), 'reached bottom')
+        filters_clear = self._boolean(snapshot.get('filters_clear', False), 'filters clear')
+        if replace_cards:
+            connection.execute('DELETE FROM ships')
+            for index, ship in enumerate(rows):
+                self._integer(ship.get('group_type'), 'group type', 1)
+                self._integer(ship.get('level', 0), 'ship level', 0, 125, nullable=False)
+                self._integer(ship.get('extra_exp'), 'extra experience')
+                self._boolean(ship.get('review', False), 'review')
+                connection.execute('INSERT INTO ships (position, group_type, name, level, rarity, base_rarity, '
+                                   'extra_exp, review, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                                   (index, ship.get('group_type'), ship.get('name', ''), ship.get('level', 0),
+                                    ship.get('rarity', ''), ship.get('base_rarity', ''), ship.get('extra_exp'),
+                                    ship.get('review', False), ship.get('source', '')))
+        elif rows != self._snapshot(connection)['ships']:
+            raise ValueError('导入不能覆盖已有舰船明细')
+        metadata = dict(min_level=low, max_level=high, reached_bottom=bool(reached_bottom),
+                        filters_clear=bool(filters_clear), physical_count=physical_count,
+                        expected_count=expected_count, updated_at=snapshot.get('updated_at', ''))
+        derived = tech.merge_scan({}, rows, **metadata)
+        # One maximum per ship type is sufficient to keep earned technology after retirement.
+        observed = dict(snapshot.get('history', {}).get('observed', {}))
+        for gid, level in derived['observed'].items():
+            observed[gid] = max(observed.get(gid, 0), level)
+        for gid, level in observed.items():
+            self._integer(level, 'observed level', 1, 125, nullable=False)
+            if not isinstance(gid, str) or not gid.isdecimal():
+                raise ValueError('technology group_type must be a numeric string')
+            connection.execute('INSERT INTO technology (group_type, max_observed_level) VALUES (?, ?) '
+                               'ON CONFLICT(group_type) DO UPDATE SET max_observed_level='
+                               'MAX(COALESCE(technology.max_observed_level, 0), excluded.max_observed_level)', (gid, level))
+        connection.execute('UPDATE fleet_info SET revision=?, updated_at=?, min_level=?, max_level=?, '
+                           'reached_bottom=?, filters_clear=?, physical_count=?, expected_count=?, '
+                           'complete=?, review_count=? WHERE id=1',
+                           (snapshot['revision'], metadata['updated_at'], low, high, metadata['reached_bottom'],
+                            metadata['filters_clear'], metadata['physical_count'], metadata['expected_count'],
+                            derived['last_scan']['complete'], derived['last_scan']['review_count']))

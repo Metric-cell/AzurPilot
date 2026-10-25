@@ -154,7 +154,7 @@ def _revision(snapshot):
 
 
 def convert_legacy(data):
-    """Convert only supplied data; archive every nonempty old section without mutating it."""
+    """Convert supplied local data into one current ledger and independent settings."""
     _object(data, '旧配置')
     sources = {}
     for path in LEGACY_PATHS:
@@ -214,8 +214,7 @@ def convert_legacy(data):
             observed[gid] = max(observed.get(gid, 0), level)
     if snapshots:
         snapshots[-1]['history'].setdefault('observed', {}).update(observed)
-    for snapshot in snapshots:
-        _revision(snapshot)
+        _revision(snapshots[-1])
     state = dict(snapshot=snapshots[-1] if snapshots else None, mind={}, technology={})
     analysis = sources.get(LEGACY_PATHS[2])
     if analysis:
@@ -227,7 +226,9 @@ def convert_legacy(data):
         if not isinstance(analysis.get('removed', []), list) or any(not isinstance(key, str) for key in analysis.get('removed', [])):
             raise ValueError('心智删除记录无效')
         _rows(analysis.get('extra', []))
-        options = copy.deepcopy(analysis)
+        options = {key: copy.deepcopy(analysis[key])
+                   for key in ('overrides', 'removed', 'extra', 'updated_at', 'snapshot_revision')
+                   if key in analysis}
         if (snapshots and options.get('snapshot_revision')
                 and options['snapshot_revision'] == snapshots[-1].get('legacy_revision')):
             options['snapshot_revision'] = snapshots[-1]['revision']
@@ -240,7 +241,7 @@ def convert_legacy(data):
     useful_mind = any(options.get(key) for key in ('overrides', 'removed', 'extra'))
     if not snapshots and not useful_mind and not any(technology.get(key) for key in ('manual', 'nations')):
         raise ValueError('当前配置中没有可导入的旧舰船数据')
-    return dict(snapshots=snapshots, mind=options, technology=technology, sources=sources)
+    return dict(snapshot=state['snapshot'], mind=options, technology=technology)
 
 
 def merge_legacy(state, converted):
@@ -251,7 +252,7 @@ def merge_legacy(state, converted):
     incoming = converted['mind']
     original_extras = copy.deepcopy(current.get('extra', []))
     original_overrides = copy.deepcopy(current.get('overrides', {}))
-    source_snapshot = converted['snapshots'][-1] if converted['snapshots'] else None
+    source_snapshot = converted['snapshot']
     previous_snapshot = result.get('snapshot')
     valid_review_source = bool(source_snapshot and incoming.get('snapshot_revision') == source_snapshot['revision'])
     if previous_snapshot:
@@ -280,22 +281,20 @@ def merge_legacy(state, converted):
                               and (not item.startswith('review:') or valid_review_source))
         else:
             current.setdefault(key, copy.deepcopy(value))
-    batches = copy.deepcopy(converted['snapshots'])
     active = result.get('snapshot')
     if active:
         active = copy.deepcopy(active)
         observed = active.setdefault('history', {}).setdefault('observed', {})
-        for batch in batches:
-            for gid, level in batch.get('history', {}).get('observed', {}).items():
+        if source_snapshot:
+            for gid, level in source_snapshot.get('history', {}).get('observed', {}).items():
                 observed[gid] = max(observed.get(gid, 0), level)
         old_revision = active.get('revision')
         _revision(active)
         if (current.get('snapshot_revision') == old_revision
                 or valid_review_source and current.get('snapshot_revision') == incoming.get('snapshot_revision')):
             current['snapshot_revision'] = active['revision']
-        batches.append(active)
-    elif batches:
-        active = batches[-1]
+    elif source_snapshot:
+        active = copy.deepcopy(source_snapshot)
     result['snapshot'] = active
     # Manual extra rows predate the imported base and keep their effective values.
     base = dict(mind_analysis.keyed(mind_analysis.base_ships(result)))
@@ -307,6 +306,5 @@ def merge_legacy(state, converted):
             if field in row and row[field] != base[key].get(field):
                 if field not in original_overrides.get(key, {}):
                     target[field] = copy.deepcopy(row[field])
-    result['legacy_snapshots'] = batches
-    result['legacy_sources'] = copy.deepcopy(converted['sources'])
+    result['legacy_snapshot'] = active
     return result

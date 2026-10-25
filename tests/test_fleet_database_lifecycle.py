@@ -32,7 +32,6 @@ class FleetDatabaseLifecycleTest(unittest.TestCase):
             state['mind'] = {'extra': [{'name': '杜威', 'level': 100}]}
 
     def test_delete_archives_sqlite_and_json_and_recreation_is_empty(self):
-        original = self.database.load()
         self.configs.delete('pilot', self.configs.read('pilot')[1])
         backup = self.configs.directory / 'backup'
         json_backup, = backup.glob('*.json')
@@ -40,9 +39,10 @@ class FleetDatabaseLifecycleTest(unittest.TestCase):
         self.assertEqual(fleet_backup.name, f'{json_backup.stem}.fleet.sqlite3')
         self.assertIn('Alas', json.loads(json_backup.read_text()))
         with closing(sqlite3.connect(fleet_backup)) as connection:
-            self.assertEqual(connection.execute('SELECT payload FROM technology_manual').fetchone()[0],
-                             json.dumps(original['technology']['manual']['10102'], ensure_ascii=False))
-            self.assertEqual(connection.execute('SELECT COUNT(*) FROM mind_extra').fetchone()[0], 1)
+            self.assertEqual(connection.execute(
+                "SELECT owned FROM technology WHERE group_type='10102'").fetchone()[0], 1)
+            self.assertEqual(connection.execute(
+                "SELECT COUNT(*) FROM mind_settings WHERE kind='extra'").fetchone()[0], 1)
         self.assertFalse(self.database.path.exists())
         self.configs.create('pilot')
         self.assertEqual(self.database.load(), {'snapshot': None, 'mind': {}, 'technology': {}})

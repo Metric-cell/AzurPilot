@@ -134,11 +134,16 @@ export interface LauncherStatus {
   autostart: {supported: boolean; enabled: boolean | null}; commands: LauncherCommand[]
 }
 
+export interface DockCard {
+  id: number; group_type: number | null; name: string; level: number
+  rarity: string; base_rarity: string; extra_exp: number | null; review: boolean; source: string
+}
+
 export interface DockReport {
   legacy_imported?: boolean
   scan_range?: {min_level: number; max_level: number}
   instance: string; revision: string; updated_at: string | null; min_level: number; max_level: number
-  ships: MindShip[]; complete: boolean; review_count: number; source: string
+  ships: DockCard[]; complete: boolean; review_count: number; source: string
 }
 
 export interface Results {

@@ -55,7 +55,7 @@ class DockService:
                 raise ApiError('ALREADY_IMPORTED', '本实例已完成旧数据迁移') from exc
             except (ValueError, TypeError, KeyError) as exc:
                 raise ApiError('INVALID_PARAMS', f'旧舰船数据无法迁移：{exc}') from exc
-            # 先提交包含原始旧内容归档的 SQLite，再清理配置；清理失败也不会丢数据。
+            # 先提交转换后的 SQLite 底账，再清理旧字段；清理失败时保留原配置。
             for key in LEGACY_PATHS:
                 deep_pop(original, key)
             try:

@@ -44,7 +44,7 @@ class SharedAnalysisTests(unittest.TestCase):
         params.update(extra)
         snapshot = dock_data.build_snapshot(rows, **params)
         database.save_scan(snapshot, dock_data.read_snapshot(state)['revision'])
-        return snapshot
+        return database.load()['snapshot']
 
     def test_同一底账自动供两份分析且读取不写盘不操作游戏(self):
         snapshot = self.scan()
@@ -201,7 +201,7 @@ class SharedAnalysisTests(unittest.TestCase):
             self.assertEqual([row['level'] for row in self.mind.report('testpilot')['ships']],
                              [110] if rows is None else [])
             state = FleetDatabase(self.configs.path('testpilot')).load()
-            self.assertEqual(state['snapshot']['history']['current']['10102'], 110)
+            self.assertEqual(state['snapshot']['history']['current'].get('10102'), 110 if rows is None else None)
             self.assertEqual('10102' in state['snapshot']['history']['absent'], rows is not None)
         for change, expected in [(dict(level=100), (True, 100, False)),
                                  (dict(owned=False), (False, None, False))]:

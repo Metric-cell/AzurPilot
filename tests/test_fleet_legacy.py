@@ -1,4 +1,4 @@
-"""Pure explicit-import conversion retains raw sources and SQLite precedence."""
+"""Pure explicit import produces one ledger and preserves SQLite precedence."""
 import copy
 import unittest
 
@@ -17,7 +17,7 @@ def snapshot(level=105):
 
 
 class FleetLegacyTests(unittest.TestCase):
-    def test_all_sections_are_archived_with_dock_preferred_and_history_retained(self):
+    def test_sources_merge_into_one_snapshot_with_dock_preferred_and_progress_retained(self):
         dock = snapshot()
         dock['ships'].append(dict(dock['ships'][0], slot=1))
         data = {'DockScan': {'Dock': {'Result': dock}}, 'MindCalculatorScan': {'MindCalculator': {
@@ -30,19 +30,14 @@ class FleetLegacyTests(unittest.TestCase):
         before = copy.deepcopy(data)
         result = convert_legacy(data)
         self.assertEqual(data, before)
-        self.assertEqual(len(result['sources']), 4)
-        self.assertEqual(result['sources']['MindCalculatorScan.MindCalculator.FleetTechRecord']['unrecognized'], {'keep': True})
+        self.assertEqual(set(result), {'snapshot', 'mind', 'technology'})
         self.assertEqual(result['technology']['manual']['10102'], {'owned': False, 'level': 125})
         self.assertEqual(result['technology']['nations'], {'1': 3})
-        active = result['snapshots'][-1]
+        active = result['snapshot']
         self.assertEqual(active['import_source'], 'legacy_dock')
         self.assertEqual(len(active['ships']), 2)
         self.assertEqual(active['history']['observed']['10103'], 125)
         self.assertEqual(active['history']['observed']['10104'], 120)
-        for batch in result['snapshots'][:-1]:
-            self.assertFalse(batch['complete'])
-            self.assertFalse(batch['reached_bottom'])
-            self.assertFalse(batch['filters_clear'])
         state = merge_legacy(dict(snapshot=None, mind={}, technology={}), result)
         self.assertEqual(mind_analysis.ships(state)[0]['level'], 110)
 
@@ -52,14 +47,14 @@ class FleetLegacyTests(unittest.TestCase):
             'Result': {'ships': [row(level=110)]},
             'Analysis': {'overrides': {'group:10102': {'excluded': True}}, 'removed': [],
                          'extra': [row(name='未知舰', level=0, excluded=False)],
-                         'snapshot_revision': original['revision']}}}}
+                         'snapshot_revision': original['revision'], 'opaque_old_data': 'discard me'}}}}
         result = convert_legacy(data)
         state = merge_legacy(dict(snapshot=None, mind={}, technology={}), result)
         rows = mind_analysis.ships(state)
+        self.assertNotIn('opaque_old_data', result['mind'])
         self.assertEqual(rows[0]['level'], 105)
         self.assertTrue(rows[0]['excluded'])
         self.assertEqual(rows[1]['name'], '未知舰')
-        self.assertEqual(len(result['sources']), 3)
 
     def test_existing_sqlite_snapshot_and_manual_values_win_but_history_is_unioned(self):
         active = snapshot(100)
@@ -84,16 +79,17 @@ class FleetLegacyTests(unittest.TestCase):
         self.assertEqual(merged['mind']['overrides']['group:10102'], {'excluded': False, 'base_rarity': 'SR'})
         self.assertEqual(merged['mind']['removed'], ['group:10103', 'group:10104'])
         self.assertEqual([item['name'] for item in merged['mind']['extra']], ['旧额外舰', '新额外舰'])
-        self.assertEqual(merged['legacy_sources']['MindCalculatorScan.MindCalculator.Analysis']['extra'][0]['name'], '新额外舰')
+        self.assertNotIn('legacy_sources', merged)
+        self.assertNotIn('legacy_snapshots', merged)
         self.assertEqual(merged['mind']['snapshot_revision'], merged['snapshot']['revision'])
-        self.assertEqual(merged['legacy_snapshots'][-1], merged['snapshot'])
+        self.assertEqual(merged['legacy_snapshot'], merged['snapshot'])
 
     def test_newest_trustworthy_snapshot_is_preferred_without_dock(self):
         converted = convert_legacy({'MindCalculatorScan': {'MindCalculator': {'Result': {
             'ships': [row()], 'updated_at': 'invalid'}}}, 'FleetTechScan': {'FleetTech': {'Record': {
             'last_scan': {'ships': [[10103, 120]], 'updated_at': '2026-10-25T12:00:00'}}}}})
-        self.assertEqual(converted['snapshots'][-1]['import_source'], 'legacy_technology')
-        self.assertEqual(converted['snapshots'][-1]['ships'][0]['group_type'], 10103)
+        self.assertEqual(converted['snapshot']['import_source'], 'legacy_technology')
+        self.assertEqual(converted['snapshot']['ships'][0]['group_type'], 10103)
 
     def test_empty_and_malformed_inputs_are_rejected_without_mutation(self):
         cases = [{}, {'FleetTechScan': {'FleetTech': {'Record': {'manual': {'10102': {}}}}}}, {'DockScan': {'Dock': {'Result': {'ships': 'invalid'}}}},
@@ -106,10 +102,10 @@ class FleetLegacyTests(unittest.TestCase):
                 convert_legacy(data)
             self.assertEqual(data, before)
 
-    def test_explicit_empty_saved_list_is_a_valid_completed_batch(self):
+    def test_explicit_empty_saved_list_is_a_valid_current_snapshot(self):
         converted = convert_legacy({'MindCalculatorScan': {'MindCalculator': {'Result': {'ships': []}}}})
-        self.assertEqual(converted['snapshots'][-1]['ships'], [])
-        self.assertFalse(converted['snapshots'][-1]['complete'])
+        self.assertEqual(converted['snapshot']['ships'], [])
+        self.assertFalse(converted['snapshot']['complete'])
 
     def test_raw_positive_levels_cannot_be_lowered_by_old_history(self):
         dock = snapshot(125)
@@ -117,13 +113,13 @@ class FleetLegacyTests(unittest.TestCase):
         converted = convert_legacy({'DockScan': {'Dock': {'Result': dock}},
             'FleetTechScan': {'FleetTech': {'Record': {'observed': {'10103': 100},
                 'last_scan': {'ships': [[10103, 125]]}}}}})
-        self.assertEqual(converted['snapshots'][-1]['history']['observed']['10102'], 125)
-        self.assertEqual(converted['snapshots'][-1]['history']['observed']['10103'], 125)
+        self.assertEqual(converted['snapshot']['history']['observed']['10102'], 125)
+        self.assertEqual(converted['snapshot']['history']['observed']['10103'], 125)
 
     def test_existing_mind_deletions_and_edits_win_over_imported_opposites(self):
         state = dict(snapshot=None, technology={}, mind={'removed': ['group:10102'],
             'overrides': {'group:10103': {'excluded': False}}, 'extra': [row(name='唐斯')]})
-        converted = dict(snapshots=[], sources={}, technology={}, mind={
+        converted = dict(snapshot=None, technology={}, mind={
             'removed': ['group:10103', 'group:10104'],
             'overrides': {'group:10102': {'excluded': True}}, 'extra': [row()]})
         merged = merge_legacy(state, converted)
@@ -156,7 +152,7 @@ class FleetLegacyTests(unittest.TestCase):
         self.assertFalse(mind_analysis.ships(merged)[0]['excluded'])
         data['MindCalculatorScan']['MindCalculator']['Analysis']['snapshot_revision'] = original['revision']
         matching = convert_legacy(data)
-        self.assertEqual(matching['mind']['snapshot_revision'], matching['snapshots'][-1]['revision'])
+        self.assertEqual(matching['mind']['snapshot_revision'], matching['snapshot']['revision'])
         self.assertTrue(mind_analysis.ships(merge_legacy(dict(snapshot=None, mind={}, technology={}), matching))[0]['excluded'])
         same_source = merge_legacy(dict(snapshot=original, mind={'snapshot_revision': original['revision']}, technology={}), matching)
         self.assertTrue(mind_analysis.ships(same_source)[0]['excluded'])
@@ -188,7 +184,7 @@ class FleetLegacyTests(unittest.TestCase):
         data = {'MindCalculatorScan': {'MindCalculator': {'Analysis': {'extra': [
             dict(row(name='未确认的人工舰', level=0), review=True)]}}}}
         converted = convert_legacy(data)
-        self.assertEqual(converted['snapshots'], [])
+        self.assertIsNone(converted['snapshot'])
         merged = merge_legacy(dict(snapshot=None, mind={}, technology={}), converted)
         self.assertEqual(mind_analysis.ships(merged)[0]['name'], '未确认的人工舰')
         self.assertTrue(mind_analysis.ships(merged)[0]['review'])
