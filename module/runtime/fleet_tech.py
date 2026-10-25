@@ -96,7 +96,7 @@ def merge_mind(record, ships):
     return output
 
 
-def progress(record, group_type):
+def _source_progress(record, group_type):
     """兼容旧记录，分别推导获得、等级和满星；无证据默认未获得。"""
     gid = str(group_type)
     manual = record.get('manual', {}).get(gid, {})
@@ -132,6 +132,40 @@ def progress(record, group_type):
     return state
 
 
+def _manual_progress(record, group_type):
+    """仅归一化人工证据；显式未获取屏蔽其遗留等级与里程碑。"""
+    gid = str(group_type)
+    values = copy.deepcopy(record.get('manual', {}).get(gid, {}))
+    if values.get('lv120') is None:
+        values.pop('lv120', None)
+    if values.get('owned') is not False and (values.get('level') or values.get('lv120') is True
+                                            or values.get('full_star') is True):
+        values['owned'] = True
+    return _source_progress(dict(manual={gid: values}), group_type)
+
+
+def progress(record, group_type):
+    """获取及科技里程碑取底账与人工的正向并集，同一群组只计一次。"""
+    if 'ledger_levels' not in record:
+        return _source_progress(record, group_type)
+    gid = str(group_type)
+    ledger = _source_progress(dict(current=record['ledger_levels']), group_type)
+    manual = _manual_progress(record, group_type)
+    owned = ledger['owned'] or manual['owned']
+    lv120 = ledger['lv120'] or manual['lv120']
+    sources = [source for source in (ledger, manual) if source['owned']]
+    levels = [source['level'] for source in sources if source['level'] is not None]
+    full_star = (True if any(source['full_star'] is True for source in sources) else
+                 None if any(source['full_star'] is None for source in sources) else False)
+    fields = ('owned', 'level', 'full_star', 'lv120')
+    return dict(manual, owned=owned, lv120=lv120, level=max(levels) if levels else None,
+                full_star=full_star, status='complete' if lv120 else 'unfinished' if owned else 'unowned',
+                manual=bool(record.get('manual', {}).get(gid)), observed_level=record.get('observed', {}).get(gid),
+                ledger={field: ledger[field] for field in fields},
+                manual_state={**{field: manual[field] for field in fields},
+                              'completion_target': manual['completion_target']})
+
+
 def completion_levels(record, group_type, state):
     """旧版单独设置满级时也保留可用的原等级，不丢失人工历史。"""
     gid = str(group_type)
@@ -149,19 +183,21 @@ def completion_levels(record, group_type, state):
 
 def toggle(record, group_type, field, target):
     """事务内处理单击；等级切换的两个端点随人工记录持久化。"""
-    state = progress(record, group_type)
+    independent = 'ledger_levels' in record
+    state = _manual_progress(record, group_type) if independent else progress(record, group_type)
     state_key = 'lv120' if field == 'complete' else 'full_star' if field == 'star' else 'owned'
     if bool(state[state_key]) == target:
         return
     entry = record.setdefault('manual', {}).setdefault(str(group_type), {})
     if field == 'owned':
         entry['owned'] = target
-        if entry['owned'] and not entry.get('level'):
+        if entry['owned'] and not entry.get('level') and not independent:
             entry['level'] = record.get('current', {}).get(str(group_type),
                                 record.get('observed', {}).get(str(group_type), 100))
             entry['lv120'] = entry['level'] >= 120
     elif field == 'complete':
-        pair = completion_levels(record, group_type, state)
+        manual_record = dict(manual=record.get('manual', {})) if independent else record
+        pair = completion_levels(manual_record, group_type, state)
         level = pair['high'] if target else pair['low']
         entry.update(owned=True, level=level, lv120=target, level_toggle=pair)
     elif field == 'star':
@@ -215,21 +251,16 @@ def ship_type(value):
     return 1 if value in (20, 21) else 22 if value in (22, 23, 24) else value
 
 
-def report(record, *, group_types=None):
-    """指定底账范围时仅报告底账与非空人工记录的并集；省略时保留全目录投影。"""
+def report(record):
+    """保留完整目录，以两份获取证据的并集计算科技及未获取的补集。"""
     rows, bonuses = [], defaultdict(lambda: defaultdict(int))
     confirmed_points = completed = pending_star = 0
-    members = None if group_types is None else {str(gid) for gid in group_types}
-    if members is not None:
-        members.update(str(gid) for gid, entry in record.get('manual', {}).items() if entry)
 
     def add(types, attr, value):
         for target in {ship_type(t) for t in types}:
             bonuses[str(target)][str(attr)] += value
 
     for info in catalog()['ships']:
-        if members is not None and str(info['group_type']) not in members:
-            continue
         row = progress(record, info['group_type'])
         owned, full_star, lv120 = row['owned'], row['full_star'], row['lv120']
         tech = info['technology']

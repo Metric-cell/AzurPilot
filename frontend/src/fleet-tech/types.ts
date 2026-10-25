@@ -4,7 +4,8 @@ export type Change = NonNullable<Parameters['fleetTech.patch']['changes']>[numbe
 export interface Technology {pt_get: number; pt_upgrage: number; pt_level: number; max_star: number; add_get_shiptype: number[]; add_get_attr: number; add_get_value: number; add_level_shiptype: number[]; add_level_attr: number; add_level_value: number}
 export interface Ship {group_type: number; code: number; handbook_type: number; blueprint: boolean; name: string; names: Record<string, string | null>; nationality: number; rarity: string; type: number; variant?: 'child' | 'mu' | ''; technology: Technology | null}
 export interface Catalog {ships: Ship[]; nations: Record<string, [number[], number, number][][]>; updated_at: string; source_commit: string; max_points: number; nation_points: Record<string, number>}
-export interface Progress {group_type: number; owned: boolean; full_star: boolean | null; lv120: boolean; level: number | null; observed_level: number | null; completion_target: number; acquire_level: number; acquire_lv120: boolean; status: 'complete' | 'unowned' | 'unfinished'; manual: boolean; points: number}
+export interface Evidence {owned: boolean; full_star: boolean | null; lv120: boolean; level: number | null}
+export interface Progress {group_type: number; owned: boolean; full_star: boolean | null; lv120: boolean; level: number | null; observed_level: number | null; completion_target: number; acquire_level: number; acquire_lv120: boolean; status: 'complete' | 'unowned' | 'unfinished'; manual: boolean; points: number; ledger?: Evidence; manual_state?: Evidence & {completion_target: number}}
 export interface ScanSummary {min_level: number; max_level: number; complete: boolean; reached_bottom: boolean; physical_count: number; expected_count: number | null; matched_count: number; review_count: number; updated_at: string; fingerprint: string; ships: [number, number][]}
 export interface ReviewShip {name: string; level: number; source: string; candidates: number[]; group_type: number | null; review: boolean}
 export interface Report {instance: string; revision: string; ships: Progress[]; nation_levels: Record<string, number | null>; bonuses: Record<string, Record<string, number>>; confirmed_points: number; completed: number; pending_star: number; min_level: number; max_level: number; last_scan: ScanSummary | null; review_ships: ReviewShip[]}
@@ -45,6 +46,8 @@ export function matches(row: Row, filters: Record<string, string[]>, query: stri
 }
 
 export function preview(row: Row, change?: Change): Row {
+  // 双来源的科技结论由服务端统一生成，未确认的人工草稿不改写合并结果。
+  if (row.ledger) return row
   if (!change || change.restore) return row
   const next = {...row, manual: true}
   if (change.toggle === 'owned') {

@@ -1,4 +1,4 @@
-import {useEffect, useId, useMemo, useRef, useState, type ReactNode} from 'react'
+import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {useParams} from 'react-router-dom'
 import {api} from '../api/client'
 import {useApp, useConnection} from '../app/context'
@@ -15,7 +15,6 @@ const has = (value: object, key: string) => Object.hasOwn(value, key)
 
 export function FleetTechnology() {
   const {instance = ''} = useParams(), {language, ui, notify} = useApp(), connection = useConnection()
-  const addShipListId = useId(), [addShip, setAddShip] = useState('')
   const tr = (key: string) => translateFleetTech(language, key)
   const [catalog, setCatalog] = useState<Catalog>(), [report, setReport] = useState<Report>()
   const catalogLoaded = useRef<Catalog | undefined>(undefined)
@@ -54,7 +53,7 @@ export function FleetTechnology() {
     const token = scope.current.token
     let active = true
     saved.current = undefined; writing.current = false; epoch.current++
-    setReport(undefined); setCatalog(undefined); catalogLoaded.current = undefined; setBusy(false); setError(''); setPage(0); setView('history'); setEdit(false); setAddShip('')
+    setReport(undefined); setCatalog(undefined); catalogLoaded.current = undefined; setBusy(false); setError(''); setPage(0); setView('history'); setEdit(false)
     pending.current = {}; nationPending.current = {}
     try {
       const draft = JSON.parse(sessionStorage.getItem(draftKey) ?? 'null')
@@ -105,11 +104,6 @@ export function FleetTechnology() {
   const rows = useMemo(() => latest && catalog && report?.last_scan ? scanRows(catalog, report.last_scan) : historyRows,
     [latest, catalog, report, historyRows])
   function nation(value: number) {const label = tr(`nation.${value}`); return label.startsWith('nation.') ? `${tr('collaboration')} · ${value}` : label}
-  const supplementalShips = (catalog?.ships ?? []).map(ship => {
-    const name = ship.names[language === 'en-US' ? 'en' : language === 'ja-JP' ? 'jp' : language === 'zh-TW' ? 'tw' : 'cn'] || ship.name
-    return {group_type: ship.group_type, label: `${name} · ${nation(ship.nationality)} · ${tr(`type.${shipType(ship.type)}`)} · #${ship.code}`}
-  })
-  const supplementalShip = supplementalShips.find(ship => ship.label === addShip)
   function rarity(value: string) {return value === 'PR' || value === 'DR' ? tr(`rarity.${value}`) : ui(`mind.rarity.${value}` as 'mind.rarity.N')}
   function effect(row: Row, stage: 'get' | 'level') {
     const t = row.technology
@@ -138,9 +132,10 @@ export function FleetTechnology() {
     return <th rowSpan={span} aria-sort={sort.key === key ? sort.direction === 1 ? 'ascending' : 'descending' : 'none'}><button onClick={() => setSort({key, direction: sort.key === key ? -sort.direction : 1})}>{label} <small>↕</small></button></th>
   }
   function marker(row: Row, field: 'owned' | 'complete' | 'star', content: ReactNode, label: string) {
-    const active = field === 'owned' ? row.owned : field === 'complete' ? row.lv120 : !!row.full_star
-    const inner = <>{active && field === 'star' && edit && <span className="ft-check" aria-hidden="true">✓</span>}{content}</>
-    return edit ? <button className="ft-state-button" aria-label={`${label} ${row.name} (${row.code})`} aria-pressed={active}
+    const source = edit && row.manual_state ? row.manual_state : row
+    const active = field === 'owned' ? source.owned : field === 'complete' ? source.lv120 : !!source.full_star
+    const inner = <>{active && edit && <span className="ft-check" aria-hidden="true">✓</span>}{content}</>
+    return edit ? <button className="ft-state-button" aria-label={`${tr('manual')} · ${label} ${row.name} (${row.code})`} title={tr('evidenceHint')} aria-pressed={active}
       disabled={busy || connection !== 'ready' || !!drafts[row.group_type]}
       onClick={() => commit({group_type: row.group_type, toggle: field, target: !active})}>{inner}</button>
       : <span className="ft-state-value">{inner}</span>
@@ -160,12 +155,7 @@ export function FleetTechnology() {
       <button aria-pressed={latest} disabled={!hasScan || busy} onClick={() => {setView('latest'); setEdit(false); setPage(0)}}>{tr('latestScan')}</button>
       <button aria-pressed={!latest} disabled={busy} onClick={() => {setView('history'); setPage(0)}}>{tr('history')}</button>
     </div><small>{tr(latest ? 'latestHint' : 'historyHint')}</small></section>
-    {edit && <div className="ft-manual-add">
-      <label>{tr('addShip')}<input list={addShipListId} placeholder={tr('addShipPlaceholder')} value={addShip} disabled={busy || connection !== 'ready'} onChange={event => setAddShip(event.target.value)}/></label>
-      <datalist id={addShipListId}>{supplementalShips.map(ship => <option key={ship.group_type} value={ship.label}/>)}</datalist>
-      <button className="button secondary" disabled={busy || connection !== 'ready' || !supplementalShip || !!drafts[supplementalShip.group_type] || historyRows.some(row => row.group_type === supplementalShip.group_type && row.owned)}
-        onClick={() => {if (supplementalShip) commit({group_type: supplementalShip.group_type, owned: true})}}>{tr('addOwned')}</button>
-    </div>}
+    {edit && <p className="ft-scan-summary">{tr('evidenceHint')}</p>}
     {report.last_scan && <p className="ft-scan-summary">{tr('latestScan')} · {tr('matched')} {report.last_scan.matched_count} · {tr('review')} {report.review_ships.length} · {tr('scanTime')} {report.last_scan.updated_at.replace('T', ' ')}</p>}
     {!!report.review_ships.length && <details className="ft-reviews"><summary>{tr('review')} ({report.review_ships.length})</summary><p>{tr('reviewHint')}</p>
       {report.review_ships.map((ship, index) => <div key={index}><span>{ship.name} · {ship.level ? `Lv.${ship.level}` : tr('unknown')}</span>
@@ -185,7 +175,7 @@ export function FleetTechnology() {
     {bonuses && <section className="ft-bonuses"><h2>{tr('bonuses')}</h2><div className="ft-nation-levels">{Object.entries(catalog.nations).map(([id, levels]) => <label key={id}>{nation(Number(id))} {tr('factionLevel')}<Select aria-label={`${nation(Number(id))} ${tr('factionLevel')}`} disabled={busy || connection !== 'ready'} value={(has(nationDrafts, id) ? nationDrafts[id] : report.nation_levels[id]) ?? ''} onChange={e => {nationPending.current[id] = e.target.value === '' ? null : Number(e.target.value); remember(); void save()}}><option value="">{tr('unknown')}</option>{Array.from({length: levels.length + 1}, (_, value) => <option key={value} value={value}>{value}</option>)}</Select></label>)}</div><p>{tr('factionHint')}</p><div className="ft-bonus-grid">{Object.entries(report.bonuses).map(([type, values]) => <div key={type}><b>{tr(`type.${type}`)}</b> {Object.entries(values).map(([attr, value]) => `${tr(`attr.${attr}`)}+${value}`).join(' · ')}</div>)}</div></section>}
     <div className="ft-search"><input aria-label={tr('search')} placeholder={tr('search')} value={query} onChange={e => {setQuery(e.target.value); setPage(0)}}/><label>{tr('scope')}<Select aria-label={tr('scope')} value={mode} onChange={e => {setMode(e.target.value); setPage(0)}}>{['all', 'tech', 'none'].map(value => <option value={value} key={value}>{tr(value)}</option>)}</Select></label><span>{ui('mind.rowCount', {count: filtered.length})}</span></div>
     <div className="ft-table-wrap"><table><thead><tr>{head('code', tr('code'), 2)}{head('name', tr('name'), 2)}{latest && head('scanLevel', tr('observedLevel'), 2)}{head('nation', tr('nation'), 2)}{head('type', tr('shipClass'), 2)}<th colSpan={4}>{tr('points')}</th><th colSpan={2}>{tr('bonuses')}</th>{edit && <th rowSpan={2}>{tr('edit')}</th>}</tr><tr>{head('pt_get', tr('get'))}{head('pt_upgrage', tr('star'))}{head('pt_level', 'Lv.120')}{head('total', tr('total'))}{head('get', tr('unlock'))}{head('level', 'Lv.120')}</tr></thead><tbody>{filtered.slice(currentPage * 50, currentPage * 50 + 50).map(row => {
-      const t = row.technology, level = row.level
+      const t = row.technology, level = edit && row.manual_state ? row.manual_state.level : row.level
       const name = row.names[language === 'en-US' ? 'en' : language === 'ja-JP' ? 'jp' : language === 'zh-TW' ? 'tw' : 'cn'] || row.name
       return <tr key={row.group_type} className={`ft-${row.status}`} data-group={row.group_type} title={[row.level ? `Lv.${row.level}` : '', row.manual ? tr('manual') : ''].filter(Boolean).join(' · ') || undefined}>
         <td>{String(row.code).padStart(3, '0')}</td><td className={`ft-name ft-rarity-${row.rarity}`}>{name}</td>{latest && <td>Lv.{row.level}</td>}
@@ -194,7 +184,7 @@ export function FleetTechnology() {
         <td>{t?.pt_level ?? '—'}</td><td>{t ? t.pt_get + t.pt_upgrage + t.pt_level : '—'}</td>
         <td className={`ft-state-cell ft-unlock ${row.owned ? 'ft-marked' : ''}`}>{marker(row, 'owned', effect(row, 'get'), tr('unlock'))}</td>
         <td className={`ft-state-cell ft-completion ${row.lv120 ? 'ft-marked' : ''}`}>{marker(row, 'complete', effect(row, 'level'), tr('completion'))}</td>
-        {edit && <td className="ft-edit"><label>{tr('level')}<input key={`${row.group_type}:${level}`} aria-label={`${tr('level')} ${row.name} (${row.code})`}
+        {edit && <td className="ft-edit"><label>{tr('manualLevel')}<input key={`${row.group_type}:${level}`} aria-label={`${tr('manualLevel')} ${row.name} (${row.code})`}
           disabled={busy || connection !== 'ready' || !!drafts[row.group_type]} type="number" min={1} max={125} defaultValue={level ?? ''}
           onKeyDown={e => {if (e.key === 'Enter') e.currentTarget.blur()}}
           onBlur={e => {const value = e.target.value === '' ? null : Number(e.target.value); if (value !== level) {if (value !== null && (!Number.isInteger(value) || value < 1 || value > 125)) {setError(ui('mind.invalidRange')); return} commit({group_type: row.group_type, level: value})}}}/></label>

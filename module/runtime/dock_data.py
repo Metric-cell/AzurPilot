@@ -82,6 +82,7 @@ def mind_ships(snapshot):
 def technology_record(data):
     """合并数据库中的已确认舰船与科技设置，不改写来源。"""
     record = tech.read_record(data)
+    record['ledger_levels'] = {}
     if not has_snapshot(data):
         return record
     snapshot = read_snapshot(data)
@@ -96,8 +97,9 @@ def technology_record(data):
     record = tech.merge_scan(record, snapshot['ships'], **{key: snapshot[key] for key in
                              ('min_level', 'max_level', 'reached_bottom', 'filters_clear',
                               'physical_count', 'expected_count', 'updated_at')})
-    # 科技成就不会因退役或本轮只剩低级副本而消失；原始船坞缺失证据留在快照中。
-    # 合并自动正向历史后再由 progress() 应用人工覆盖（包括显式否定）。
+    # 当前底账与人工记录是两份独立证据，累计历史不作为第三份获取来源。
+    record['ledger_levels'] = {str(gid): level for gid, level in record['last_scan']['ships']}
+    # 保留累计记录供诊断与兼容读取，不回写或删除既有历史。
     record['current'] = {gid: max(level, record.get('current', {}).get(gid, 0))
                          for gid, level in record.get('observed', {}).items()}
     record['absent'] = []
