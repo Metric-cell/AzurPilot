@@ -125,7 +125,7 @@ class LocalLoopTests(unittest.TestCase):
             return (np.arange(565) >= start) & (np.arange(565) < start + 90)
 
         scrollbar = SimpleNamespace(appear=lambda _: True, total=565, match_color=thumb)
-        with patch('module.retire.mind_scan.DOCK_SCROLL', scrollbar):
+        with patch('module.retire.dock_scan.DOCK_SCROLL', scrollbar):
             ships = loop.scan()
         self.assertEqual(loop.reads, [0, 681, 1362, 2043])
         self.assertEqual(len(ships), 84)
@@ -162,7 +162,7 @@ class LocalLoopTests(unittest.TestCase):
                     card.identity_ambiguous = True
             return cards
 
-        with patch('module.retire.mind_scan.recognize_cards', side_effect=ambiguous):
+        with patch('module.retire.dock_scan.recognize_cards', side_effect=ambiguous):
             ships = loop.scan()
         self.assertEqual(loop.reads, [0, 681, 1362])
         reviews = [ship for ship in ships if ship['review']]
@@ -176,7 +176,7 @@ class LocalLoopTests(unittest.TestCase):
             loop.now += 45
             return recognize(*args, **kwargs)
 
-        with patch('module.retire.mind_scan.recognize_cards', side_effect=slow):
+        with patch('module.retire.dock_scan.recognize_cards', side_effect=slow):
             self.assertEqual(len(loop.scan()), 42)
         self.assertEqual(loop.reads, [0, 681, 1362])
 
@@ -190,7 +190,7 @@ class LocalLoopTests(unittest.TestCase):
             cards = recognize(*args, **kwargs)
             return cards[:11] + cards[12:] if loop.position == 0 else cards
 
-        with patch('module.retire.mind_scan.recognize_cards', side_effect=missing):
+        with patch('module.retire.dock_scan.recognize_cards', side_effect=missing):
             ships = loop.scan()
         unknown = [ship for ship in ships if ship['review']]
         self.assertEqual(len(unknown), 1)
@@ -203,7 +203,7 @@ class LocalLoopTests(unittest.TestCase):
         from module.retire.fleet_tech_scan import FleetTechScan
         loop = self.loop()
         loop.scanner._check_scan_page = FleetTechScan._check_scan_page.__get__(loop.scanner)
-        with patch('module.retire.mind_scan.recognize_cards', return_value=[]):
+        with patch('module.retire.dock_scan.recognize_cards', return_value=[]):
             with self.assertRaises(MindCalculatorScanError):
                 loop.scan()
         loop.scanner.device.drag.assert_not_called()

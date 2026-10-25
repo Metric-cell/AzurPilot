@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { ownerTaskOf, ownerTaskOfGroup } from './taskNavItems'
+import { ownerTaskOf, ownerTaskOfGroup, taskNavItems } from './taskNavItems'
 
 describe('ownerTaskOf', () => {
   const args = {
@@ -35,5 +35,15 @@ describe('ownerTaskOfGroup', () => {
   it('没有这张卡片时返回 undefined，调用方据此不跳转', () => {
     expect(ownerTaskOfGroup(args, 'NotExist')).toBeUndefined()
     expect(ownerTaskOfGroup({}, 'Campaign')).toBeUndefined()
+  })
+})
+
+
+describe('舰队分析入口', () => {
+  it('舰队管理只提供一个数据分析页面', () => {
+    expect(taskNavItems('FleetManagement', ['FleetInfo'])).toEqual(['FleetInfo', 'FleetRotation', 'FleetAnalysis'])
+  })
+  it('工具菜单隐藏旧扫描和共享扫描任务', () => {
+    expect(taskNavItems('Tool', ['Other', 'MindCalculatorScan', 'FleetTechScan', 'DockScan'])).toEqual(['Other'])
   })
 })

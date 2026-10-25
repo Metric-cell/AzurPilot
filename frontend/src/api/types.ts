@@ -69,7 +69,11 @@ export interface StatisticsReport {
   series: StatSeries[]; tables: StatTable[]; notes: string[]
   /** 大世界掉落专用：任务筛选选项（含当前时间窗口内没有记录的任务），count 表示窗口内掉落记录数。 */
   taskOptions?: {key: string; label: string; count: number}[]
+  /** 本次出现的物品名、任务名的译名：{中文名: {语言: 名称}}；固定文案由前端翻译。 */
+  glossary?: StatGlossary
 }
+/** 统计接口附带的名称对照：{中文名: {语言: 名称}}。 */
+export type StatGlossary = Record<string, Partial<Record<string, string>>>
 
 export interface StatisticsReportWire extends Omit<StatisticsReport, 'series'> {
   /** 共用时间轴（微秒整数）。 */
@@ -121,7 +125,28 @@ export interface BackgroundGalleryEntry {
   source?: string
 }
 
+export interface LauncherCommand {
+  id: string; status: 'pending' | 'succeeded' | 'failed' | 'expired'; deadline: number
+  result?: {supported: boolean; enabled: boolean | null}; error?: {code: string; message: string}
+}
+export interface LauncherStatus {
+  connected: boolean; platform: string; version: string; capabilities: string[]
+  autostart: {supported: boolean; enabled: boolean | null}; commands: LauncherCommand[]
+}
+
+export interface DockReport {
+  scan_range?: {min_level: number; max_level: number}
+  instance: string; revision: string; updated_at: string | null; min_level: number; max_level: number
+  ships: MindShip[]; complete: boolean; review_count: number; source: string
+}
+
 export interface Results {
+  'dock.report': DockReport
+  'dock.configure': DockReport
+  'launcher.status': LauncherStatus
+  'launcher.autostart.set': {commandId: string; status: 'pending'}
+  'launcher.command.get': LauncherCommand
+  'auth.launcher': {authenticated: boolean}
   'mind.catalog': MindCatalog
   'fleetTech.catalog': FleetTechCatalog
   'fleetTech.report': FleetTechReport
@@ -194,6 +219,8 @@ export interface ResourceFlowReport {
   flows: {resource: string; task: string; operation: string; evidence: ResourceFlowEntry['evidence']; income: number; expense: number; count: number}[]
   entries: ResourceFlowEntry[]
   oilControl: {enable: boolean; target: number}
+  /** 物品名的译名：{中文名: {语言: 名称}}。 */
+  glossary?: StatGlossary
 }
 
 

@@ -63,7 +63,7 @@ const messages = {
   level: ['记录等级', '紀錄等級', 'Recorded level', '記録レベル', '记录等级喵'],
   restore: ['恢复自动记录', '恢復自動紀錄', 'Restore automatic record', '自動記録に戻す', '恢复自动记录喵'],
   manual: ['人工校正', '人工校正', 'Manual override', '手動修正', '人工校正喵'],
-  hint: ['等级 >100 默认满星，人工设置优先。编辑模式可单击解锁、完成和满星；科技扫描与心智计费独立，范围外记录保留。', '等級 >100 預設滿星，人工設定優先。編輯模式可單擊解鎖、完成和滿星；科技掃描與心智計費獨立，範圍外紀錄保留。', 'Levels above 100 default to max stars; manual settings take priority. In edit mode click Unlock, Complete or Max stars. Technology scans are separate from chip costs and preserve records outside the range.', 'レベル100超は最大突破扱いとし、手動設定を優先します。編集モードでは入手・達成・突破をクリックできます。技術スキャンはメンタル計算と独立し、範囲外の記録を保持します。', '等级 >100 默认满星，人工设置优先喵。编辑模式可单击解锁、完成和满星；科技扫描与心智计费独立，范围外记录保留喵。'],
+  hint: ['等级 >100 默认满星，人工设置优先。编辑模式可单击解锁、完成和满星；共用船坞扫描，人工设置独立，范围外记录保留。', '等級 >100 預設滿星，人工設定優先。編輯模式可單擊解鎖、完成和滿星；共用船塢掃描，人工設定獨立，範圍外紀錄保留。', 'Levels above 100 default to max stars; manual settings take priority. In edit mode click Unlock, Complete or Max stars. Both analyses share the dock scan, keep separate manual settings and preserve records outside the range.', 'レベル100超は最大突破扱いとし、手動設定を優先します。編集モードでは入手・達成・突破をクリックできます。ドックスキャンを共有し、手動設定は独立して保持します。範囲外の記録も保持します。', '等级 >100 默认满星，人工设置优先喵。编辑模式可单击解锁、完成和满星；共用船坞扫描，人工设置独立，范围外记录保留喵。'],
   pendingStar: ['满星未确认：', '滿星未確認：', 'Max stars unconfirmed: ', '突破未確認：', '满星未确认喵：'],
   factionLevel: ['阵营科技等级', '陣營科技等級', 'Faction technology level', '陣営技術レベル', '阵营科技等级喵'],
   factionHint: ['未录入的阵营等级不计入合计；已录入等级按 Lua 加成叠加。', '未錄入的陣營等級不計入合計；已錄入等級依 Lua 加成疊加。', 'Unrecorded faction levels are excluded; recorded levels add their Lua bonuses.', '未入力の陣営技術は合計に含めません。入力済みレベルの補正を加算します。', '未录入的阵营等级不计入合计；已录入等级按 Lua 加成叠加喵。'],
@@ -118,8 +118,8 @@ const messages = {
 type Key = keyof typeof messages
 type Dictionary = {[K in Key as `fleetTech.${K}`]: string}
 const dictionary = (index: number) => Object.fromEntries(Object.entries(messages).map(([key, values]) => [`fleetTech.${key}`, values[index]!])) as Dictionary
-export const fleetTechZhCN = dictionary(0), fleetTechZhTW = dictionary(1), fleetTechEnUS = dictionary(2), fleetTechJaJP = dictionary(3), fleetTechZhMiao = dictionary(4)
+export const fleetTechZhCN = dictionary(0), fleetTechZhTW = dictionary(1), fleetTechEnUS = dictionary(2), fleetTechJaJP = dictionary(3)
 export function translateFleetTech(language: Language, key: string) {
-  const index = {'zh-CN': 0, 'zh-TW': 1, 'en-US': 2, 'ja-JP': 3, 'zh-MIAO': 4}[language]
+  const index = {'zh-CN': 0, 'zh-TW': 1, 'en-US': 2, 'ja-JP': 3}[language]
   return (messages as Record<string, readonly string[]>)[key]?.[index] ?? key
 }

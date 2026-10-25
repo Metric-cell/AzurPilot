@@ -1,0 +1,48 @@
+export const analysisZhCN = {
+  'analysis.source_empty': '尚无扫描数据',
+  'analysis.legacy_tech': '旧舰船科技扫描数据',
+  'analysis.legacy_mind': '旧心智扫描数据',
+  'analysis.source_scan': '共享扫描',
+  'analysis.origin': '数据来源',
+  'analysis.title': '舰队数据分析', 'analysis.source': '共享船坞数据', 'analysis.mind': '心智分析', 'analysis.technology': '舰船科技分析',
+  'analysis.hint': '两个模块共用船坞扫描结果。分析与人工编辑只处理本地数据，不操作游戏。',
+  'analysis.scanHint': '扫描只进入船坞并滚动读取舰名与等级，不升级、突破、自动觉醒或更换舰船。识别结果需人工核对。',
+  'analysis.time': '数据时间', 'analysis.range': '扫描范围', 'analysis.review': '识别待核对', 'analysis.empty': '尚无扫描数据',
+  'analysis.complete': '全船坞已核验', 'analysis.partial': '局部范围或尚未核验全船坞', 'analysis.scan': '扫描船坞', 'analysis.count': '舰船条目',
+}
+export const analysisEnUS: Record<keyof typeof analysisZhCN, string> = {
+  'analysis.source_empty': 'No scan data yet',
+  'analysis.legacy_tech': 'Previous fleet technology scan',
+  'analysis.legacy_mind': 'Previous cognitive chip scan',
+  'analysis.source_scan': 'Shared scan',
+  'analysis.origin': 'Data source',
+  'analysis.title': 'Fleet data analysis', 'analysis.source': 'Shared dock data', 'analysis.mind': 'Cognitive chip analysis', 'analysis.technology': 'Fleet technology analysis',
+  'analysis.hint': 'Both analyses use the same dock scan. Analysis and manual edits process local data without controlling the game.',
+  'analysis.scanHint': 'Scanning opens and scrolls the dock to read ship names and levels. It does not level up, limit break, awaken or replace ships. Review recognition results manually.',
+  'analysis.time': 'Data updated', 'analysis.range': 'Scan range', 'analysis.review': 'Recognition needs review', 'analysis.empty': 'No scan data yet',
+  'analysis.complete': 'Full dock verified', 'analysis.partial': 'Partial range or full dock not verified', 'analysis.scan': 'Scan dock', 'analysis.count': 'Ship records',
+}
+export const analysisZhTW: Record<keyof typeof analysisZhCN, string> = {
+  'analysis.source_empty': '尚無掃描資料',
+  'analysis.legacy_tech': '舊艦船科技掃描資料',
+  'analysis.legacy_mind': '舊心智掃描資料',
+  'analysis.source_scan': '共用掃描',
+  'analysis.origin': '資料來源',
+  'analysis.title': '艦隊資料分析', 'analysis.source': '共用船塢資料', 'analysis.mind': '心智分析', 'analysis.technology': '艦船科技分析',
+  'analysis.hint': '兩個模組共用船塢掃描結果。分析與人工編輯只處理本機資料，不操作遊戲。',
+  'analysis.scanHint': '掃描只進入船塢並捲動讀取艦名與等級，不升級、突破、自動覺醒或更換艦船。辨識結果需人工核對。',
+  'analysis.time': '資料時間', 'analysis.range': '掃描範圍', 'analysis.review': '辨識待核對', 'analysis.empty': '尚無掃描資料',
+  'analysis.complete': '全船塢已核驗', 'analysis.partial': '局部範圍或尚未核驗全船塢', 'analysis.scan': '掃描船塢', 'analysis.count': '艦船項目',
+}
+export const analysisJaJP: Record<keyof typeof analysisZhCN, string> = {
+  'analysis.source_empty': 'スキャンデータなし',
+  'analysis.legacy_tech': '旧艦船技術スキャン',
+  'analysis.legacy_mind': '旧メンタルスキャン',
+  'analysis.source_scan': '共有スキャン',
+  'analysis.origin': 'データソース',
+  'analysis.title': '艦隊データ分析', 'analysis.source': '共有ドックデータ', 'analysis.mind': 'メンタルユニット分析', 'analysis.technology': '艦船技術分析',
+  'analysis.hint': '両分析は共通のドックスキャン結果を使用します。分析と手動編集はローカルデータのみを処理し、ゲームを操作しません。',
+  'analysis.scanHint': 'スキャンはドックを開いてスクロールし、艦名とレベルを読み取ります。強化、限界突破、認識覚醒、艦船変更は行いません。認識結果は手動で確認してください。',
+  'analysis.time': 'データ更新日時', 'analysis.range': 'スキャン範囲', 'analysis.review': '認識結果の要確認', 'analysis.empty': 'スキャンデータなし',
+  'analysis.complete': '全ドック確認済み', 'analysis.partial': '範囲限定または全ドック未確認', 'analysis.scan': 'ドックをスキャン', 'analysis.count': '艦船データ数',
+}

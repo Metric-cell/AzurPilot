@@ -11,6 +11,7 @@ from module.retire.dock import DOCK_SCROLL
 from module.retire.fleet_tech_scan import FleetTechScan
 from module.retire.mind_scan import MindCalculatorScan
 from module.runtime.mind_recognition import ScanPolicy, grid_rows, recognize_cards
+from module.runtime.mind_calculator import highest_ships
 from tests.test_mind_scan import cards_for_levels
 
 FIXTURES = Path(__file__).parent / 'fixtures'
@@ -108,12 +109,13 @@ class NativeBottomTests(unittest.TestCase):
         scanner.device.drag.side_effect = drag
         scanner._read_cards = read
         with patch('module.base.timer.time', side_effect=lambda: now), \
-                patch('module.retire.mind_scan.grid_rows', side_effect=lambda _: [172, 399] if position == 585 else [76, 303, 530]):
+                patch('module.retire.dock_scan.grid_rows', side_effect=lambda _: [172, 399] if position == 585 else [76, 303, 530]):
             ships = scanner._scan_pages(Mock(), Mock())
         self.assertEqual(reads, [0, 585])
         self.assertEqual(scanner._scan_metadata, dict(reached_bottom=True, physical_count=35))
         self.assertEqual(scanner.device.drag.call_count, 3)
-        self.assertEqual(len(ships), 29)
+        self.assertEqual(len(scanner._scan_slots), 35)
+        self.assertEqual(len(highest_ships(ships)), 29)
         self.assertTrue(any(ship['name'] == '科隆' for ship in ships))
 
 

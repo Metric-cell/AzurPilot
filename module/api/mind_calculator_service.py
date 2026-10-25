@@ -14,7 +14,8 @@ from pydantic import ValidationError
 from deploy.atomic import atomic_write
 from module.api.protocol import ApiError, MindShip
 from module.config.transaction import config_transaction
-from module.runtime.mind_calculator import RARITY_NAMES, calculate, catalog, revision
+from module.runtime import dock_data, mind_analysis
+from module.runtime.mind_calculator import RARITY_NAMES, calculate, catalog
 
 TASK, GROUP = 'MindCalculatorScan', 'MindCalculator'
 
@@ -137,10 +138,14 @@ class MindCalculatorService:
         """返回指定实例保存的舰船列表及版本信息。"""
         data, _ = self.configs.read(instance)
         saved = data.get(TASK, {}).get(GROUP, {}).get('Result', {})
-        ships = saved.get('ships', [])
+        ships = mind_analysis.ships(data)
+        snapshot = dock_data.read_snapshot(data)
+        if dock_data.has_snapshot(data):
+            saved = snapshot
         fields = data.get(TASK, {}).get(GROUP, {})
-        return dict(instance=instance, revision=revision(ships), updated_at=saved.get('updated_at', ''),
-                    min_level=fields.get('MinLevel', 95), max_level=fields.get('MaxLevel', 125),
+        return dict(instance=instance, revision=mind_analysis.revision(data), updated_at=saved.get('updated_at', ''),
+                    min_level=saved.get('min_level', fields.get('MinLevel', 95)),
+                    max_level=saved.get('max_level', fields.get('MaxLevel', 125)),
                     **calculate(ships))
 
     def save(self, instance, expected_revision, ships):
@@ -148,9 +153,13 @@ class MindCalculatorService:
         with self.configs.lock, config_transaction(self.configs.path(instance)):
             data, _ = self.configs.read(instance)
             fields = data.setdefault(TASK, {}).setdefault(GROUP, {})
-            if revision(fields.get('Result', {}).get('ships', [])) != expected_revision:
+            if mind_analysis.revision(data) != expected_revision:
                 raise ApiError('CONFLICT', '舰船数据已变化，请重新载入后再保存')
-            fields['Result'] = dict(ships=ships, updated_at=datetime.now().isoformat(timespec='seconds'))
+            updated_at = datetime.now().isoformat(timespec='seconds')
+            if dock_data.has_snapshot(data):
+                fields['Analysis'] = mind_analysis.save_settings(data, ships, updated_at)
+            else:
+                fields['Result'] = dict(ships=ships, updated_at=updated_at)
             atomic_write(str(self.configs.path(instance)), json.dumps(data, ensure_ascii=False, indent=2))
             return self.report(instance)
 

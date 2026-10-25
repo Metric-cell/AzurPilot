@@ -30,6 +30,7 @@ REMOVED_NETWORK_MODULES = (
     ".github/workflows/sync2.yml",
     ".github/workflows/git-over-cdn-pages.yml",
     ".github/workflows/docker-publish.yml",
+    ".github/workflows/launcher-components.yml",
     "module/runtime/updater.py",
     "module/statistics/cl1_data_submitter.py",
     "module/statistics/daily_summary.py",

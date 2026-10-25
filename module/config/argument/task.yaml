@@ -288,6 +288,7 @@ DailyMission:
     Exercise:
       - Scheduler
       - Exercise
+      - Equipment
     ShopFrequent:
       - Scheduler
       - GeneralShop
@@ -324,9 +325,8 @@ Opsi:
     OpsiAshBeacon:
       - Scheduler
       - OpsiAshBeacon
-    OpsiAshAssist:
-      - Scheduler
       - OpsiAshAssist
+      - Equipment
     OpsiExplore:
       - Scheduler
       - OpsiExplore
@@ -473,6 +473,7 @@ FleetManagement:
   tasks:
     FleetInfo:
       - FleetInfo
+      - FleetRotation
 
 # ==================== Run Params ====================
 
@@ -495,6 +496,8 @@ Tool:
   page: tool
   tasks:
     FleetScan: []
+    DockScan:
+      - Dock
     MindCalculatorScan:
       - MindCalculator
     FleetTechScan:

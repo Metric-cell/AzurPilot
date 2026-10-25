@@ -370,9 +370,9 @@ class RecognitionTests(unittest.TestCase):
                          ship(f'拉菲{round((y - 76 + position[0]) / 227) % 3}-{col}', level=100), 6, True)
                     for y in (76, 303, 530) for col in range(
                         2 if partial_last and position[0] == bottom_offset and y == 530 else 7)]
-        with tempfile.TemporaryDirectory() as temp, patch('module.retire.mind_scan.logger.log_file', str(Path(temp) / 'testpilot.txt')), \
-                patch('module.retire.mind_scan.Timer', ImmediateTimer), patch('module.retire.mind_scan.DOCK_SCROLL', scrollbar), \
-                patch('module.retire.mind_scan.recognize_cards', side_effect=recognize):
+        with tempfile.TemporaryDirectory() as temp, patch('module.retire.dock_scan.logger.log_file', str(Path(temp) / 'testpilot.txt')), \
+                patch('module.retire.dock_scan.Timer', ImmediateTimer), patch('module.retire.dock_scan.DOCK_SCROLL', scrollbar), \
+                patch('module.retire.dock_scan.recognize_cards', side_effect=recognize):
             result = scanner._scan_pages(Mock(), Mock())
             scanner._test_saved_frames = {str(path): np.array(Image.open(path)) for path in Path(temp).rglob('*.png')}
         return scanner, captured, result
@@ -395,9 +395,9 @@ class RecognitionTests(unittest.TestCase):
         self.assertEqual(captured, [0, 0, 0, 681, 681, 681, 908])
         self.assertTrue(scanner._policy.sort_valid)
         self.assertEqual(scanner._scan_metadata, dict(reached_bottom=False, physical_count=49))
-        self.assertEqual(len(result), 3)
-        self.assertTrue(all(row['review'] for row in result))
-        self.assertEqual([row['level'] for row in result], [0, 87, 88])
+        reviewed = [row for row in scanner._scan_slots if row['review']]
+        self.assertEqual(len(reviewed), 3)
+        self.assertEqual([row['level'] for row in reviewed], [0, 87, 88])
 
     def test_cross_page_sort_review_references_the_frame_containing_each_card(self):
         scanner, captured, result = self.scan_frames(
@@ -413,7 +413,8 @@ class RecognitionTests(unittest.TestCase):
     def test_scan_moves_three_rows_and_waits_for_motion_to_settle(self):
         scanner, captured, result = self.scan_frames([0, 0, 100, 227, 227, 454, 454, 681, 681], bottom_offset=681)
         self.assertEqual(captured, [0, 681])
-        self.assertEqual(len(result), 21)
+        self.assertEqual(len(scanner._scan_slots), 42)
+        self.assertEqual(len(highest_ships(result)), 21)
         self.assertEqual(scanner._scan_metadata, dict(reached_bottom=True, physical_count=42))
         self.assertEqual(scanner.device.drag.call_count, 3)
         self.assertTrue(all(call.kwargs['hold_duration'] == .4 for call in scanner.device.drag.call_args_list))
@@ -423,7 +424,8 @@ class RecognitionTests(unittest.TestCase):
         scanner, captured, result = self.scan_frames(
             [0, 0, 240, 240, 467, 467, 690, 690, 681, 681, 908, 908], bottom_offset=908, partial_last=True)
         self.assertEqual(captured, [0, 681, 908])
-        self.assertEqual(len(result), 21)
+        self.assertEqual(len(scanner._scan_slots), 44)
+        self.assertEqual(len(highest_ships(result)), 21)
         self.assertEqual(scanner._scan_metadata, dict(reached_bottom=True, physical_count=44))
         correction = scanner.device.drag.call_args_list[3]
         self.assertGreater(correction.args[1][1], correction.args[0][1])
@@ -569,44 +571,72 @@ class ServiceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             MindCalculateParams(instance='testpilot', ships=[dict(name='测试', level=True)])
 
-    def test_completed_scan_preserves_concurrent_data_and_same_list_save(self):
+    def test_completed_scan_preserves_concurrent_analysis_and_rejects_snapshot_overwrite(self):
         from module.config.config import AzurLaneConfig
-        from module.exception import RequestHumanTakeover
+        from module.config.deep import deep_get, deep_set
+        from module.exception import MindCalculatorScanError
+        from module.retire.assets import DOCK_SEARCH_CLOSED
         from module.retire.mind_scan import MindCalculatorScan
-        for changed in (False, True):
+        from module.runtime import dock_data
+        for changed in ('analysis', 'snapshot'):
             with self.subTest(changed=changed):
-                self.service.save('testpilot', self.service.report('testpilot')['revision'], [])
                 path = str(self.configs.path('testpilot'))
+                data, _ = self.configs.read('testpilot')
+                original = dock_data.build_snapshot(
+                    [dict(ship('拉菲'), group_type=10117)], min_level=1, max_level=125,
+                    reached_bottom=True, filters_clear=True, physical_count=1, expected_count=1,
+                    updated_at='2026-10-25T00:00:00')
+                deep_set(data, dock_data.RESULT_PATH, original)
+                Path(path).write_text(json.dumps(data), encoding='utf-8')
                 with patch('module.config.utils.filepath_config', return_value=path), \
                         patch('module.config.config.filepath_config', return_value=path), \
                         patch('module.config.config_updater.filepath_config', return_value=path), \
-                        patch('module.retire.mind_scan.DOCK_SCROLL') as scrollbar, \
-                        patch('module.retire.mind_scan.server.server', 'cn'):
+                        patch('module.retire.dock_scan.DOCK_SCROLL') as scrollbar, \
+                        patch('module.retire.dock_scan.server.server', 'cn'), \
+                        patch('module.retire.enhancement.OCR_DOCK_AMOUNT.ocr', return_value=(1, 0, 1)), \
+                        patch('module.ocr.al_ocr.AlOcr'):
                     config = AzurLaneConfig.__new__(AzurLaneConfig)
                     config.config_name = 'testpilot'
                     config.data = config.read_file('testpilot')
                     config._loaded_data = copy.deepcopy(config.data)
                     config.modified = {}
+                    config.Dock_MinLevel, config.Dock_MaxLevel = 1, 125
                     scanner = MindCalculatorScan.__new__(MindCalculatorScan)
-                    scanner.config = config
-                    scanner.ui_ensure, scanner.dock_reset, scanner.dock_sort_method_dsc_set = Mock(), Mock(), Mock()
-                    scanner.appear = Mock(return_value=False)
+                    scanner.config, scanner.device = config, Mock()
+                    scanner.ui_ensure = scanner.dock_reset = scanner.dock_sort_method_dsc_set = Mock()
+                    scanner._close_search = Mock()
+                    scanner.appear = lambda button: button is DOCK_SEARCH_CLOSED
                     scanner._prune_scan_evidence = Mock()
                     scrollbar.appear.return_value = scrollbar.at_top.return_value = True
                     def collect(*args):
-                        self.service.save('testpilot', self.service.report('testpilot')['revision'],
-                                          [ship('用户的新数据')] if changed else [])
-                        return [ship('拉菲')]
+                        if changed == 'analysis':
+                            rows = self.service.report('testpilot')['ships']
+                            rows[0]['excluded'] = True
+                            self.service.save('testpilot', self.service.report('testpilot')['revision'], rows)
+                        else:
+                            latest, _ = self.configs.read('testpilot')
+                            replacement = copy.deepcopy(original)
+                            replacement['updated_at'] = '2026-10-25T01:00:00'
+                            replacement['revision'] = 'concurrent-snapshot'
+                            deep_set(latest, dock_data.RESULT_PATH, replacement)
+                            Path(path).write_text(json.dumps(latest), encoding='utf-8')
+                        scanner._scan_slots = [dict(ship('拉菲', level=110), group_type=10117)]
+                        scanner._scan_metadata = dict(reached_bottom=True, physical_count=1)
                     scanner._scan_pages = Mock(side_effect=collect)
-                    if changed:
-                        with self.assertRaises(RequestHumanTakeover):
+                    if changed == 'snapshot':
+                        with self.assertRaisesRegex(MindCalculatorScanError, '共享船坞数据已更新'):
                             scanner.run()
                         scanner._prune_scan_evidence.assert_not_called()
                     else:
                         scanner.run()
                         scanner._prune_scan_evidence.assert_called_once_with()
-                    rows = self.service.report('testpilot')['ships']
-                    self.assertEqual(rows[0]['name'], '用户的新数据' if changed else '拉菲')
+                        self.assertTrue(self.service.report('testpilot')['ships'][0]['excluded'])
+                    saved, _ = self.configs.read('testpilot')
+                    result = deep_get(saved, dock_data.RESULT_PATH)
+                    if changed == 'snapshot':
+                        self.assertEqual(result['revision'], 'concurrent-snapshot')
+                    else:
+                        self.assertEqual(result['ships'][0]['level'], 110)
 
 
 if __name__ == '__main__':

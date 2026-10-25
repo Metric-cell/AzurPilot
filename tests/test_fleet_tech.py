@@ -213,10 +213,9 @@ class FleetTechTests(unittest.TestCase):
                 stack.enter_context(patch(module + '.filepath_config', side_effect=lambda *args: str(path)))
             stack.enter_context(patch.object(AzurLaneConfig, 'init_task'))
             stack.enter_context(patch('module.ocr.al_ocr.AlOcr'))
-            stack.enter_context(patch('module.retire.mind_scan.server.server', 'cn'))
+            stack.enter_context(patch('module.retire.dock_scan.server.server', 'cn'))
             scroll = SimpleNamespace(set_top=lambda _: None, appear=lambda _: True, at_top=lambda _: True, length=1, total=2)
-            stack.enter_context(patch('module.retire.fleet_tech_scan.DOCK_SCROLL', scroll))
-            stack.enter_context(patch('module.retire.fleet_tech_scan.filepath_config', return_value=str(path)))
+            stack.enter_context(patch('module.retire.dock_scan.DOCK_SCROLL', scroll))
             config = AzurLaneConfig('testpilot')
             config.data = configs.read('testpilot')[0]
             config._loaded_data = copy.deepcopy(config.data)
@@ -232,13 +231,15 @@ class FleetTechTests(unittest.TestCase):
                 service = FleetTechService(configs)
                 service.patch('testpilot', service.report('testpilot')['revision'], [FleetTechChange(group_type=10102, owned=False)], {})
                 runner._scan_metadata = dict(reached_bottom=False, physical_count=1)
+                runner._scan_slots = [dict(ship(), group_type=10102)]
                 return [dict(ship(), group_type=10102)]
 
             runner._scan_pages = scan
             runner.run()
             saved, _ = configs.read('testpilot')
             fields = saved['FleetTechScan']['FleetTech']
-            self.assertEqual(fields['Record']['observed']['10102'], 125)
+            self.assertEqual(saved['DockScan']['Dock']['Result']['history']['observed']['10102'], 125)
+            self.assertEqual(saved['DockScan']['Dock']['Result']['ships'][0]['group_type'], 10102)
             self.assertFalse(fields['Record']['manual']['10102']['owned'])
             self.assertFalse(saved['MindCalculatorScan']['MindCalculator']['Result'].get('ships'))
 

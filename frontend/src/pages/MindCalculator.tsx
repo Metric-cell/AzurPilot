@@ -51,28 +51,17 @@ export function MindCalculator() {
   const [filterMin, setFilterMin] = useState(''), [filterMax, setFilterMax] = useState(''), [filterRarity, setFilterRarity] = useState('')
   const [name, setName] = useState(''), [level, setLevel] = useState('100'), [rarity, setRarity] = useState<Rarity | ''>('')
   const [exportFormat, setExportFormat] = useState<'xlsx' | 'csv' | 'json'>('xlsx')
-  const [scanMin, setScanMin] = useState('95'), [scanMax, setScanMax] = useState('125')
   const [progress, setProgress] = useState('')
   const dirtyRef = useRef(false), savedRef = useRef<MindReport | undefined>(undefined), requestVersion = useRef(0), alive = useRef(true)
   const draftKey = `azurpilot.mind-draft.${instance}`
   const current = instances.find(item => item.name === instance)
   const running = current?.status === 'running'
-  const scanning = running && current?.currentTask === 'MindCalculatorScan'
   const ready = connection === 'ready' && !!saved
-  const scanReason = connection !== 'ready' ? ui('mind.scanDisconnected')
-    : !saved || !current ? ui('mind.scanLoading')
-    : busy ? ui('mind.processing')
-    : scanning ? ui('mind.scanInProgress')
-    : running ? ui('mind.scanRunning')
-    : current.status === 'updating' ? ui('mind.scanUpdating')
-    : current.region && current.region !== 'cn' ? ui('mind.scanUnsupported')
-    : dirty ? ui('mind.scanDraft') : ''
   function accept(report: MindReport, resetPage = true) {
     savedRef.current = report
     const next = report.ships.map(editableShip)
     calculatedShips.current = next
     setSaved(report); setShips(next); setResult(report)
-    setScanMin(String(report.min_level ?? 95)); setScanMax(String(report.max_level ?? 125))
     dirtyRef.current = false; setDirty(false)
     if (resetPage) setPage(0)
     setAutoSave(false)
@@ -83,28 +72,12 @@ export function MindCalculator() {
     return () => {alive.current = false}
   }, [])
   useEffect(() => {
-    if (!scanning || connection !== 'ready') return
-    let active = true, cursor = 0
-    const readProgress = async () => {
-      try {
-        const logs = await api.request('logs.get', {instance, after: cursor})
-        cursor = logs.cursor
-        const latest = logs.entries.filter(entry => entry.text.includes('[心智扫描]')).at(-1)
-        if (active && latest) setProgress(latest.text)
-      } catch { /* 任务状态由公共连接和实例订阅处理。 */ }
-    }
-    void readProgress()
-    const timer = setInterval(() => void readProgress(), 3000)
-    return () => {active = false; clearInterval(timer)}
-  }, [scanning, connection, instance])
-  useEffect(() => {
     if (connection !== 'ready') return
     let active = true
     Promise.all([api.request('mind.catalog', {instance}), api.request('mind.report', {instance})])
       .then(([data, report]) => {if (active) {
         setCatalog(data)
         if (!savedRef.current) {
-          setScanMin(String(report.min_level ?? 95)); setScanMax(String(report.max_level ?? 125))
           try {
             const draft = JSON.parse(sessionStorage.getItem(draftKey) ?? 'null') as {revision: string; ships: MindShip[]} | null
             if (draft && typeof draft.revision === 'string' && Array.isArray(draft.ships) && draft.ships.length <= 5000 &&
@@ -247,23 +220,9 @@ export function MindCalculator() {
     {!saved && !error && <Loading/>}
     {saved && <>
       <section className="mind-panel mind-toolbar" aria-busy={busy}>
-        <label>{ui('mind.minLevel')}<input className="mind-range" type="number" min={1} max={125} step={1} value={scanMin} disabled={busy || running} onChange={event => setScanMin(event.target.value)}/></label>
-        <label>{ui('mind.maxLevel')}<input className="mind-range" type="number" min={1} max={125} step={1} value={scanMax} disabled={busy || running} onChange={event => setScanMax(event.target.value)}/></label>
-        <button className="button secondary" disabled={!!scanReason} title={scanReason || undefined} aria-describedby={scanReason ? 'mind-scan-reason' : 'mind-scan-hint'} onClick={() => action(async () => {
-          const min = Number(scanMin), max = Number(scanMax)
-          if (!Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max > 125 || min > max) throw new Error(ui('mind.invalidRange'))
-          const config = await api.request('config.get', {instance})
-          await api.request('config.patch', {instance, revision: config.revision, changes: [
-            {path: 'MindCalculatorScan.MindCalculator.MinLevel', value: min}, {path: 'MindCalculatorScan.MindCalculator.MaxLevel', value: max},
-          ]})
-          await api.request('tasks.run', {instance, task: 'MindCalculatorScan'}); notify(ui('mind.scanStarted'))
-        })}><ScanLine size={16}/>{ui(scanning ? 'mind.scanning' : 'mind.scan')}</button>
-        {scanning && <button className="button secondary" disabled={busy} onClick={() => action(async () => {await api.request('scheduler.stop', {instance})})}>{ui('mind.stop')}</button>}
         <label className={`button secondary file-button${busy || !ready ? ' mind-disabled' : ''}`}><Upload size={16}/>{ui('mind.import')}<input type="file" accept=".json,.csv,.xlsx" disabled={busy || !ready} onChange={event => upload(event, false)}/></label>
         <label className={`button secondary file-button${busy || !ready ? ' mind-disabled' : ''}`}><ScanLine size={16}/>{ui('mind.screenshots')}<input type="file" multiple accept="image/png,image/jpeg,image/webp" disabled={busy || !ready} onChange={event => upload(event, true)}/></label>
         <div className="mind-export"><Select aria-label={ui('mind.exportFormat')} value={exportFormat} onChange={event => setExportFormat(event.target.value as typeof exportFormat)}><option value="xlsx">Excel</option><option value="csv">CSV</option><option value="json">JSON</option></Select><button className="button secondary" disabled={busy || dirty || !ready} onClick={() => action(async () => {const file = await api.request('mind.export', {instance, format: exportFormat}); download(file.filename, file.content)})}><Download size={16}/>{ui('mind.export')}</button></div>
-        {scanReason && <p id="mind-scan-reason" role="status"><strong>{scanReason}</strong></p>}
-        <p id="mind-scan-hint" className="muted">{ui('mind.scanHint')}</p>
         {progress && <p className="muted" role="status">{progress}</p>}
       </section>
       <div className="mind-totals" aria-live="polite">

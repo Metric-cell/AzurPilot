@@ -6,6 +6,7 @@ from module.api.protocol import ApiError
 from module.config.deep import deep_get, deep_set
 from module.config.transaction import config_transaction
 from module.runtime import fleet_tech as tech
+from module.runtime import dock_data
 from module.runtime.mind_calculator import RESULT_PATH
 
 
@@ -20,13 +21,15 @@ class FleetTechService:
     def report(self, instance):
         data, _ = self.configs.read(instance)
         fields = data.get('FleetTechScan', {}).get('FleetTech', {})
-        return dict(instance=instance, min_level=fields.get('MinLevel', 95), max_level=fields.get('MaxLevel', 125),
-                    **tech.report(tech.read_record(data)))
+        snapshot = dock_data.read_snapshot(data) if dock_data.has_snapshot(data) else {}
+        return dict(instance=instance, min_level=snapshot.get('min_level', fields.get('MinLevel', 95)),
+                    max_level=snapshot.get('max_level', fields.get('MaxLevel', 125)),
+                    **tech.report(dock_data.technology_record(data)))
 
     def patch(self, instance, expected_revision, changes, nations):
         with self.configs.lock, config_transaction(self.configs.path(instance)):
             data, _ = self.configs.read(instance)
-            record = tech.read_record(data)
+            record = dock_data.technology_record(data)
             if tech.revision(record) != expected_revision:
                 raise ApiError('CONFLICT', '科技记录已更新，请重新载入后再编辑')
             known = {row['group_type'] for row in tech.catalog()['ships']}
@@ -70,11 +73,18 @@ class FleetTechService:
                 if key not in tech.catalog()['nations'] or (value is not None and not 0 <= value <= len(tech.catalog()['nations'][key])):
                     raise ApiError('INVALID_PARAMS', '阵营科技等级无效')
                 record.setdefault('nations', {})[key] = value
-            deep_set(data, tech.RECORD_PATH, record)
+            stored = tech.read_record(data)
+            for key in ('manual', 'nations'):
+                if key in record:
+                    stored[key] = record[key]
+            deep_set(data, tech.RECORD_PATH, stored)
             atomic_write(str(self.configs.path(instance)), json.dumps(data, ensure_ascii=False, indent=2))
             return self.report(instance)
 
     def sync_mind(self, instance):
+        data, _ = self.configs.read(instance)
+        if dock_data.has_snapshot(data):
+            return self.report(instance)
         with self.configs.lock, config_transaction(self.configs.path(instance)):
             data, _ = self.configs.read(instance)
             record = tech.read_record(data)

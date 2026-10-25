@@ -51,7 +51,6 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
         if password and password != key:
             State.deploy_config.Password = password
     gateway = Gateway(Router(configs, runtime), password)
-    launcher_api.configure_trust(password)
 
     @asynccontextmanager
     async def lifespan(application):
@@ -73,11 +72,14 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
             yield
         finally:
             try:
-                await asyncio.to_thread(gateway.router.close)
+                await gateway.router.launcher.close()
             finally:
-                if manage_runtime:
-                    from module.api.lifecycle import clearup
-                    await asyncio.to_thread(clearup)
+                try:
+                    await asyncio.to_thread(gateway.router.close)
+                finally:
+                    if manage_runtime:
+                        from module.api.lifecycle import clearup
+                        await asyncio.to_thread(clearup)
 
     dist = root / 'frontend/dist'
 
@@ -154,7 +156,7 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
               Route('/reports/meowfficer_score', meowfficer_score_report),
               WebSocketRoute('/api/v1/ws', gateway.endpoint)]
     routes.extend(android_routes(configs, runtime))
-    routes.extend(launcher_api.routes())
+    routes.extend(launcher_api.routes(gateway.router.launcher))
     routes.extend(notify_api.routes())
     # 背景图库：图片直接由 StaticFiles 提供（与 research-items 等模板图同一套做法），
     # 上传走下面那个 POST；目录不存在时先建出来，免得挂载失败。

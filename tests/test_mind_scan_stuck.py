@@ -82,11 +82,11 @@ class ScanEvidenceCleanupTests(unittest.TestCase):
     def test_success_cleanup_only_removes_previous_generated_files_of_this_instance(self):
         with tempfile.TemporaryDirectory() as temporary:
             log_root = Path(temporary)
-            root = log_root / 'mind_scan' / 'testpilot'
+            root = log_root / 'dock_scan' / 'testpilot'
             root.mkdir(parents=True)
             old = root / '1791971000000000000.png'
             current = root / '1791972000000000000.png'
-            other = log_root / 'mind_scan' / 'other' / old.name
+            other = log_root / 'dock_scan' / 'other' / old.name
             other.parent.mkdir()
             protected = [current, current.with_suffix('.json'), other, root / 'manual.png', log_root / 'alas.txt']
             for path in [old, old.with_suffix('.json'), *protected]:
@@ -94,7 +94,7 @@ class ScanEvidenceCleanupTests(unittest.TestCase):
             scanner = MindCalculatorScan.__new__(MindCalculatorScan)
             scanner.config = SimpleNamespace(config_name='testpilot')
             scanner._scan_evidence_paths = {current.resolve()}
-            with patch('module.retire.mind_scan.logger.log_file', str(log_root / 'alas.txt')):
+            with patch('module.retire.dock_scan.logger.log_file', str(log_root / 'alas.txt')):
                 scanner._prune_scan_evidence()
             self.assertFalse(old.exists())
             self.assertFalse(old.with_suffix('.json').exists())
@@ -102,8 +102,8 @@ class ScanEvidenceCleanupTests(unittest.TestCase):
 
     def test_authorized_diagnostics_preserve_all_rounds(self):
         scanner = MindCalculatorScan.__new__(MindCalculatorScan)
-        with patch('module.retire.mind_scan.Path.is_file', return_value=True), \
-                patch('module.retire.mind_scan.Path.iterdir') as files:
+        with patch('module.retire.dock_scan.Path.is_file', return_value=True), \
+                patch('module.retire.dock_scan.Path.iterdir') as files:
             scanner._prune_scan_evidence()
         files.assert_not_called()
 
@@ -117,7 +117,7 @@ class ScanEvidenceCleanupTests(unittest.TestCase):
             image.write_text('不能删除', encoding='utf-8')
             scanner = MindCalculatorScan.__new__(MindCalculatorScan)
             scanner.config = SimpleNamespace(config_name='../../protected')
-            with patch('module.retire.mind_scan.logger.log_file', str(log_root / 'alas.txt')):
+            with patch('module.retire.dock_scan.logger.log_file', str(log_root / 'alas.txt')):
                 scanner._prune_scan_evidence()
             self.assertTrue(image.exists())
 
@@ -353,9 +353,9 @@ class ScanLoopRegressionTests(unittest.TestCase):
             return (np.arange(565) >= start) & (np.arange(565) < start + 90)
         scrollbar = SimpleNamespace(appear=lambda _: True, total=565, match_color=thumb)
         self.enterContext(patch('module.base.timer.time', side_effect=lambda: self.now))
-        self.enterContext(patch('module.retire.mind_scan.DOCK_SCROLL', scrollbar))
-        self.enterContext(patch('module.retire.mind_scan.grid_rows', return_value=[65, 292, 519]))
-        self.enterContext(patch('module.retire.mind_scan.recognize_cards', side_effect=self.recognize))
+        self.enterContext(patch('module.retire.dock_scan.DOCK_SCROLL', scrollbar))
+        self.enterContext(patch('module.retire.dock_scan.grid_rows', return_value=[65, 292, 519]))
+        self.enterContext(patch('module.retire.dock_scan.recognize_cards', side_effect=self.recognize))
 
     def recognize(self, *args, **kwargs):
         page = self.position // 681
@@ -397,7 +397,7 @@ class ScanLoopRegressionTests(unittest.TestCase):
         x1, y1, x2, y2 = DOCK_SCROLL.area
         for image in self.images.values():
             image[y1:y2, x1:x2] = strip
-        with patch('module.retire.mind_scan.DOCK_SCROLL', DOCK_SCROLL):
+        with patch('module.retire.dock_scan.DOCK_SCROLL', DOCK_SCROLL):
             ships = self.scan()
         self.assertEqual(self.reads, [0, 681, 1362])
         self.assertEqual(len(ships), 42)
@@ -410,7 +410,7 @@ class ScanLoopRegressionTests(unittest.TestCase):
         x1, y1, x2, y2 = DOCK_SCROLL.area
         for image in self.images.values():
             image[y1:y2, x1:x2] = strip
-        with patch('module.retire.mind_scan.DOCK_SCROLL', DOCK_SCROLL):
+        with patch('module.retire.dock_scan.DOCK_SCROLL', DOCK_SCROLL):
             ships = self.scan()
         self.assertEqual(self.reads, [0, 681, 1362])
         self.assertEqual(len(ships), 42)
@@ -456,7 +456,7 @@ class ScanLoopRegressionTests(unittest.TestCase):
                 cards[11].quality = 2
             return cards
 
-        with patch('module.retire.mind_scan.recognize_cards', side_effect=slow_review):
+        with patch('module.retire.dock_scan.recognize_cards', side_effect=slow_review):
             ships = self.scan()
         self.assertEqual(self.reads, [0, 681, 681, 681, 1362])
         self.assertEqual(sum(ship['review'] for ship in ships), 1)

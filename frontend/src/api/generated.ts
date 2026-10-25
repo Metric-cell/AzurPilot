@@ -1,7 +1,10 @@
 // 由 dev_tools.export_api_schema 生成，请勿手动编辑。
 export interface Parameters {
+  "launcher.status": Record<string, never>
+  "launcher.autostart.set": { enabled: boolean }
+  "launcher.command.get": { commandId: string }
   "system.ping": Record<string, never>
-  "schema.get": { language?: "zh-CN" | "zh-MIAO" | "en-US" | "ja-JP" | "zh-TW" }
+  "schema.get": { language?: "zh-CN" | "en-US" | "ja-JP" | "zh-TW" }
   "search.content": { query: string }
   "instances.list": Record<string, never>
   "instances.create": { name: string; source?: string | null; import_file?: string | null }
@@ -12,6 +15,8 @@ export interface Parameters {
   "config.export": { instance: string }
   "config.patch": { instance: string; revision?: string | null; changes: Array<{ path: string; value: unknown }> }
   "overview.get": { instance: string }
+  "dock.report": { instance: string }
+  "dock.configure": { instance: string; min_level: number; max_level: number }
   "mind.catalog": { instance: string }
   "fleetTech.catalog": { instance: string }
   "fleetTech.report": { instance: string }
@@ -58,7 +63,8 @@ export interface Parameters {
   "background.gallery.remove": { id: string }
   "background.gallery.open": Record<string, never>
   "auth.login": { password?: string }
-  "events.subscribe": { instance?: string | null; topics: Array<"instances" | "overview" | "logs" | "preview" | "notifications"> }
+  "auth.launcher": { ticket: string }
+  "events.subscribe": { instance?: string | null; topics: Array<"instances" | "overview" | "logs" | "preview" | "notifications" | "launcher"> }
 }
 export interface SchedulerModels {
   ProgramDocument: { entry: string; nodes: Array<{ id: string; type: string; label?: string; comment?: string; params?: Record<string, unknown>; position?: Record<string, unknown> }>; edges?: Array<{ id: string; source: string; sourcePort: string; target: string; targetPort?: string; kind?: "control" | "data" }>; schemaVersion?: number; name?: string; subgraphs?: Array<{ entry: string; nodes: Array<{ id: string; type: string; label?: string; comment?: string; params?: Record<string, unknown>; position?: Record<string, unknown> }>; edges?: Array<{ id: string; source: string; sourcePort: string; target: string; targetPort?: string; kind?: "control" | "data" }>; id: string; name: string; pure?: boolean; inputs?: Array<{ name: string; type?: "any" | "number" | "boolean" | "string" | "time" | "duration" | "resource" | "task" | "tasks" | "result" | "list" | "object"; required?: boolean }>; outputs?: Array<{ name: string; type?: "any" | "number" | "boolean" | "string" | "time" | "duration" | "resource" | "task" | "tasks" | "result" | "list" | "object"; required?: boolean }> }>; variables?: Array<{ name: string; type?: "any" | "number" | "boolean" | "string" | "time" | "duration" | "resource" | "task" | "tasks" | "result" | "list" | "object"; initial?: unknown; persistent?: boolean }>; viewport?: Record<string, unknown> }

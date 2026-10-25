@@ -231,6 +231,7 @@ class TestSchedulerRecovery(unittest.TestCase):
         self.run_tasks(script, [RuntimeError('故障一'), 'Restart', RuntimeError('故障二'), 'Restart', RuntimeError('故障三')])
 
         self.assertEqual(self.sleep.call_args_list, [call(20), call(40), call(80)])
+        script.save_error_log.assert_called_once()
 
     def test_ordinary_task_success_resets_global_backoff(self):
         script = self.make_script()

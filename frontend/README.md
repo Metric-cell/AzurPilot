@@ -164,3 +164,12 @@ npm run test:e2e:mock
 资源管理并入统计页面，位于资源趋势旁；旧 `/i/:instance/resources` 地址跳转到统计页的资源管理视图。心智单元清单位于任务导航，支持本地录入、导入、识别与计算；舰队管理页保留本地舰船信息及扫描操作。两页均沿用登录后的 WebSocket 业务接口。
 
 本地行动力历史使用的身份与加密存储仍须持久化，见[本地历史持久化](../docs/modules/infra/deploy.md#本地历史持久化)。
+
+
+## 舰队数据分析与共享船坞
+
+舰队管理中的「舰队数据分析」统一提供共享船坞数据、心智分析与舰船科技分析。旧 `task/MindCalculator`、`mind-calculator` 和 `task/FleetTechnology` 链接跳转到相应分析标签；旧扫描任务不再显示在工具菜单。
+
+`dock.report({instance})` 返回共享扫描报告（`revision`、`updated_at`、`min_level`、`max_level`、`ships`、`complete`、`review_count`、`source`、`scan_range`）。`dock.configure({instance,min_level,max_level})` 保存 1–125 级范围并返回报告；点击统一扫描入口才调用 `tasks.run({instance,task:"DockScan"})`。扫描读取船坞舰名和等级，需要导航与滚动，不进行升级、突破、觉醒或换船。页面展示扫描时间、实际快照范围 `scan_range`、数据来源、完成情况与待核对数量；`min_level`/`max_level` 是下一次扫描设置，修改设置不会伪装成已扫描数据。
+
+心智的编辑、导入、截图识别和导出继续使用 `mind.*`；舰船科技的人工历史修订继续使用 `fleetTech.patch`。两者的草稿和人工设置独立，分析页面本身不触发游戏任务。

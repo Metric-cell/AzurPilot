@@ -7,7 +7,7 @@
 四个子模块共同覆盖「船坞与装备仓库」这一游戏界面的自动化操作，但分工不同：
 
 - `module/retire`：退役与强化。核心类 `Retirement` 是 `Combat` 的 mixin（`module/combat/combat.py` 中 `Combat(Level, HPBalancer, Retirement, ...)`），因为「船坞已满」弹窗会在出击准备、战斗结算、地图行走等任意战斗流程中随机出现，以 mixin 挂入后所有战斗类无需额外接线即可处理。它同时是 `GemsFarming`/`Ambush11` 等换船任务的基座（保留普通航母、退役废弃旗舰）。
-- `module/equipment`：装备管理。舰船详情页的装备装卸、按图像模板在仓库中找回装备、Base64 装备码（配装码）的导出与导入。被 `GemsFarming`（换旗舰时装回原配装）、演习（`EXERCISE_FLEET_EQUIPMENT`）等复用。
+- `module/equipment`：装备管理。舰船详情页的装备装卸、按图像模板在仓库中找回装备、Base64 装备码（配装码）的导出与导入。被 `GemsFarming`（换旗舰时装回原配装）、演习与 META 作战（`Equipment.Config`）等复用。
 - `module/auto_equip`：独立任务「自动换装」（`AutoEquip`）。遍历船坞，为每艘舰船的空装备槽从仓库填充装备，与 `module/equipment` 互不依赖（只共享 `Dock` 与滑动常量）。
 - `module/storage`：装备仓库。开装备箱、拆解装备、处理「装备仓库已满」弹窗。`StorageHandler` 同时被科研模块（E 系列科研需先拆装备）和装备码处理器继承，因此任意装备操作遇到仓库满弹窗都能自动拆解腾位。
 
@@ -76,30 +76,137 @@ module/storage/
 | `AutoEquip.run()` | `AutoEquip` 独立任务（alas.py `auto_equip`，亦列于 submodule 可用功能） |
 | `FleetManagement.run()` | `FleetScan` 独立任务 |
 | `FleetTechScan.run()` | 科技页面的独立船坞扫描；共享滚动识别基础设施，按稳定群组保留同名舰及无科技舰 |
-| `Equipment.equipment_take_on/off()` | 演习、困难模式等按 `fleet` 记录装卸装备的底层入口 |
+| `Equipment.equipment_take_on/off()` | 按 `fleet` 记录装卸装备的底层入口，困难模式等继续复用 |
 | `EquipmentCodeHandler.code_apply()` / `code_clear()` | GemsFarming/Ambush11 换船时回装/卸下配装 |
 
 ### 舰队信息扫描
 
-`FleetManagement.run()` 复用 `Dock.dock_filter_set()`，依次扫描前排、后排、潜艇。
-第一次在同一个筛选面板选择 `index='vanguard'` 与 `sort='mood'`，统一确认；
-后续分类传 `sort=None`，保留游戏记住的心情排序。任务期间关闭 `Setting.reset_first`，
-避免默认重置先清掉心情排序，`finally` 恢复该标志并执行原有 `dock_reset()`。
-舰种索引支持多选，切换不能只点下一舰种：每次传 `reset_index=True`，在同一面板
-先选“全部”取消旧舰种，再选择目标舰种，最后统一确认；清除索引时保留心情排序。
-此选项默认为 `False`，不改变其他船坞调用方的筛选行为。
+`FleetManagement.run(update_emotion=None)` 导航进入编队后即在第一水面舰队，不展开水面
+舰队下拉列表，直接点舰位4进入选船页扫描前排；取消返回后直接点舰位1扫描后排。
+再取消返回，只点击一次底部“潜艇舰队”右侧的舰队入口，确认潜艇类型已选中后点潜艇
+舰位1。切换动画期间继续截图确认，不重复点击入口展开列表。水面有六队、每队六个舰位；
+潜艇有两队、每队三个舰位。入口自带前后排限制，显式清空旧搜索、收藏和舰种筛选后，
+以等级降序读取已编队候选；选船页由游戏固定显示心情。
+独立工具任务创建的设备不一定已有首帧；扫描入口和 `fleet_enter()` 在任何图像判断前检查
+`Device.has_cached_image`，缺图时先截图。不能假设调度器或调用方已经初始化 `image`。
+进入选船页必须用已有 `DOCK_CHECK` 标题模板确认；编队标题的平均颜色也可能通过船坞
+颜色判断，不能据此跳过舰位点击并开始清理筛选。
 
-`FleetManagementScanner` 保持原有舰队归属、名称纠正和等级识别，增加
-`FleetEmotionScanner`，复用 `CARD_EMOTION_GRIDS` 裁剪与 OCR 框架，网格形状与排除位置保持一致。
-心情只接受完整的 0–150 数字，空白、非法文字或越界为 `None`；不使用通用心情扫描器的
-颜色纠正或截位猜数。单个心情未知不会删掉对应名称、等级记录。
+详情采集按水面1–6队、潜艇1–2队顺序进行：进入详情后采集固定列，再点左上返回，
+确认编队视图后用右箭头切到下一队。通过底部大号舰队数字的原生字形模板核对编号，
+未确认编号时不采集下一队，不为核对队号展开下拉列表。切换水面/潜艇时只点击一次
+对应类型右侧的舰队入口。`_capture_formation(..., navigate=False)` 仅用于已确认队号的
+顺序扫描；换船等调用保留默认通用切队。详情左侧金色“详情界面”是当前页签，不能作为
+退出按钮；正常采集和中断后从详情恢复均点左上返回，以编队视图作为退出条件。
 
-三类扫描完成后仍一次性保存到 `FleetInfo.FleetInfo.Result` 和 `Record`，单船结构扩展为
-`{'name': str, 'level': int, 'emotion': int | None}`，JSON 中未知心情为 `null`。
-WebUI 舰队信息同时显示名称、等级与心情；旧字符串/缺少心情的对象仍可显示，心情标为未知。
-扫描还可通过 `module/retire/fleet_emotion.py` 被动缩小已校准心情的恢复相位，不增加设备操作、OCR 或保存次数。仅接纳普通水面舰队完整的三前排和三后排，名称均确认且不重复，心情全部有效；前后排使用各自现截时间窗口，缺时间、窗口超过 30 秒、矛盾或归属不明时保留原状态。流式／缓存截图后端不学习；已核实的现截后端、共享舰队限制和存档语义见 [战斗心情](../combat.md)。学到的三字段随本次原有事务保存，事务核对扫描期间舰队及共享配置是否变化，不能用 FleetInfo.Record 作为测量时间。
-定向验证入口：`tests/test_fleet_emotion.py`（匿名心情裁剪、筛选顺序、失败保留和真实配置落盘）
-及 `frontend/e2e/fleet-info.spec.ts`（隔离服务页面显示）。截图夹具不包含账号信息。
+水面编队画面后排从左到右为 `3、1、2`，前排为 `4、5、6`；潜艇画面从左到右为
+`3、1、2`。点击使用 `runtime/fleet_formation.py` 中固定坐标，不能依赖有角色后消失的
+“添加”模板。详情卡片按水面左到右 `1、2、3、4、5、6`、潜艇左到右 `1、2、3`
+直接对应舰位；舰位来源是页面几何位置，不是名称匹配或船坞卡片排序。
+
+`FormationDockScanner` 复用已有舰名、等级、心情和舰队徽标识别器，动态定位完整卡片行，
+只读取选船页底栏上方的区域。滚动后由公共 `ScanMerger` 核验实际图像位移并按物理卡位
+合并，不按同名舰船合并。已编队置顶区域按水面最多18艘加离队入口、潜艇最多6艘加离队
+入口确定覆盖范围，不用OCR结果决定是否翻页或提前停止。顶部/底部按滑块端点确认，
+不能把距离底部5%的位置当作完整扫描结束。
+
+`FormationDetailScanner` 在固定列读取参考舰名、等级，以原生卡片字形区域判断有无舰船；
+文字识别错误只保留原文并标注 `review`，失败保留未知，不中断操作、不丢弃整个舰队。
+心情从选船页参考信息补充，名称或归属读数无法对应时为未知。数据一次保存到
+`FleetInfo.FleetInfo.Result` 和 `Record`，舰船包含
+`name、level、emotion、slot、occupied、review`；潜艇也保存自己的1–3号舰位。
+
+`FleetInfo.FleetInfo.UpdateEmotion` 可在每次扫描前选择是否读取心情。关闭时跳过心情OCR，
+保留已有舰位的心情参考，缺少旧舰位参考时为 `null`，不参与被动恢复相位学习。
+开启时心情仅接受完整0–150整数，失败保留
+未知，不截位猜数。WebUI 显示已记录舰位及未知读数；旧记录不会按数组下标猜测舰位。
+
+被动心情学习继续复用 `module/retire/fleet_emotion.py`，其对时间窗口、完整舰队、可靠
+名称和数值的约束仅决定是否学习，不影响舰位互换。学到的恢复状态随本次保存事务提交；
+时间窗口及共享舰队映射语义见[战斗心情](../combat.md)。
+
+### 按源舰队和源舰位互换
+
+操作入口为：
+
+```python
+FleetManagement(config=config, device=device).swap_slots(
+    source_fleet=1, source_slot=4,
+    fleet=4, slot=5,
+    fleet_type='surface',
+    update_emotion=False,
+)
+```
+
+此入口由普通主线/活动的智能换船策略复用；尚未提供手动指定互换的WebUI按钮或装备更换。
+水面只能在主力组内或先锋组内
+交换；潜艇使用 `fleet_type='submarine'`、队号1–2、舰位1–3。同一舰队内也可互换已有
+舰位。空位只能按组内顺序加入，跨队移入后来源组按游戏规则向前压缩；不把点击空舰位
+当作已经形成允许跳号的编队。
+
+交换路径与OCR分离：
+
+1. 用下拉列表的高亮行选择源/目标舰队；`fleet_enter(..., method='arrows')` 也可用左右
+   箭头切换，之后仍通过列表高亮核对，不读取舰队编号OCR。
+2. 从源舰位的固定详情列采集卡面，用SIFT特征和几何关系在选船页定位对应卡片；
+   名称、等级、心情OCR不作为点击、确认或交换的前置条件。
+3. 第二次滚动重新定位物理卡位，避免复用滚动前的坐标。选中后以单选计数区域的图像
+   变化确认界面响应，不调用数字OCR；随后确认本次已允许的跨队交换。
+4. 比较双方舰位卡面，再返回主界面提交，重新进入编队再次核对。意外提交弹窗不自动
+   确认，避免误确认清空不完整编队。
+5. 根据已核验的位置变更移动已有参考记录。没有旧参考信息时保留未知名称、等级和
+   心情，不猜测身份；其他舰队记录保留。`update_emotion=True` 时交换后再刷新参考
+   信息；参考OCR不可用不改变已经完成的交换结果。
+
+同立绘候选可参考已有的舰队徽标图像模板消歧；卡面本身无法区分时在点击前报告图像
+歧义。画面未就绪、滚动位移不明、或交换后的实际卡面不符属于操作状态问题，使用
+`FleetManagementError` 停止，不能用重启重复换船；OCR错误不会触发这条操作失败路径。
+
+定向验证入口为 `tests/test_fleet_formation.py`（原生选船/详情/舰队菜单图片、无OCR
+卡面定位、源/目标舰位计划及模拟交换状态）、`tests/test_fleet_emotion.py`、
+`tests/test_fleet_ship_names.py` 和 `frontend/e2e/fleet-info.spec.ts`。
+图片测试和模拟状态流程不连接设备，不能代替真实模拟器操作验收。
+
+### 智能换船
+
+`module/campaign/fleet_rotation.py` 在普通主线/活动出击前调用本模块。策略配置保存在
+`FleetInfo.FleetRotation`，不是调度任务：`Enabled` 默认关闭，`Rules` 默认JSON空对象，
+表示所有舰位不变。规则以实际水面舰队号为键，例如
+`{"1":{"slots":[3,4,5],"sources":[3,4,5,6]}}`。六队各舰位独立勾选，来源队可多选，
+但不能包含目标队自己；服务器校验舰队号、舰位、重复值与字段类型。
+
+候补依据舰船信息中的实际舰位和实测心情排序：先比较整队最低心情，按降序排列，
+同值按队号升序。例如3队最低138、4/5/6队最低150时，顺序为4→5→6→3。
+每次低心情先实测目标队，实测充足只校正账本，不换船；候补缺失同号舰位、心情未知
+或不足出击线时不选用。一轮只从选定来源完成全部勾选舰位，4/5/6严格对应来源4/5/6，
+不再调用`highest_morale_slot()`选同排其他角色。仍通过源舰位卡面、来源队徽标和
+交换前后双方卡面核对实体，不以名字近似匹配决定点击。
+智能换船的入口扫描和换船前后复核始终读取实际心情；手动舰队扫描的“更新心情”选项
+仍只控制手动扫描，关闭智能换船不增加自动扫描。
+
+`read_fleet_morale()` 从目标队舰位4开始扫描前排，再由舰位1读取后排，最后采集详情，
+把第一轮名称、等级和心情按卡面放回实际舰位并保存舰船信息。换船后传入`first_slot=1`，
+先刷新后排再刷新前排及详情。读取所有实际占用舰位，包括未勾选换船的角色；
+返回的最低值才用于任务心情同步。原始读数未知时保存未知，
+不能用已换入角色的高心情覆盖仍留在队内的低心情。
+
+`State` 保存每支目标队的上次来源、本轮来源、已完成舰位与待确认互换。每个已确认
+互换立即记录；进程在操作途中中断时，待确认标记阻止重复交换。已完成换船但最低
+心情未读全时，下次只重读，不再换一次。其他任务使用未完成轮换的来源队时也不能
+沿用旧心情出击。需要清空记录时，先核对游戏编队，再使用页面的清空按钮。
+新建轮换记录带有同舰位策略版本；旧版未完成轮换可能曾从不同来源舰位选船，不能直接
+沿用已完成列表。更新后若仍有旧版或待确认记录，先核对当前编队，再清空旧轮换记录。
+
+运行中关闭开关，会在当前互换确认完成后停止后续舰位，保留部分进度并更新双方心情；
+再次开启继续本轮。轮换结束后按实际舰队映射同步普通主线和活动任务的最低心情、
+记录时间和恢复相位，再回到原关卡。仍然心情不足时沿用原有延迟，不连续换队。
+困难图、C/D/HT/EX活动图、作战档案、低耗特殊任务和大世界不接入该策略。
+启用后，切换任务时先完整扫描一次舰队；同一任务连续周回不重复入口扫描。
+舰队扫描和智能换船暂不支持区分多艘同名舰船，请避免在参与舰队中放入同名舰船。
+卡面和来源不能唯一确认时停止互换，不能用相似名字猜测实体。
+
+定向验证：`tests/test_fleet_rotation.py`、`tests/test_fleet_formation.py` 和
+`frontend/e2e/fleet-rotation.spec.ts`，包含真实临时配置事务、原生跨队确认图及模拟设备。
 
 ### 舰队舰船名称确认
 
@@ -119,6 +226,13 @@ WebUI 舰队信息同时显示名称、等级与心情；旧字符串/缺少心�
 只有彩色结果精确命中名单，且保留首轮可读前缀（空白首轮除外）时采用；已有精确身份、
 改造身份或 META 身份不能被彩色结果覆盖。失败仍保留首轮原文，日志记录确认依据或拒绝原因。
 等级、心情和结果格式保持不变；更新代码后需重新运行 FleetScan，历史错误名称不会自动改写。
+
+编队扫描在上述读取后，额外使用`ShipNameMatcher.approximate()`校正Lua名单中的唯一
+标点变体、长前缀及有明显优势的近似名称；不跨改造/META身份猜测，不猜单字短名。
+未确认名称显示为空并保留`raw_name`供核对。第一轮同时保留内存中的卡面，第二轮按同队
+同排卡面把已确认的名称、等级与心情对应到详情固定列，详情OCR误读不能覆盖第一轮
+已确认名字。卡面只用于本次扫描关联，不写入用户配置。其他共享名称扫描入口仍保持
+原来的保守规则。
 
 `tests/test_fleet_ship_names.py` 验证名单引用解析、普通皮肤排除、名单不可用、保守匹配、
 复识别条件以及三张匿名卡片区域截图的真实扫描与配置落盘。夹具只保留名称、舰队编号、
@@ -161,7 +275,18 @@ flowchart TD
 
 ### 装备（module/equipment）
 
-`Equipment.equipment_take_on/off(enter, out, fleet)` 用 `'9'.join` 把舰队记录 `[3,1,1,1,1,1]` 编码为槽位序列：`9` 表示滑动到下一艘船，其余数字表示在预设栏穿/脱第 N 套。`EquipmentChange` 走另一条路：先把舰船当前装备截为模板（`ship_equipment_record_image`），再在仓库页滚动做模板匹配找回并穿上，适合「原装备可能已被换下」的场景。`EquipmentCodeHandler` 处理 Base64 装备码：导出走剪贴板（先 ADB `cmd clipboard`，失败再 uiautomator2），输入优先 ADB `input text`（需 FastInputIME），失败回退 u2 `send_keys`；应用前先清空预览，仓库满时调 `handle_storage_full()`。装备码存放在任务配置的 YAML 文本字段（如 `GemsFarming.GemsFarming.EquipmentCode`），`GemsEquipmentHandler` 通过覆写 `equipment_code_config_key` 把存储位置指向该键。
+`Equipment.equipment_take_on/off(enter, out, fleet)` 用 `'9'.join` 把舰队记录 `[3,1,1,1,1,1]` 编码为槽位序列：`9` 表示滑动到下一艘船，其余数字表示在预设栏穿/脱第 N 套。`EquipmentChange` 走另一条路：先把舰船当前装备截为模板（`ship_equipment_record_image`），再在仓库页滚动做模板匹配找回并穿上，适合「原装备可能已被换下」的场景。`EquipmentCodeHandler` 处理 Base64 装备码：导出走剪贴板（先 ADB `cmd clipboard`，失败再 uiautomator2），输入优先 ADB `input text`（需 FastInputIME），失败回退 u2 `send_keys`；应用前先清空预览，仓库满时调 `handle_storage_full()`。装备码存放在任务配置的 YAML 文本字段（如 `GemsFarming.GemsFarming.EquipmentCode`），`GemsEquipmentHandler` 通过覆写 `equipment_code_config_key` 把存储位置指向该键。`EquipmentConfigHandler` 作为 `Combat` 基类，在 `BATTLE_PREPARATION` 界面点击 `FLEET_REORGANIZE` 进入整编，按 `Equipment.Config`（六个舰船站位的 `before`/`after` 装备码）在首次出击前执行 `equipment_handle_before()`，并在演习、余烬信标与信标协助任务收尾时执行 `equipment_handle_after()`。
+
+任务换装的配置与恢复约定：
+
+- 仅启用任务的 `Equipment.Enable` 且存在非空 `before` 时执行；省略的站位或阶段按空值处理，字符串去除首尾空白。`before` 为空的站位不处理；`before` 非空且 `after` 为空时，战后卸下该舰船的全部装备。未知站位、未知阶段、非字符串装备码及格式错误在进入整编、卸装之前统一拒绝，战后方案也同时预检。
+- 控制方式沿用 `EquipmentCodeHandler.equipment_code_supported()` 的能力判定，不支持时在导航前抛 `RequestHumanTakeover`。启用 `Equipment.ClearBeforeApply` 时，先清空所有目标舰船，再依次应用方案，以便共用装备在舰船间转移；关闭时仍保留 `after` 为空就卸装的语义。
+- 站位方案使用私有 `_equipment_config_apply/clear()`，不覆盖通用 `code_apply(name)` / `code_clear(name)`，因此命名方案、导出备份和 `last_code` 交接保持原语义。
+- 整编与保存操作采用 2 秒点击间隔，以 10 秒双重计时器适配慢截图；退出以目标按钮正向出现为准，超时抛 `GameStuckError`。首次换装完成后先获取新截图，再决定是否点击出击。
+- `_equipment_handle_before_flag` 只在战前方案保存成功后置位，战后方案保存成功后清除；失败不提前清除待恢复状态。它是当前处理器的内存状态，不保证进程中断后自动恢复。
+- META 普通信标结束后若显示「模拟战斗」，恢复流程会点击该入口并确认弹窗，进入战斗准备页应用战后方案后返回。协助任务也可借用此入口，恢复后回到协助页；档案独立编队不参与恢复。入口选择与超时语义见[大世界辅助模块](../os/auxiliary.md)。
+
+离线回归：`uv run python -m unittest tests.test_equipment_config tests.test_meta_beacon tests.test_equipment_transfer tests.test_equipment_clear_failure`，覆盖预检、命名接口兼容、跨舰卸装顺序、保存失败和 META 借用入口的恢复路径，不连接真实账号。
 
 ### 自动换装（module/auto_equip）
 

@@ -3,7 +3,7 @@ import subprocess
 from typing import Optional
 import time
 
-from deploy.config import MANUAL_GIT_MIRRORS, DeployConfig, ExecutionError
+from deploy.config import MANUAL_GIT_MIRRORS, DeployConfig, ErrorCodes, ExecutionError
 from deploy.logger import logger
 from deploy.utils import *
 
@@ -136,7 +136,10 @@ class GitManager(DeployConfig):
                     if i < max_retry - 1:
                         time.sleep(delay * random.uniform(0.5, 1.8))
                         ua = self.git_user_agent()
-        raise ExecutionError
+        raise ExecutionError(
+            ErrorCodes.GIT_FETCH_FAILED,
+            f'git fetch {source} {branch}: 主源与全部镜像重试穷尽',
+        )
 
     def git_repository_init(
             self, repo, source='origin', branch='master', proxy='', ssl_verify=True

@@ -65,7 +65,7 @@ class ScanFailureTests(unittest.TestCase):
         from module.exception import MindCalculatorScanError
         from module.retire.mind_scan import MindCalculatorScan
         from unittest.mock import call
-        config = SimpleNamespace(MindCalculator_MinLevel=95, MindCalculator_MaxLevel=120,
+        config = SimpleNamespace(Dock_MinLevel=95, Dock_MaxLevel=120,
                                  data={'MindCalculatorScan': {'MindCalculator': {'Result': {'ships': [
                                      {'name': '拉菲', 'level': 100, 'source': '旧清单'}]}}}}, modified={})
         previous = copy.deepcopy(config.data)
@@ -73,13 +73,15 @@ class ScanFailureTests(unittest.TestCase):
         scanner.config, scanner.device = config, Mock()
         scanner.ui_ensure, scanner.dock_reset, scanner.dock_sort_method_dsc_set = Mock(), Mock(), Mock()
         scanner._prune_scan_evidence = Mock()
+        scanner._close_search = Mock()
         scanner.appear = Mock(return_value=False)
         for error, message in ((MindCalculatorScanError('离线中止'), '离线中止'),
-                               (MemoryError('模拟分配失败'), '内存不足.*保留旧清单')):
+                               (MemoryError('模拟分配失败'), '内存不足.*保留共享扫描数据')):
             with self.subTest(error=type(error).__name__):
                 scanner._scan_pages = Mock(side_effect=error)
-                with patch('module.retire.mind_scan.server.server', 'cn'), \
-                        patch('module.retire.mind_scan.DOCK_SCROLL') as scroll, patch('module.ocr.al_ocr.AlOcr') as ocr:
+                with patch('module.retire.dock_scan.server.server', 'cn'), \
+                        patch('module.retire.dock_scan.DOCK_SCROLL') as scroll, patch('module.ocr.al_ocr.AlOcr') as ocr, \
+                        patch('module.retire.enhancement.OCR_DOCK_AMOUNT.ocr', return_value=(1, 0, 1)):
                     scroll.appear.return_value = scroll.at_top.return_value = True
                     with self.assertRaisesRegex(MindCalculatorScanError, message):
                         scanner.run()
@@ -124,11 +126,11 @@ class ScanFailureTests(unittest.TestCase):
         thumb = np.ones(565)
         scroll = SimpleNamespace(appear=lambda _: True, total=565, match_color=lambda _: thumb)
         with tempfile.TemporaryDirectory() as temp, \
-                patch('module.retire.mind_scan.logger.log_file', str(Path(temp) / 'testpilot.txt')), \
-                patch('module.retire.mind_scan.Timer', ImmediateTimer), patch('module.retire.mind_scan.DOCK_SCROLL', scroll), \
-                patch('module.retire.mind_scan.ScanMerger', return_value=merger), \
-                patch('module.retire.mind_scan.grid_rows', return_value=[65, 292, 519]), \
-                patch('module.retire.mind_scan.recognize_cards') as recognize:
+                patch('module.retire.dock_scan.logger.log_file', str(Path(temp) / 'testpilot.txt')), \
+                patch('module.retire.dock_scan.Timer', ImmediateTimer), patch('module.retire.dock_scan.DOCK_SCROLL', scroll), \
+                patch('module.retire.dock_scan.ScanMerger', return_value=merger), \
+                patch('module.retire.dock_scan.grid_rows', return_value=[65, 292, 519]), \
+                patch('module.retire.dock_scan.recognize_cards') as recognize:
             if capture_error:
                 self.enterContext(patch.object(Image.Image, 'save', side_effect=OSError('模拟诊断目录不可写')))
             if recovered:

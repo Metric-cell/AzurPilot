@@ -90,7 +90,7 @@
 刷新或切换页面不终止模拟；启动和中断受认证及 DEMO 只读限制，模拟运行期间禁止删除对应实例。
 
 
-`schema.get.language` 支持 `zh-CN`、`zh-TW`、`en-US`、`ja-JP`、`zh-MIAO`，只影响本次返回的翻译，不修改运行器或其他浏览器的语言。参数定义保留 `mode: yaml`，供前端选择多行 YAML 编辑器。
+`schema.get.language` 支持 `zh-CN`、`zh-TW`、`en-US`、`ja-JP`，只影响本次返回的翻译，不修改运行器或其他浏览器的语言。参数定义保留 `mode: yaml`，供前端选择多行 YAML 编辑器。
 
 ## 高级商店策略校验
 
@@ -194,3 +194,14 @@ INTERNAL_ERROR 不向浏览器返回堆栈；参数校验详情不回显输入�
 本分支删除交易所页面、代理 API、后台行动力/历史上传和 Android 热更新，旧客户端调用这些方法返回 `METHOD_NOT_FOUND`。完整裁剪范围见 [CLEAN_POLICY.md](../CLEAN_POLICY.md)。
 
 图形调度和资源统计继续在本地记录行动力历史。相关身份、加密密钥和检查点仍位于 `config/stock-exchange/` 与 `cache/stock-exchange/`，这些目录名不表示存在交易所上传服务。迁移时与配置、数据库一起保留，见[本地历史持久化](../docs/modules/infra/deploy.md#本地历史持久化)。
+
+
+## 舰队数据分析与共享船坞
+
+舰队管理中的「舰队数据分析」统一提供共享船坞数据、心智分析与舰船科技分析。旧 `task/MindCalculator`、`mind-calculator` 和 `task/FleetTechnology` 链接跳转到相应分析标签；旧扫描任务不再显示在工具菜单。
+
+`dock.report({instance})` 返回共享扫描报告（`revision`、`updated_at`、`min_level`、`max_level`、`ships`、`complete`、`review_count`、`source`、`scan_range`）。`dock.configure({instance,min_level,max_level})` 保存 1–125 级范围并返回报告；点击统一扫描入口才调用 `tasks.run({instance,task:"DockScan"})`。扫描读取船坞舰名和等级，需要导航与滚动，不进行升级、突破、觉醒或换船。页面展示扫描时间、实际快照范围 `scan_range`、数据来源、完成情况与待核对数量；`min_level`/`max_level` 是下一次扫描设置，修改设置不会伪装成已扫描数据。
+
+心智的编辑、导入、截图识别和导出继续使用 `mind.*`；舰船科技的人工历史修订继续使用 `fleetTech.patch`。两者的草稿和人工设置独立，分析页面本身不触发游戏任务。
+
+本地启动器 v2 使用 `/api/v2/launcher/ws`，页面通过业务 WS 的 `launcher.status`、`launcher.autostart.set`、`launcher.command.get` 与 `auth.launcher` 接口访问，并订阅全局 `launcher` 主题。接口和主题限定本机直连；一次性票据不传输访问密码。任务通知为 `POST /api/v2/internal/notifications`。旧启动器 HTTP/SSE 通道已移除，详见[启动器协议 v2](../docs/modules/webui/launcher-protocol-v2.md)。

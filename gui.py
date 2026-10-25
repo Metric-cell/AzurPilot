@@ -756,6 +756,16 @@ def _prepare_dependency_sync_before_webui_start(
         tuple[bool, Process | None, Queue | None, Queue | None]:
             就绪状态、服务进程、请求队列、响应队列。
     """
+    from module.runtime.prebuilt import is_prebuilt, validate_runtime
+    if is_prebuilt():
+        try:
+            validate_runtime()
+            # 组件已经成组提交，旧安装器留下的同步标志不再触发 uv。
+            clear_dependency_sync_pending()
+        except (OSError, RuntimeError) as exc:
+            logger.critical(str(exc))
+            return False, service, request_queue, response_queue
+        return True, service, request_queue, response_queue
     try:
         pending = is_dependency_sync_pending()
     except OSError as exc:

@@ -12,7 +12,7 @@ const menu = read('../../module/config/argument/menu.json')
 const template = read('../../config/template.json')
 const storageCatalog = read('../../assets/stats/storage_items/catalog.json')
 const contract = read('../src/api/contract.json')
-const locales = Object.fromEntries(['zh-CN', 'zh-TW', 'en-US', 'ja-JP', 'zh-MIAO'].map(lang => [lang, read(`../../module/config/i18n/${lang}.json`)]))
+const locales = Object.fromEntries(['zh-CN', 'zh-TW', 'en-US', 'ja-JP'].map(lang => [lang, read(`../../module/config/i18n/${lang}.json`)]))
 const ajv = new Ajv({ strict: false, useDefaults: true })
 const validators = Object.fromEntries(Object.entries(contract.methods).map(([method, entry]) => [method, ajv.compile(entry.params)]))
 const revision = values => createHash('sha256').update(JSON.stringify(values)).digest('hex')
@@ -51,6 +51,7 @@ export function createMockState({ empty = false } = {}) {
   const instances = new Map()
   const mindShips = new Map()
   const fleetRecords = new Map()
+  const dockRanges = new Map()
   function fleetPython(action, params) {
     const fields = get(params.instance).values.FleetTechScan.FleetTech
     const output = mindPython(`tech.${action}`, {...params, ships: mindShips.get(params.instance) ?? [],
@@ -512,6 +513,14 @@ export function createMockState({ empty = false } = {}) {
         return snapshot(name)
       }
       case 'overview.get': return overview(name)
+      case 'dock.configure': {
+        if (params.min_level > params.max_level) fail('INVALID_PARAMS', '最低等级不能大于最高等级')
+        if (get(name).status === 'running') fail('INSTANCE_RUNNING', '实例运行中')
+        dockRanges.set(name, {min_level: params.min_level, max_level: params.max_level})
+        return dispatch('dock.report', {instance: name})
+      }
+      case 'dock.report': return {instance: name, revision: 'mock-dock', updated_at: null,
+        ...dockRanges.get(name) ?? {min_level: 1, max_level: 125}, ships: [], complete: false, review_count: 0, source: 'empty'}
       case 'mind.catalog': return mindPython('catalog', params)
       case 'fleetTech.catalog': return fleetPython('catalog', params)
       case 'fleetTech.report': return fleetPython('report', params)
@@ -533,7 +542,7 @@ export function createMockState({ empty = false } = {}) {
       case 'mind.export': return mindPython('export', {...params, ships: mindShips.get(name) ?? []})
       case 'scheduler.start': case 'tasks.run':
         if (get(name).status === 'running') fail('INSTANCE_RUNNING', '实例已在运行')
-        if (method === 'tasks.run' && !['FleetScan', 'StorageStatistics'].includes(params.task) && !Object.values(menu).some(group => group.page === 'tool' && group.tasks.includes(params.task))) fail('INVALID_PARAMS', '该任务不支持单独运行')
+        if (method === 'tasks.run' && !['FleetScan', 'StorageStatistics', 'DockScan'].includes(params.task) && !Object.values(menu).some(group => group.page === 'tool' && group.tasks.includes(params.task))) fail('INVALID_PARAMS', '该任务不支持单独运行')
         get(name).status = 'running'; get(name).currentTask = params.task ?? 'Commission'; log(name, '模拟调度器已启动。')
         return overview(name)
       case 'scheduler.stop':
@@ -624,9 +633,10 @@ export function createMockState({ empty = false } = {}) {
           const dbKey = resKeyMap[res] ?? res
           const base = get(name).values.Dashboard[dbKey]?.Value ?? baseMap[res] ?? 500
           const safeDays = Math.max(1, Number(days) || 7)
+          // 与真实统计接口一致，发送墙上时钟微秒与紧凑点，供前端统一解码。
           return Array.from({ length: 24 }, (_, index) => ({
-            time: timestamp(new Date(Date.now() - (23 - index) * safeDays * 3600000)),
-            value: Math.max(0, Math.round(base * (.8 + index / 120 + Math.sin(index) * .03))),
+            t: Math.floor((Date.now() - (23 - index) * safeDays * 3600000) / 1000) * 1000000,
+            v: Math.max(0, Math.round(base * (.8 + index / 120 + Math.sin(index) * .03))),
           }))
         }
         const reportSeries = entries => entries.map(([key, label, res = key]) => ({

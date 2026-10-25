@@ -111,4 +111,3 @@ export const mindJaJP: Record<Key, string> = {
   'mind.previous': '前へ', 'mind.next': '次へ', 'mind.tooMany': '保存できる艦船は最大5000隻です',
   'mind.rarity.UR': 'UR', 'mind.rarity.SSR': 'SSR', 'mind.rarity.SR': 'SR', 'mind.rarity.R': 'R', 'mind.rarity.N': 'N',
 }
-export const mindZhMiao = Object.fromEntries(Object.entries(mindZhCN).map(([key, value]) => [key, `${value}喵`])) as Record<Key, string>

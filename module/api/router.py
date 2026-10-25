@@ -20,10 +20,12 @@ class Method:
         params: 参数校验模型类型。
         handler: 请求处理函数或方法。
         mutates: 是否会修改系统状态或运行任务。
+        local_only: 是否要求本机直连来源上下文。
     """
     params: type[p.Params]
     handler: Callable
     mutates: bool = False
+    local_only: bool = False
 
 
 class Router:
@@ -40,6 +42,9 @@ class Router:
             runtime: 运行时管理服务实例。
         """
         self.configs, self.runtime = configs, runtime
+        from module.runtime.launcher import LauncherService
+        from module.runtime.launcher_trust import TRUST_SECRET_ENV
+        self.launcher = LauncherService(os.environ.get(TRUST_SECRET_ENV))
         self._accounts = None
         self._scheduler_programs = None
         self._opsi_simulator = None
@@ -47,6 +52,11 @@ class Router:
         self.access_password = ''
         self.background_token = secrets.token_urlsafe(32)
         self.methods = {
+            'launcher.status': Method(p.Params, lambda _: self.launcher.status(), local_only=True),
+            'launcher.autostart.set': Method(p.LauncherAutostartParams,
+                                            lambda x: self.launcher.set_autostart(x.enabled), True, True),
+            'launcher.command.get': Method(p.LauncherCommandParams,
+                                          lambda x: self.launcher.command(x.commandId), local_only=True),
             'system.ping': Method(p.Params, lambda _: {'pong': True}),
             'schema.get': Method(p.SchemaParams, lambda x: configs.schema(x.language)),
             'search.content': Method(p.SearchContentParams, lambda x: search.search_content(x.query)),
@@ -59,6 +69,8 @@ class Router:
             'config.export': Method(p.InstanceParams, lambda x: configs.export(x.instance)),
             'config.patch': Method(p.PatchParams, lambda x: configs.patch(x.instance, x.revision, x.changes), True),
             'overview.get': Method(p.InstanceParams, lambda x: runtime.overview(x.instance)),
+            'dock.report': Method(p.InstanceParams, lambda x: self.dock.report(x.instance)),
+            'dock.configure': Method(p.DockConfigureParams, lambda x: self.dock.configure(x.instance, x.min_level, x.max_level), True),
             'mind.catalog': Method(p.InstanceParams, lambda x: self.mind.catalog(x.instance)),
             'fleetTech.catalog': Method(p.InstanceParams, lambda x: self.fleet_tech.catalog(x.instance)),
             'fleetTech.report': Method(p.InstanceParams, lambda x: self.fleet_tech.report(x.instance)),
@@ -108,6 +120,11 @@ class Router:
                                                     lambda x: {'removed': background.gallery_remove(x.id)}, True),
             'background.gallery.open': Method(p.Params, lambda _: background.gallery_open(), True),
         }
+
+    @property
+    def dock(self):
+        from module.api.dock_service import DockService
+        return DockService(self.configs)
 
     @property
     def fleet_tech(self):
@@ -176,11 +193,13 @@ class Router:
             dict: 统计报表数据。
         """
         from module.api.statistics_service import compact_axis, report
+        from module.statistics.glossary import build_glossary, report_texts
         result = report(self.configs, params.instance, params.category, params.month,
                         params.days, params.period, research_series=params.series,
                         research_scope=params.scope, loot_task=params.task,
                         include_series=params.include_series)
-        return {**result, **compact_axis(result.get('series') or [])}
+        # 标签保持中文（前端按中文名查图标）；物品名、任务名的译名随报表附带，固定文案由前端翻译。
+        return {**result, **compact_axis(result.get('series') or []), 'glossary': build_glossary(report_texts(result))}
 
     def resource_flows(self, params: p.ResourceFlowsParams):
         """查询库存与资源流向；沿用现有实例访问边界。"""
@@ -212,7 +231,7 @@ class Router:
         return clear(self.configs, params.instance)
 
     @configured_database
-    def dispatch(self, method: str, params: dict):
+    def dispatch(self, method: str, params: dict, *, local=False):
         """分发并执行指定的 API 方法。
 
         Args:
@@ -229,6 +248,8 @@ class Router:
         entry = self.methods.get(method)
         if entry is None:
             raise p.ApiError('METHOD_NOT_FOUND', '未知 API 方法')
+        if entry.local_only and not local:
+            raise p.ApiError('LOCAL_ONLY', '启动器控制只允许本机直连')
         validated = entry.params.model_validate(params)
         if entry.mutates and os.environ.get('DEMO') == '1':
             raise p.ApiError('READ_ONLY', '演示模式下禁止修改配置或运行任务')

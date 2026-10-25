@@ -39,6 +39,18 @@ class Params(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
 
 
+class LauncherAutostartParams(Params):
+    enabled: StrictBool
+
+
+class LauncherCommandParams(Params):
+    commandId: StrictStr = Field(min_length=1, max_length=100)
+
+
+class LauncherTicketParams(Params):
+    ticket: StrictStr = Field(min_length=1, max_length=128)
+
+
 class MindShip(Params):
     """可编辑的舰船字段，核对状态与排除状态独立保存。"""
     name: StrictStr = Field(min_length=1, max_length=100)
@@ -71,7 +83,7 @@ class AnnouncementParams(Params):
 
 class SchemaParams(Params):
     """配置界面架构查询参数模型。"""
-    language: Literal['zh-CN', 'zh-MIAO', 'en-US', 'ja-JP', 'zh-TW'] = 'zh-CN'
+    language: Literal['zh-CN', 'en-US', 'ja-JP', 'zh-TW'] = 'zh-CN'
 
 
 class SearchContentParams(Params):
@@ -100,6 +112,12 @@ def _partial_update_schema(schema):
     """局部更新的缺失字段必须保持缺失，禁止客户端填入默认 null。"""
     for field in schema.get('properties', {}).values():
         field.pop('default', None)
+
+
+class DockConfigureParams(InstanceParams):
+    """共享扫描范围；跨字段校验由服务在事务内执行。"""
+    min_level: int = Field(ge=1, le=125, strict=True)
+    max_level: int = Field(ge=1, le=125, strict=True)
 
 
 class FleetTechChange(Params):
@@ -206,7 +224,7 @@ class RevisionParams(InstanceParams):
 class SubscribeParams(Params):
     """WebSocket 主题订阅请求参数模型。"""
     instance: StrictStr | None = None
-    topics: list[Literal['instances', 'overview', 'logs', 'preview', 'notifications']] = Field(max_length=5)
+    topics: list[Literal['instances', 'overview', 'logs', 'preview', 'notifications', 'launcher']] = Field(max_length=6)
 
 
 class LogsParams(InstanceParams):

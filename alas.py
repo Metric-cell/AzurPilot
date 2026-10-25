@@ -828,6 +828,11 @@ class AzurLaneAutoScript:
         command = inflection.underscore(command)
         self._storage_statistics_failed = False
         set_task(inflection.camelize(command))
+        # 智能换船只在切换任务后刷新一次；同一任务连续出击复用本次扫描。
+        rotation_context = self.__dict__.setdefault('_fleet_rotation_context', {})
+        if rotation_context.get('task') != inflection.camelize(command):
+            rotation_context.clear()
+            rotation_context['task'] = inflection.camelize(command)
         try:
             # Restart 的职责就是把游戏从“未运行/未出首帧”恢复起来。
             # Android 虚拟屏在没有实际内容提交前不会产生可读帧；若这里先截图，
@@ -863,11 +868,17 @@ class AzurLaneAutoScript:
             logger.error(str(e))
             self._storage_statistics_failed = True
             return False
-        except MindCalculatorScanError as e:
+        except (MindCalculatorScanError, FleetManagementError) as e:
             logger.error_context(
-                title='舰船科技扫描未完成' if command == 'fleet_tech_scan' else '心智单元船坞扫描未完成', reason=str(e), exc=e,
-                impact='本次扫描结束，保留上次完整舰船清单，不重启模拟器。',
-                action='查看错误截图和具体原因，确认船坞布局及控制方式后重新启动扫描。',
+                title=('舰队管理未完成' if isinstance(e, FleetManagementError) else
+                       '共享船坞扫描未完成'),
+                reason=str(e), exc=e,
+                impact=('本次舰队任务结束，不重启模拟器或重复换船；已操作但未核验的舰队参考记录会失效。'
+                        if isinstance(e, FleetManagementError) else
+                        '本次扫描结束，保留上次完整舰船清单，不重启模拟器。'),
+                action=('查看错误截图和游戏提示，核对当前编队后再启动任务。'
+                        if isinstance(e, FleetManagementError) else
+                        '查看错误截图和具体原因，确认船坞布局及控制方式后重新启动扫描。'),
                 level=50,
             )
             self.save_error_log()
@@ -1536,10 +1547,6 @@ class AzurLaneAutoScript:
         from module.event.maritime_escort import MaritimeEscort
         MaritimeEscort(config=self.config, device=self.device).run()
 
-    def opsi_ash_assist(self):
-        from module.os_ash.meta import AshBeaconAssist
-        AshBeaconAssist(config=self.config, device=self.device).run()
-
     def opsi_ash_beacon(self):
         from module.os_ash.meta import OpsiAshBeacon
         OpsiAshBeacon(config=self.config, device=self.device).run()
@@ -1611,7 +1618,9 @@ class AzurLaneAutoScript:
     def _run_campaign(self):
         """主线与普通活动槽位的战役调用；断点由公共 CampaignRun 保存。"""
         from module.campaign.run import CampaignRun
-        CampaignRun(config=self.config, device=self.device).run(
+        runner = CampaignRun(config=self.config, device=self.device)
+        runner._fleet_rotation_context = self.__dict__.setdefault('_fleet_rotation_context', {})
+        runner.run(
             name=self.config.Campaign_Name, folder=self.config.Campaign_Event, mode=self.config.Campaign_Mode)
 
     def main(self):
@@ -1733,13 +1742,17 @@ class AzurLaneAutoScript:
         from module.retire.fleet_management import FleetManagement
         FleetManagement(config=self.config, device=self.device, task="FleetScan").run()
 
+    def dock_scan(self):
+        from module.retire.dock_scan import DockScan
+        DockScan(config=self.config, device=self.device, task="DockScan").run()
+
     def mind_calculator_scan(self):
-        from module.retire.mind_scan import MindCalculatorScan
-        MindCalculatorScan(config=self.config, device=self.device, task="MindCalculatorScan").run()
+        """兼容旧入口，心智与科技统一读取共享扫描底账。"""
+        self.dock_scan()
 
     def fleet_tech_scan(self):
-        from module.retire.fleet_tech_scan import FleetTechScan
-        FleetTechScan(config=self.config, device=self.device, task="FleetTechScan").run()
+        """兼容旧入口，不再写入独立科技快照。"""
+        self.dock_scan()
 
     def game_manager(self):
         from module.daemon.game_manager import GameManager

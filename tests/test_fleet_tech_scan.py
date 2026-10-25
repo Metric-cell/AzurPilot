@@ -291,15 +291,15 @@ class FleetTechIdentityTests(unittest.TestCase):
         from module.config.config import TaskEnd
         from module.ui.page import page_dock, page_main
         scanner = object.__new__(FleetTechScan)
-        scanner.config = SimpleNamespace(FleetTech_MinLevel=98, FleetTech_MaxLevel=125)
+        scanner.config = SimpleNamespace(Dock_MinLevel=98, Dock_MaxLevel=125, data={})
         scanner.device = SimpleNamespace(image=None)
         scanner.ui_ensure = scanner._close_search = scanner.dock_reset = scanner.dock_sort_method_dsc_set = lambda *args: None
         scanner.ui_ensure = Mock()
         scanner.appear = lambda button: button is DOCK_SEARCH_CLOSED
         scroll = SimpleNamespace(set_top=lambda _: None, appear=lambda _: True, at_top=lambda _: True, length=1, total=2)
-        with patch('module.retire.fleet_tech_scan.DOCK_SCROLL', scroll), \
+        with patch('module.retire.dock_scan.DOCK_SCROLL', scroll), \
                 patch('module.retire.enhancement.OCR_DOCK_AMOUNT.ocr', return_value=(100, 0, 100)), \
-                patch('module.ocr.al_ocr.AlOcr'), patch('module.retire.fleet_tech_scan.config_transaction') as transaction:
+                patch('module.ocr.al_ocr.AlOcr'), patch('module.config.transaction.config_transaction') as transaction:
             for error in [TaskEnd('cancelled'), MindCalculatorScanError('OCR failed')]:
                 scanner.ui_ensure.reset_mock()
                 with patch.object(scanner, '_scan_pages', side_effect=error), self.assertRaises(type(error)):

@@ -16,7 +16,7 @@ import { useApp, useConnection } from './context'
 import { ErrorBox, Loading, Modal } from '../components/ui'
 import { GlassMaterial } from '../components/GlassMaterial'
 import { MaterialInspector } from '../components/MaterialInspector'
-import { FLEET_TECHNOLOGY, MIND_CALCULATOR, SCHEDULER_EDITOR, taskLabel } from '../components/taskNavItems'
+import { FLEET_ANALYSIS, FLEET_ROTATION, FLEET_TECHNOLOGY, MIND_CALCULATOR, SCHEDULER_EDITOR, taskLabel } from '../components/taskNavItems'
 import { getMaterialInspector, subscribeMaterialInspector } from './materialInspectorState'
 import { InstanceSwitcher } from '../components/InstanceSwitcher'
 import { InstanceTabs } from '../components/InstanceTabs'
@@ -189,14 +189,15 @@ export function App() {
   useEffect(() => { setMobileOpen(false); setRailOpen(false) }, [location.pathname])
   useEffect(() => {
     if (connection !== 'ready') return
-    void api.request('events.subscribe', {instance: instance ?? null, topics: instance ? previewEnabled ? ['notifications', 'instances', 'overview', 'logs', 'preview'] : ['notifications', 'instances', 'overview', 'logs'] : ['notifications', 'instances']}).catch(error => notify(error.message, true))
+    const launcherTopics = ['127.0.0.1', 'localhost', '[::1]'].includes(window.location.hostname) ? ['launcher'] as const : []
+    void api.request('events.subscribe', {instance: instance ?? null, topics: instance ? previewEnabled ? ['notifications', 'instances', ...launcherTopics, 'overview', 'logs', 'preview'] : ['notifications', 'instances', ...launcherTopics, 'overview', 'logs'] : ['notifications', 'instances', ...launcherTopics]}).catch(error => notify(error.message, true))
   }, [instance, connection, notify, previewEnabled])
   // 旧版主题下点进实例后，外壳回到「顶栏跨全宽 + 单列侧栏」；主页视图一律沿用新版外壳。
   const legacyShell = usesLegacyShell(theme, instance)
   /* 主页与五个二级菜单也走旧版外壳：它们没有实例内容，顶栏只写居中的页名。 */
   const legacyHomeShell = (location.pathname === '/' || PRIMARY_NAV_PATHS.includes(location.pathname)) && usesLegacyLayout(theme) && instancesLoaded
   // 旧版把调度器与任务计划放进实例页左列，右栏整体让位，否则同一块内容会出现两处。
-  const showRail = showsRightRail(theme, instance) && !schedulerEditor && currentTask !== MIND_CALCULATOR && currentTask !== FLEET_TECHNOLOGY && !location.pathname.endsWith('/resources') && !location.pathname.endsWith('/task/FleetInfo') && !location.pathname.endsWith('/mind-calculator') && !(location.pathname.endsWith('/statistics') && new URLSearchParams(location.search).get('view') === 'management')
+  const showRail = showsRightRail(theme, instance) && !schedulerEditor && currentTask !== FLEET_ROTATION && currentTask !== FLEET_ANALYSIS && currentTask !== MIND_CALCULATOR && currentTask !== FLEET_TECHNOLOGY && !location.pathname.endsWith('/resources') && !location.pathname.endsWith('/task/FleetInfo') && !location.pathname.endsWith('/mind-calculator') && !(location.pathname.endsWith('/statistics') && new URLSearchParams(location.search).get('view') === 'management')
   /* 紧凑主题可把调度与任务计划栏换到内容区左侧。换位走 DOM 顺序而不是 CSS order，
      键盘 Tab 的顺序才会跟看到的顺序一致；列宽与顶栏跨栏方向由 compact.css 按同一偏好调整。 */
   const railFirst = theme === 'extreme' && compactRailSide === 'left'

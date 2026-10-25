@@ -2,7 +2,6 @@ import {useEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {useParams} from 'react-router-dom'
 import {api} from '../api/client'
 import {useApp, useConnection} from '../app/context'
-import {editor} from '../config/editors'
 import {ErrorBox, Loading, PageTitle} from '../components/ui'
 import {Select} from '../components/FormControls'
 import {translateFleetTech} from '../fleet-tech/i18n'
@@ -15,7 +14,7 @@ const number = (value: number) => value.toLocaleString()
 const has = (value: object, key: string) => Object.hasOwn(value, key)
 
 export function FleetTechnology() {
-  const {instance = ''} = useParams(), {language, ui, instances, notify} = useApp(), connection = useConnection()
+  const {instance = ''} = useParams(), {language, ui, notify} = useApp(), connection = useConnection()
   const tr = (key: string) => translateFleetTech(language, key)
   const [catalog, setCatalog] = useState<Catalog>(), [report, setReport] = useState<Report>()
   const catalogLoaded = useRef<Catalog | undefined>(undefined)
@@ -23,7 +22,6 @@ export function FleetTechnology() {
   const scope = useRef({instance, token: 0})
   if (scope.current.instance !== instance) scope.current = {instance, token: scope.current.token + 1}
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
-  const [low, setLow] = useState('95'), [high, setHigh] = useState('125')
   const [edit, setEdit] = useState(false), [bonuses, setBonuses] = useState(false), [extra, setExtra] = useState(false)
   const [view, setView] = useState<'latest' | 'history'>('latest')
   const [query, setQuery] = useState(''), [mode, setMode] = useState('all'), [stage, setStage] = useState('all')
@@ -32,10 +30,6 @@ export function FleetTechnology() {
   const pending = useRef<Record<string, Change>>({}), nationPending = useRef<Record<string, number | null>>({})
   const [drafts, setDrafts] = useState<Record<string, Change>>({}), [nationDrafts, setNationDrafts] = useState<Record<string, number | null>>({})
   const draftKey = `azurpilot.fleet-tech.${instance}`
-  const current = instances.find(item => item.name === instance), scanning = current?.status === 'running' && current.currentTask === 'FleetTechScan'
-  const scanReason = connection !== 'ready' ? ui('mind.scanDisconnected') : !current || !report ? ui('mind.scanLoading')
-    : current.status === 'running' ? ui(scanning ? 'mind.scanInProgress' : 'mind.scanRunning')
-    : current.status === 'updating' ? ui('mind.scanUpdating') : current.region && current.region !== 'cn' ? ui('mind.scanUnsupported') : ''
   function remember() {
     setDrafts({...pending.current}); setNationDrafts({...nationPending.current})
     try {
@@ -49,7 +43,6 @@ export function FleetTechnology() {
       const [data, value] = await Promise.all([catalogLoaded.current ? Promise.resolve(catalogLoaded.current) : api.request('fleetTech.catalog', {instance}), api.request('fleetTech.report', {instance})])
       if (scope.current.token === token && epoch.current === version && !writing.current
           && (clearError || !saved.current || !Object.keys(pending.current).length && !Object.keys(nationPending.current).length)) {
-        if (!saved.current) {setLow(String(value.min_level)); setHigh(String(value.max_level))}
         catalogLoaded.current = data; setCatalog(data); saved.current = value; setReport(value)
         // 自动轮询保留操作失败提示，只有用户主动重载才清除。
         if (clearError) setError('')
@@ -73,7 +66,6 @@ export function FleetTechnology() {
     void Promise.all([api.request('fleetTech.catalog', {instance}), api.request('fleetTech.report', {instance})]).then(([data, value]) => {
       if (active && scope.current.token === token) {
         catalogLoaded.current = data; setCatalog(data); saved.current = value; setReport(value)
-        setLow(String(value.min_level)); setHigh(String(value.max_level))
       }
     }).catch(e => {if (active) setError(e.message)})
     const timer = setInterval(() => {if (active && !writing.current) void reload()}, 5000)
@@ -102,13 +94,6 @@ export function FleetTechnology() {
     const key = String(change.group_type)
     pending.current[key] = change
     remember(); void save()
-  }
-  async function action(run: () => Promise<unknown>) {
-    if (writing.current) return
-    const token = scope.current.token
-    writing.current = true; epoch.current++; setBusy(true); setError('')
-    try {await run()} catch (e) {if (scope.current.token === token) setError((e as Error).message)}
-    finally {if (scope.current.token === token) {writing.current = false; setBusy(false); void reload()}}
   }
   const historyRows = useMemo(() => {
     const progress = new Map(report?.ships.map(row => [row.group_type, row]))
@@ -162,21 +147,8 @@ export function FleetTechnology() {
     {error && <ErrorBox message={error} retry={() => void reload(true)}/>}
     <section className="ft-summary"><div><small>{tr('historySummary')}</small><p>{tr('max')}： <b>{number(catalog.max_points)}</b></p><p>{tr('four')}： {[1, 2, 3, 4].map(id => <span key={id}>{nation(id)} {number(catalog.nation_points[id] ?? 0)}　</span>)}</p><p>{tr('count')}： <b>{report.completed} / {historyRows.filter(row => row.technology).length}</b>　{tr('confirmed')}：{number(report.confirmed_points)}　<small>{tr('pendingStar')}{report.pending_star}</small></p></div><small>{tr('version')}：Lua · {catalog.updated_at}<br/>{tr('all')} {historyRows.length} · {tr('tech')} {historyRows.filter(row => row.technology).length} · {tr('none')} {historyRows.filter(row => !row.technology).length}</small></section>
     <section className="ft-toolbar">
-      <label>{tr('low')}<input aria-label={tr('low')} type="number" min={1} max={125} value={low} disabled={busy || !!scanReason} onChange={e => setLow(e.target.value)}/></label>
-      <label>{tr('high')}<input aria-label={tr('high')} type="number" min={1} max={125} value={high} disabled={busy || !!scanReason} onChange={e => setHigh(e.target.value)}/></label>
-      <button className="button primary" title={scanReason} disabled={busy || !!scanReason || !!dirty} onClick={() => void action(async () => {
-        const min = Number(low), max = Number(high)
-        if (!low.trim() || !high.trim() || !Number.isInteger(min) || !Number.isInteger(max) || min < 1 || max > 125 || min > max) throw new Error(ui('mind.invalidRange'))
-        await editor(`config:${instance}`).settled()
-        const config = await api.request('config.get', {instance})
-        await api.request('config.patch', {instance, revision: config.revision, changes: [{path: 'FleetTechScan.FleetTech.MinLevel', value: min}, {path: 'FleetTechScan.FleetTech.MaxLevel', value: max}]})
-        await api.request('tasks.run', {instance, task: 'FleetTechScan'})
-        setView('latest'); setEdit(false); setPage(0)
-      })}>{tr('scan')}</button>
-      {scanning && <button className="button secondary" disabled={busy} onClick={() => void action(() => api.request('scheduler.stop', {instance}))}>{ui('mind.stop')}</button>}
-      <button className="button secondary" disabled={busy || connection !== 'ready' || !!dirty} onClick={() => void action(() => api.request('fleetTech.syncMind', {instance}))}>{tr('sync')}</button>
       {dirty > 0 && <button className="button secondary" disabled={busy || connection !== 'ready'} onClick={() => void save()}>{tr('retry')} ({dirty})</button>}
-      <small role="status">{busy ? ui('mind.processing') : dirty ? ui('mind.unsaved') : scanReason || tr('hint')}</small>
+      <small role="status">{busy ? ui('mind.processing') : dirty ? ui('mind.unsaved') : tr('hint')}</small>
     </section>
     <section className="ft-view" aria-label={tr('resultView')}><div className="ft-chips">
       <button aria-pressed={latest} disabled={!hasScan || busy} onClick={() => {setView('latest'); setEdit(false); setPage(0)}}>{tr('latestScan')}</button>
