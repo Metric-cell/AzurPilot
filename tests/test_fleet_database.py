@@ -27,13 +27,19 @@ def current_revision(database):
     return dock_data.read_snapshot(database.load())['revision']
 
 
+def set_technology(database, options):
+    database.patch_technology(
+        [dict(group_type=int(gid), **entry) for gid, entry in options.get('progress', {}).items()],
+        options.get('nations', {}), revision(dock_data.technology_record(database.load())))
+
+
 def increment_worker(config_path, barrier, count):
     database = FleetDatabase(Path(config_path))
     barrier.wait(timeout=15)
     for _ in range(count):
-        with database.edit() as state:
-            nations = state['technology'].setdefault('nations', {})
-            nations['1'] = nations.get('1', 0) + 1
+        with database._transaction() as connection:
+            connection.execute("INSERT INTO nation_technology VALUES ('1', 1) "
+                               'ON CONFLICT(nation_key) DO UPDATE SET level=level+1')
 
 
 def patch_worker(config_path, barrier, expected_revision, tag, queue):
@@ -50,24 +56,23 @@ def patch_worker(config_path, barrier, expected_revision, tag, queue):
 def scan_worker(config_path, barrier, tag, queue):
     database = FleetDatabase(Path(config_path))
     barrier.wait(timeout=15)
-    database.save_scan(snapshot(tag), revision({}))
-    queue.put('staged')
+    try:
+        database.save_scan(snapshot(tag), revision({}))
+    except FleetDatabaseConflict:
+        queue.put('conflict')
+    else:
+        queue.put('staged')
 
 
 def crash_editor_worker(config_path):
     database = FleetDatabase(Path(config_path))
-    original = database._write_options
-
-    def crash_after_spilling(connection, scope, options):
+    with database._transaction() as connection:
         connection.execute('PRAGMA cache_size=2')
         connection.execute('PRAGMA cache_spill=ON')
-        original(connection, scope, options)
+        for index in range(10000, 14000):
+            database._set_progress(connection, str(index), {'owned': False}, source='crash fixture')
+        connection.execute("UPDATE nation_technology SET level=99 WHERE nation_key='1'")
         os._exit(23)
-
-    database._write_options = crash_after_spilling
-    with database.edit() as state:
-        state['technology'] = {'manual': {str(index): {'owned': False, 'level': 100}
-            for index in range(10000, 14000)}, 'nations': {'1': 99}}
 
 
 def import_worker(config_path, barrier, key, queue):
@@ -93,14 +98,14 @@ class FleetDatabaseTest(unittest.TestCase):
         return current_revision(self.db)
 
     def empty(self, include_import_status=False):
-        value = dict(snapshot=None, mind={}, technology={}, pending_revision=None, pending_changes=[])
+        value = dict(snapshot=None, technology={}, pending_revision=None, pending_changes=[])
         if include_import_status:
             value['legacy_imported'] = False
         return value
 
     def seed(self):
         self.db.patch_cards(snapshot()['ships'], self.current_revision())
-        return self.db.load()
+        return self.db.load(include_pending=True)
 
     def assert_counts(self, **counts):
         with closing(sqlite3.connect(self.db.path)) as connection:
@@ -109,7 +114,7 @@ class FleetDatabaseTest(unittest.TestCase):
                                  expected, table)
 
     def decide_all(self, accept):
-        state = self.db.load()
+        state = self.db.load(include_pending=True)
         self.db.review([dict(id=row['id'], accept=accept) for row in state['pending_changes']],
                        self.current_revision(), state['pending_revision'])
 
@@ -118,23 +123,21 @@ class FleetDatabaseTest(unittest.TestCase):
         with closing(sqlite3.connect(self.db.path)) as connection:
             tables = {row[0] for row in connection.execute(
                 "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'")}
-            self.assertEqual(tables, {'ships', 'fleet_info', 'technology', 'nation_technology',
+            self.assertEqual(tables, {'ships', 'fleet_info', 'nation_technology',
                                      'pending_ships', 'pending_technology', 'pending_nations',
-                                     'pending_targets'})
+                                     'pending_targets', 'technology_progress'})
             columns = {row[1]: row for row in connection.execute('PRAGMA table_info(ships)')}
             self.assertEqual(set(columns), {'id', 'position', 'group_type', 'name', 'level',
-                'rarity', 'base_rarity', 'extra_exp', 'excluded', 'review', 'source'})
+                'rarity', 'base_rarity', 'extra_exp', 'review', 'source', 'full_star', 'form'})
             self.assertEqual(columns['id'][2], 'INTEGER')
             self.assertEqual(columns['id'][5], 1)
-            self.assertEqual(columns['extra_exp'][2], 'INTEGER')
-            self.assertEqual(columns['extra_exp'][3], 0)
             sql = connection.execute("SELECT sql FROM sqlite_master WHERE name='ships'").fetchone()[0]
             self.assertIn('AUTOINCREMENT', sql.upper())
             for table in tables:
                 for column in connection.execute(f'PRAGMA table_info({table})'):
                     self.assertNotIn(column[1], {'payload', 'metadata', 'json'})
                     self.assertNotIn('json', column[1].lower())
-            self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0], 3)
+            self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0], FleetDatabase.SCHEMA_VERSION)
 
     def test_deleted_card_ids_are_not_reused_and_scan_does_not_replace_existing_ids(self):
         first = self.seed()['snapshot']['ships']
@@ -152,7 +155,11 @@ class FleetDatabaseTest(unittest.TestCase):
         scan['ships'][0].update(level=120, recognition_debug=object(), slot={'page': 1})
         scan['raw_evidence'] = object()
         self.db.save_scan(scan, self.current_revision())
-        state = self.db.load()
+        with patch.object(self.db, '_differences', side_effect=AssertionError('unexpected pending projection')):
+            confirmed = self.db.load()
+        self.assertNotIn('pending_changes', confirmed)
+        state = self.db.load(include_pending=True)
+        self.assertEqual(confirmed['snapshot'], state['snapshot'])
         self.assertEqual(state['snapshot'], active['snapshot'])
         proposal = next(row for row in state['pending_changes'] if row['kind'] == 'ship')
         self.assertNotIn('recognition_debug', proposal['after'])
@@ -161,44 +168,32 @@ class FleetDatabaseTest(unittest.TestCase):
         self.assertEqual(self.db.load()['snapshot'], active['snapshot'])
         self.assertIsNone(self.db.load()['pending_revision'])
 
-    def test_manual_technology_and_nations_preserve_null_false_and_toggle_presence(self):
+    def test_saved_milestones_and_nations_survive_unreviewed_scans(self):
         self.seed()
-        options = {'manual': {'10102': {'owned': None, 'full_star': False, 'lv120': None,
-            'level': None, 'level_toggle': {}}, '10103': {'owned': True,
-            'level_toggle': {'low': 100, 'high': 125}}}, 'nations': {'1': 0, '3': None}}
-        with self.db.edit() as state:
-            state['technology'] = copy.deepcopy(options)
-        self.assertEqual(self.db.load()['technology'], options)
+        options = {'progress': {'10102': {'owned': True, 'full_star': False, 'lv120': False,
+                                        'awakening_pending': True}}, 'nations': {'1': 0, '3': None}}
+        set_technology(self.db, options)
+        saved = self.db.load()['technology']
         self.db.save_scan(snapshot('next'), self.current_revision())
-        self.assertEqual(self.db.load()['technology'], options)
-        with self.db.edit() as state:
-            state['technology']['manual']['10102'] = {'owned': False}
-        self.assertEqual(self.db.load()['technology']['manual']['10102'], {'owned': False})
+        self.assertEqual(self.db.load()['technology'], saved)
+        self.assertEqual(saved['nations'], options['nations'])
+        self.assertTrue(saved['progress']['10102']['awakening_pending'])
+        self.assertFalse(saved['progress']['10102']['full_star'])
         self.assert_counts(ships=3, nation_technology=2)
-
-    def test_old_mind_overlays_and_ordinary_snapshot_mutations_are_ignored(self):
-        before = self.seed()['snapshot']
-        with self.db.edit() as state:
-            state['mind'] = {'extra': [{'name': 'shadow', 'level': 125}], 'overrides': {'x': {'excluded': True}}}
-            state['snapshot']['ships'].clear()
-            state['legacy_snapshot'] = snapshot('ignored')
-            state['legacy_sources'] = {'raw': object()}
-        self.assertEqual(self.db.load()['snapshot'], before)
-        self.assertEqual(self.db.load()['mind'], {})
 
     def test_invalid_edits_roll_back_earlier_updates_in_the_same_batch(self):
         first = self.seed()['snapshot']['ships'][0]
         for invalid in (-1, 1.5, '100', True, object()):
-            committed = self.db.load()
-            with self.subTest(extra_exp=repr(invalid)):
+            committed = self.db.load(include_pending=True)
+            with self.subTest(level=repr(invalid)):
                 with self.assertRaises((TypeError, ValueError, sqlite3.Error)):
                     self.db.patch_cards([dict(id=first['id'], level=90),
-                        dict(name='invalid', level=100, extra_exp=invalid)], self.current_revision())
-                self.assertEqual(self.db.load(), committed)
+                        dict(name='invalid', level=invalid)], self.current_revision())
+                self.assertEqual(self.db.load(include_pending=True), committed)
 
     def test_scan_proof_validation_is_strict_and_failed_stage_preserves_previous_candidates(self):
         self.db.save_scan(snapshot(), self.current_revision())
-        committed = self.db.load()
+        committed = self.db.load(include_pending=True)
         invalid = {'physical_count': (None, -1, True, 1.0, '1'),
             'expected_count': (-1, True, 1.0, '1'), 'reached_bottom': (1, 'true'),
             'filters_clear': (1, 'true')}
@@ -209,42 +204,46 @@ class FleetDatabaseTest(unittest.TestCase):
                     scan[field] = value
                     with self.assertRaises(ValueError):
                         self.db.save_scan(scan, self.current_revision())
-                    self.assertEqual(self.db.load(), committed)
+                    self.assertEqual(self.db.load(include_pending=True), committed)
 
     def test_partial_scan_never_proposes_retirement_and_complete_scan_requires_acceptance(self):
         before = self.seed()
         scan = snapshot('partial')
         scan.update(ships=[], physical_count=0, expected_count=0)
         self.db.save_scan(scan, self.current_revision())
-        self.assertFalse(any(row['operation'] == 'remove' for row in self.db.load()['pending_changes']))
+        self.assertFalse(any(row['operation'] == 'remove' for row in self.db.load(include_pending=True)['pending_changes']))
         scan.update(reached_bottom=True, filters_clear=True)
         self.db.save_scan(scan, self.current_revision())
         self.assertEqual(self.db.load()['snapshot'], before['snapshot'])
-        removals = [row for row in self.db.load()['pending_changes'] if row['operation'] == 'remove']
+        removals = [row for row in self.db.load(include_pending=True)['pending_changes'] if row['operation'] == 'remove']
         self.assertEqual(len(removals), 2)
-        self.decide_all(True)
+        with self.assertRaisesRegex(ValueError, '单独确认'):
+            self.decide_all(True)
+        for row in removals:
+            state = self.db.load(include_pending=True)
+            self.db.review([dict(id=row['id'], accept=True)], self.current_revision(), state['pending_revision'])
         self.assertEqual([row['name'] for row in self.db.load()['snapshot']['ships']], ['未识别舰船'])
-        self.assertEqual(self.db.load()['snapshot']['history']['observed']['10102'], 125)
+        self.assertTrue(self.db.load()['technology']['progress']['10102']['lv120'])
 
     def test_review_batch_failure_rolls_back_cards_and_pending_deletions(self):
         self.db.save_scan(snapshot(), self.current_revision())
-        committed = self.db.load()
+        committed = self.db.load(include_pending=True)
         key = next(row['id'] for row in committed['pending_changes'] if row['kind'] == 'ship')
         with self.assertRaises(ValueError):
             self.db.review([dict(id=key, accept=True), dict(id='ship:missing', accept=True)],
                            self.current_revision(), committed['pending_revision'])
-        self.assertEqual(self.db.load(), committed)
+        self.assertEqual(self.db.load(include_pending=True), committed)
         with self.assertRaises(ValueError):
             self.db.review([dict(id=key, accept=False), dict(id=key, accept=False)],
                            self.current_revision(), committed['pending_revision'])
-        self.assertEqual(self.db.load(), committed)
+        self.assertEqual(self.db.load(include_pending=True), committed)
 
     def test_legacy_stage_is_once_only_and_does_not_apply_cards_or_technology(self):
         active = self.seed()
         converted = {'snapshot': snapshot('local'), 'mind': {'extra': [{'name': '本地', 'level': 100}]},
             'technology': {'manual': {'10102': {'owned': False}}, 'nations': {'1': 3}}}
         self.db.stage_legacy(converted, self.current_revision())
-        staged = self.db.load(include_import_status=True)
+        staged = self.db.load(include_pending=True, include_import_status=True)
         self.assertEqual(staged['snapshot'], active['snapshot'])
         self.assertEqual(staged['technology'], active['technology'])
         self.assertTrue(staged['legacy_imported'])
@@ -256,62 +255,46 @@ class FleetDatabaseTest(unittest.TestCase):
 
     def test_invalid_legacy_stage_rolls_back_candidates_and_import_marker(self):
         self.db.save_scan(snapshot(), self.current_revision())
-        committed = self.db.load(include_import_status=True)
+        committed = self.db.load(include_pending=True, include_import_status=True)
         with self.assertRaises(ValueError):
             self.db.stage_legacy({'snapshot': snapshot('broken'),
                 'technology': {'nations': {'1': 'invalid'}}}, self.current_revision())
-        self.assertEqual(self.db.load(include_import_status=True), committed)
+        self.assertEqual(self.db.load(include_pending=True, include_import_status=True), committed)
+        self.decide_all(False)
         self.db.stage_legacy({'snapshot': None, 'technology': {}}, self.current_revision())
         self.assertTrue(self.db.load(include_import_status=True)['legacy_imported'])
 
-    def test_edit_exception_and_partial_write_failure_roll_back(self):
+    def test_transaction_exception_rolls_back_partial_write(self):
         self.seed()
-        with self.db.edit() as state:
-            state['technology'] = {'manual': {'10102': {'owned': True}}, 'nations': {'1': 2}}
-        committed = self.db.load()
+        committed = self.db.load(include_pending=True)
         with self.assertRaisesRegex(RuntimeError, 'cancelled'):
-            with self.db.edit() as state:
-                state['technology']['nations']['1'] = 3
+            with self.db._transaction() as connection:
+                connection.execute("INSERT INTO nation_technology VALUES ('1', 3)")
                 raise RuntimeError('cancelled')
-        self.assertEqual(self.db.load(), committed)
-        original = self.db._write_options
+        self.assertEqual(self.db.load(include_pending=True), committed)
+        original = self.db._set_progress
 
-        def fail_after_write(connection, scope, options):
-            original(connection, scope, options)
+        def fail_after_write(connection, gid, values, *, source):
+            original(connection, gid, values, source=source)
             raise RuntimeError('storage failure')
 
-        with patch.object(self.db, '_write_options', side_effect=fail_after_write):
+        with patch.object(self.db, '_set_progress', side_effect=fail_after_write):
             with self.assertRaisesRegex(RuntimeError, 'storage failure'):
-                with self.db.edit() as state:
-                    state['technology']['nations']['1'] = 4
-        self.assertEqual(self.db.load(), committed)
+                set_technology(self.db, {'progress': {'10102': {'owned': False}}})
+        self.assertEqual(self.db.load(include_pending=True), committed)
 
-    def test_invalid_manual_toggle_rolls_back_and_later_edits_still_work(self):
-        with self.db.edit() as state:
-            state['technology'] = {'manual': {'10102': {'level_toggle': {}}}}
-        committed = self.db.load()
-        for pair in ({'low': 100}, {'high': 120}, {'low': None, 'high': None}):
-            with self.subTest(pair=pair):
-                with self.assertRaises(ValueError):
-                    with self.db.edit() as state:
-                        state['technology']['manual']['10102']['level_toggle'] = pair
-                self.assertEqual(self.db.load(), committed)
-        self.db.patch_cards([dict(name='manual', level=100)], self.current_revision())
-        self.assertEqual(self.db.load()['technology'], committed['technology'])
-
-    def test_first_edit_rollback_leaves_readable_empty_database(self):
+    def test_first_transaction_rollback_leaves_readable_empty_database(self):
         with self.assertRaisesRegex(RuntimeError, 'cancelled'):
-            with self.db.edit() as state:
-                state['technology'] = {'nations': {'1': 2}}
+            with self.db._transaction() as connection:
+                connection.execute("INSERT INTO nation_technology VALUES ('1', 2)")
                 raise RuntimeError('cancelled')
-        self.assertEqual(self.db.load(), self.empty())
+        self.assertEqual(self.db.load(include_pending=True), self.empty())
         self.assert_counts(ships=0, nation_technology=0)
 
     def test_read_recovers_hot_journal_after_crashed_editor(self):
         self.seed()
-        with self.db.edit() as state:
-            state['technology'] = {'manual': {'10102': {'owned': True}}, 'nations': {'1': 2}}
-        committed = self.db.load()
+        set_technology(self.db, {'progress': {'10102': {'owned': True}}, 'nations': {'1': 2}})
+        committed = self.db.load(include_pending=True)
         context = multiprocessing.get_context('spawn')
         process = context.Process(target=crash_editor_worker, args=(str(self.config),))
         process.start()
@@ -322,7 +305,7 @@ class FleetDatabaseTest(unittest.TestCase):
         journal = Path(str(self.db.path) + '-journal')
         self.assertTrue(journal.is_file())
         self.assertEqual(journal.read_bytes()[:8], bytes.fromhex('d9d505f920a163d7'))
-        self.assertEqual(self.db.load(), committed)
+        self.assertEqual(self.db.load(include_pending=True), committed)
         self.assertFalse(journal.exists())
         self.assert_counts(ships=3, nation_technology=1)
 
@@ -343,9 +326,9 @@ class FleetDatabaseTest(unittest.TestCase):
         queue = context.Queue()
         self.addCleanup(queue.close)
         self.run_processes(scan_worker, [('one', queue), ('two', queue)])
-        self.assertEqual([queue.get(timeout=5), queue.get(timeout=5)], ['staged', 'staged'])
+        self.assertEqual(sorted([queue.get(timeout=5), queue.get(timeout=5)]), ['conflict', 'staged'])
         self.assertIsNone(self.db.load()['snapshot'])
-        self.assertTrue(self.db.load()['pending_changes'])
+        self.assertTrue(self.db.load(include_pending=True)['pending_changes'])
         self.assert_counts(ships=0)
 
     def test_cross_process_explicit_legacy_read_succeeds_only_once(self):
@@ -361,8 +344,8 @@ class FleetDatabaseTest(unittest.TestCase):
     def test_missing_reads_ignore_local_json_and_create_nothing(self):
         self.config.write_text('{"DockScan":{"Dock":{"Result":{"ships":[1]}}}}')
         original = self.config.read_bytes()
-        self.assertEqual(self.db.load(), self.empty())
-        self.assertEqual(self.db.load(include_import_status=True), self.empty(True))
+        self.assertEqual(self.db.load(include_pending=True), self.empty())
+        self.assertEqual(self.db.load(include_pending=True, include_import_status=True), self.empty(True))
         self.assertFalse(self.db.path.parent.exists())
         self.assertEqual(self.config.read_bytes(), original)
         self.assertEqual(self.db.path, self.config.parent / 'fleet' / 'pilot.sqlite3')
@@ -374,7 +357,7 @@ class FleetDatabaseTest(unittest.TestCase):
                   for path in self.db.path.parent.iterdir()}
         for _ in range(3):
             self.db.load()
-            self.assertFalse(self.db.load(include_import_status=True)['legacy_imported'])
+            self.assertFalse(self.db.load(include_pending=True, include_import_status=True)['legacy_imported'])
         after = {path.name: (path.read_bytes(), path.stat().st_mtime_ns)
                  for path in self.db.path.parent.iterdir()}
         self.assertEqual(before, after)
@@ -384,9 +367,9 @@ class FleetDatabaseTest(unittest.TestCase):
         observed = []
 
         def publish(source, destination, **kwargs):
-            observed.append(self.db.load())
+            observed.append(self.db.load(include_pending=True))
             original(source, destination, **kwargs)
-            observed.append(self.db.load())
+            observed.append(self.db.load(include_pending=True))
 
         with patch('module.runtime.fleet_database.os.link', side_effect=publish):
             self.seed()
@@ -403,26 +386,26 @@ class FleetDatabaseTest(unittest.TestCase):
 
         with patch.object(self.db, '_schema', side_effect=fail_schema):
             with self.assertRaisesRegex(RuntimeError, 'initialization failed'):
-                with self.db.edit():
+                with self.db._transaction():
                     pass
         self.assertFalse(self.db.path.exists())
         self.assertEqual(list(self.db.path.parent.iterdir()), [])
-        self.assertEqual(self.db.load(), self.empty())
+        self.assertEqual(self.db.load(include_pending=True), self.empty())
 
     def test_read_recovery_never_recreates_deleted_storage(self):
         error = sqlite3.OperationalError('attempt to write a readonly database')
         error.sqlite_errorcode = sqlite3.SQLITE_READONLY_ROLLBACK
         with patch.object(self.db, '_read_only', side_effect=[error, self.empty()]):
-            self.assertEqual(self.db.load(), self.empty())
+            self.assertEqual(self.db.load(include_pending=True), self.empty())
         self.assertFalse(self.db.path.parent.exists())
 
     def test_instances_have_separate_canonical_and_pending_data(self):
         other = FleetDatabase(self.config.with_name('other.json'))
         self.seed()
-        self.assertEqual(other.load(), self.empty())
+        self.assertEqual(other.load(include_pending=True), self.empty())
         other.save_scan(snapshot('other'), revision({}))
-        self.assertFalse(self.db.load()['pending_changes'])
-        self.assertTrue(other.load()['pending_changes'])
+        self.assertFalse(self.db.load(include_pending=True)['pending_changes'])
+        self.assertTrue(other.load(include_pending=True)['pending_changes'])
         self.assertIsNone(other.load()['snapshot'])
     def test_corrupt_and_unsupported_databases_are_not_reset(self):
         self.db.path.parent.mkdir()
@@ -431,7 +414,7 @@ class FleetDatabaseTest(unittest.TestCase):
         with self.assertRaises(sqlite3.DatabaseError):
             self.db.load()
         with self.assertRaises(sqlite3.DatabaseError):
-            with self.db.edit():
+            with self.db._transaction():
                 pass
         self.assertEqual(self.db.path.read_bytes(), before)
         self.db.path.unlink()
@@ -451,7 +434,7 @@ class FleetDatabaseTest(unittest.TestCase):
             connection.execute('CREATE TABLE existing (value TEXT)')
             connection.execute("INSERT INTO existing VALUES ('keep')")
         with self.assertRaisesRegex(ValueError, 'Unversioned|Unsupported.*0'):
-            with self.db.edit():
+            with self.db._transaction():
                 pass
         with closing(sqlite3.connect(self.db.path)) as connection, connection:
             self.assertEqual(connection.execute('SELECT value FROM existing').fetchone()[0], 'keep')
@@ -473,7 +456,7 @@ class FleetDatabaseTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Unsafe'):
             self.db.load()
         with self.assertRaisesRegex(ValueError, 'Unsafe'):
-            with self.db.edit():
+            with self.db._transaction():
                 pass
         self.db.path.unlink()
         self.seed()
@@ -498,7 +481,7 @@ class FleetDatabaseTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'Unsafe'):
                 self.seed()
             with self.assertRaisesRegex(ValueError, 'Unsafe'):
-                with self.db.edit():
+                with self.db._transaction():
                     pass
         self.assertEqual(list(self.db.path.parent.iterdir()), [])
 

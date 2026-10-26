@@ -12,14 +12,13 @@ from module.api.config_service import ConfigService
 from module.api.fleet_tech_service import FleetTechService
 from module.api.protocol import ApiError, FleetTechChange, FleetTechPatchParams
 from module.runtime import fleet_tech as tech
-from module.runtime import dock_data
 from module.runtime.fleet_database import FleetDatabase
 from module.runtime.mind_recognition import ScanPolicy
 from tests.test_api import fixture
 
 
 def ship(name='杜威', level=125, **kwargs):
-    return dict(name=name, level=level, review=False, excluded=False, **kwargs)
+    return dict(name=name, level=level, review=False, **kwargs)
 
 
 class FleetTechTests(unittest.TestCase):
@@ -43,71 +42,13 @@ class FleetTechTests(unittest.TestCase):
                     self.assertIsInstance(value, int)
 
     def test_missing_evidence_defaults_to_not_obtained(self):
-        row = tech.report({})['ships'][0]
+        row = tech.report({'observed': {'10102': 125}, 'manual': {'10102': {'owned': True}}})['ships'][0]
         self.assertFalse(row['owned'])
         self.assertEqual(row['status'], 'unowned')
-
-    def test_partial_scan_retirement_and_125_keep_history(self):
-        record = tech.merge_mind({}, [ship(), ship('卡辛', 95)])
-        record = tech.merge_mind(record, [ship('杜威', 100)])
-        record = tech.merge_mind(record, [])
-        self.assertEqual(record['observed']['10102'], 125)
-        row = next(row for row in tech.report(record)['ships'] if row['group_type'] == 10102)
-        self.assertEqual(row['status'], 'complete')
-        self.assertTrue(row['full_star'])
-        self.assertEqual(row['points'], 15)
-
-    def test_full_star_default_is_strictly_above_100_and_does_not_write_records(self):
-        for level, star, points, pending in [(99, None, 3, 1), (100, None, 3, 1),
-                                             (101, True, 10, 0), (120, True, 15, 0), (125, True, 15, 0)]:
-            with self.subTest(level=level):
-                record = {'observed': {'10102': level}}
-                original = copy.deepcopy(record)
-                result = tech.report(record)
-                row = next(row for row in result['ships'] if row['group_type'] == 10102)
-                self.assertIs(row['full_star'], star)
-                self.assertEqual(result['confirmed_points'], points)
-                self.assertEqual(result['pending_star'], pending)
-                self.assertEqual(record, original)
-
-    def test_full_star_default_respects_current_level_absence_and_manual_values(self):
-        cases = [
-            ({'current': {'10102': 100}}, None),
-            ({'absent': ['10102']}, False),
-            ({'manual': {'10102': {'owned': False}}}, False),
-            ({'manual': {'10102': {'level': 100}}}, None),
-            ({'manual': {'10102': {'level': 101}}}, True),
-            ({'manual': {'10102': {'full_star': False}}}, False),
-            ({'current': {'10102': 100}, 'manual': {'10102': {'full_star': True}}}, True),
-            ({'manual': {'10102': {'full_star': None}}}, True),
-        ]
-        for values, expected in cases:
-            with self.subTest(values=values):
-                record = {'observed': {'10102': 125}, **values}
-                row = tech.progress(record, 10102)
-                self.assertIs(row['full_star'], expected)
-
-    def test_uncertain_unknown_and_zero_are_ignored_but_cost_exclusion_is_not(self):
-        record = tech.merge_mind({}, [dict(ship(), review=True), ship('未来舰'), ship('卡辛', 0), dict(ship('唐斯', 95), excluded=True)])
-        self.assertEqual(record['observed'], {'10104': 95})
-
-    def test_retrofit_merges_but_ii_and_meta_are_independent(self):
-        record = tech.merge_mind({}, [ship('拉菲', 95), ship('拉菲.改', 120), ship('拉菲II'), ship('海伦娜·META')])
-        self.assertEqual(len(record['observed']), 3)
-        self.assertEqual(record['observed']['10117'], 120)
-
-    def test_manual_override_survives_sync_and_can_restore(self):
-        record = {'manual': {'10102': {'owned': False}}}
-        original = copy.deepcopy(record)
-        merged = tech.merge_mind(record, [ship()])
-        row = next(row for row in tech.report(merged)['ships'] if row['group_type'] == 10102)
-        self.assertFalse(row['owned'])
-        self.assertEqual(record, original)
-        merged['manual'].pop('10102')
-        self.assertEqual(tech.report(merged)['completed'], 1)
+        self.assertFalse(tech.progress({'observed': {'10102': 125}}, 10102)['owned'])
 
     def test_multiple_target_subtypes_do_not_triple_bonus(self):
-        record = tech.merge_mind({}, [ship()])
+        record = {'progress': {'10102': {'owned': True, 'full_star': True, 'lv120': True}}}
         result = tech.report(record)
         self.assertEqual(result['bonuses']['1']['1'], 2)
         record['nations'] = {'1': 1}
@@ -116,8 +57,8 @@ class FleetTechTests(unittest.TestCase):
         record['nations']['1'] = 2
         self.assertEqual(tech.report(record)['bonuses']['7']['5'], 1)
 
-    def test_new_catalog_ships_start_unknown_without_mutating_records(self):
-        record = tech.merge_mind({}, [ship()])
+    def test_new_catalog_ships_start_incomplete_without_mutating_records(self):
+        record = {'progress': {'10102': {'owned': True, 'full_star': True, 'lv120': True}}}
         original = copy.deepcopy(record)
         data = copy.deepcopy(tech.catalog())
         row = dict(data['ships'][0], group_type=99999999)
@@ -128,35 +69,17 @@ class FleetTechTests(unittest.TestCase):
 
     def test_service_transactions_conflicts_restore_and_instance_isolation(self):
         with tempfile.TemporaryDirectory() as directory:
-            root = fixture(directory)
-            configs = ConfigService(root)
-            (root / 'config/second.json').write_text(configs.path('testpilot').read_text(encoding='utf-8'), encoding='utf-8')
+            configs = ConfigService(fixture(directory))
+            (configs.path('testpilot').parent / 'second.json').write_bytes(configs.path('testpilot').read_bytes())
             service = FleetTechService(configs)
             initial = service.report('testpilot')
-            self.assertEqual((initial['min_level'], initial['max_level']), (1, 125))
             updated = service.patch('testpilot', initial['revision'], [FleetTechChange(group_type=10102, owned=False)], {})
             with self.assertRaises(ApiError) as error:
                 service.patch('testpilot', initial['revision'], [FleetTechChange(group_type=10102, owned=True)], {})
             self.assertEqual(error.exception.code, 'CONFLICT')
-            database = FleetDatabase(configs.path('testpilot'))
-            snapshot = dock_data.build_snapshot([dict(ship(), group_type=10102)], min_level=1, max_level=125,
-                reached_bottom=True, filters_clear=True, physical_count=1, expected_count=1, updated_at='fixture')
-            database.save_scan(snapshot, dock_data.read_snapshot(database.load())['revision'])
-            pending = database.load()
-            self.assertEqual(pending['snapshot']['ships'], [])
-            database.review([dict(id=row['id'], accept=True) for row in pending['pending_changes']],
-                            dock_data.read_snapshot(pending)['revision'], pending['pending_revision'])
-            service.sync_mind('testpilot')
-            row = next(row for row in service.report('testpilot')['ships'] if row['group_type'] == 10102)
-            self.assertFalse(row['owned'])
-            self.assertNotEqual(updated['revision'], service.report('testpilot')['revision'])
+            updated = service.patch('testpilot', updated['revision'], [FleetTechChange(group_type=10102, owned=True)], {})
+            self.assertTrue(next(row for row in updated['ships'] if row['group_type'] == 10102)['owned'])
             self.assertEqual(service.report('second')['completed'], 0)
-            current = service.report('testpilot')
-            restored = service.patch('testpilot', current['revision'], [FleetTechChange(group_type=10102, restore=True)], {'1': 0})
-            self.assertEqual(restored['completed'], 1)
-            self.assertTrue(next(row for row in restored['ships'] if row['group_type'] == 10102)['full_star'])
-            self.assertEqual(service.sync_mind('testpilot')['revision'], restored['revision'])
-            self.assertEqual(database.load()['snapshot']['ships'][0]['level'], 125)
 
     def test_invalid_patch_does_not_write_any_partial_change(self):
         schema = FleetTechChange.model_json_schema()
@@ -169,12 +92,14 @@ class FleetTechTests(unittest.TestCase):
             with self.assertRaises(ApiError):
                 service.patch('testpilot', initial['revision'], [FleetTechChange(group_type=10102, owned=True)], {'1': 100})
             self.assertEqual(before, configs.path('testpilot').read_bytes())
-            for change in [{'group_type': 10102, 'level': 0}, {'group_type': True}, {'group_type': 10102, 'level': 126}]:
-                with self.assertRaises(ValidationError): FleetTechChange.model_validate(change)
+            for change in [{'group_type': 10102, 'level': 0}, {'group_type': True}, {'group_type': 10102, 'level': 126},
+                           *({'group_type': 10102, key: None} for key in tech.MILESTONES)]:
+                with self.assertRaises(ValidationError):
+                    FleetTechChange.model_validate(change)
             with self.assertRaises(ValidationError):
                 FleetTechPatchParams.model_validate({'instance': 'testpilot', 'revision': 'a' * 64, 'nations': {'1': True}})
 
-    def test_saved_scan_range_is_preserved(self):
+    def test_saved_scan_range_belongs_to_dock_report(self):
         with tempfile.TemporaryDirectory() as directory:
             root = fixture(directory)
             path = root / 'config/testpilot.json'
@@ -182,8 +107,13 @@ class FleetTechTests(unittest.TestCase):
             data['DockScan']['Dock']['MinLevel'] = 90
             data['DockScan']['Dock']['MaxLevel'] = 120
             path.write_text(json.dumps(data), encoding='utf-8')
-            result = FleetTechService(ConfigService(root)).report('testpilot')
+            from module.api.dock_service import DockService
+            configs = ConfigService(root)
+            result = DockService(configs).report('testpilot')
             self.assertEqual((result['min_level'], result['max_level']), (90, 120))
+            technology = FleetTechService(configs).report('testpilot')
+            self.assertNotIn('min_level', technology)
+            self.assertNotIn('max_level', technology)
             self.assertEqual((ScanPolicy().min_level, ScanPolicy().max_level), (95, 125))
 
     def test_router_contract_and_read_only_guards(self):
@@ -201,7 +131,6 @@ class FleetTechTests(unittest.TestCase):
             self.assertFalse(row['lv120'])
             with patch.dict('os.environ', {'DEMO': '1'}):
                 self.assertTrue(router.dispatch('fleetTech.catalog', {'instance': 'testpilot'})['ships'])
-                self.assertEqual(router.dispatch('fleetTech.syncMind', {'instance': 'testpilot'}), updated)
             with self.assertRaises(ApiError) as error:
                 configs.patch('testpilot', configs.get('testpilot')['revision'], [ConfigChange(path='FleetTechScan.FleetTech.Record', value={})])
             self.assertEqual(error.exception.code, 'READ_ONLY')
@@ -210,7 +139,7 @@ class FleetTechTests(unittest.TestCase):
         """使用真实配置 save，模拟扫描中途另一客户端写入人工校正。"""
         from contextlib import ExitStack
         from module.config.config import AzurLaneConfig
-        from module.retire.fleet_tech_scan import FleetTechScan
+        from module.retire.dock_scan import DockScan
         from module.retire.assets import DOCK_SEARCH_CLOSED
         with tempfile.TemporaryDirectory() as directory, ExitStack() as stack:
             configs = ConfigService(fixture(directory))
@@ -225,7 +154,7 @@ class FleetTechTests(unittest.TestCase):
             config = AzurLaneConfig('testpilot')
             config.data = configs.read('testpilot')[0]
             config._loaded_data = copy.deepcopy(config.data)
-            runner = object.__new__(FleetTechScan)
+            runner = object.__new__(DockScan)
             runner.config = config
             runner.device = SimpleNamespace(image=None)
             runner._close_search = lambda: None
@@ -244,10 +173,10 @@ class FleetTechTests(unittest.TestCase):
             from module.exception import MindCalculatorScanError
             with self.assertRaises(MindCalculatorScanError):
                 runner.run()
-            saved = FleetDatabase(path).load()
+            saved = FleetDatabase(path).load(include_pending=True)
             self.assertEqual(saved['snapshot']['ships'], [])
             self.assertEqual(saved['pending_changes'], [])
-            self.assertFalse(saved['technology']['manual']['10102']['owned'])
+            self.assertFalse(saved['technology']['progress']['10102']['owned'])
 
     def test_extractor_parses_nested_faction_bonuses_and_rejects_duplicate_groups(self):
         from dev_tools.ship_data_extractor import extract_fleet_tech
@@ -264,10 +193,12 @@ class FleetTechTests(unittest.TestCase):
             result = extract_fleet_tech('fixture')
             self.assertEqual(result['nations']['1'][0], [[[6, 7], 5, 1]])
             fixtures['fleet_tech_template.lua'][1001]['add'] = ['{ {6, 7}, 5, "invalid" }']
-            with self.assertRaises(ValueError): extract_fleet_tech('fixture')
+            with self.assertRaises(ValueError):
+                extract_fleet_tech('fixture')
             fixtures['fleet_tech_template.lua'][1001]['add'] = ['{ {6, 7}, 5, 1 }']
             fixtures['ship_data_group.lua'][5] = dict(fixtures['ship_data_group.lua'][4])
-            with self.assertRaises(ValueError): extract_fleet_tech('fixture')
+            with self.assertRaises(ValueError):
+                extract_fleet_tech('fixture')
 
 
 if __name__ == '__main__':

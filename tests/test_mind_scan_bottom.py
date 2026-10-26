@@ -8,8 +8,7 @@ import numpy as np
 from PIL import Image
 
 from module.retire.dock import DOCK_SCROLL
-from module.retire.fleet_tech_scan import FleetTechScan
-from module.retire.mind_scan import MindCalculatorScan
+from module.retire.dock_scan import DockScan
 from module.runtime.mind_recognition import ScanPolicy, grid_rows, recognize_cards
 from module.runtime.mind_calculator import highest_ships
 from tests.test_mind_scan import cards_for_levels
@@ -18,7 +17,7 @@ FIXTURES = Path(__file__).parent / 'fixtures'
 
 
 class NativeBottomTests(unittest.TestCase):
-    def scanner(self, task=MindCalculatorScan, strip=None):
+    def scanner(self, task=DockScan, strip=None):
         scanner = task.__new__(task)
         pixels = np.array(Image.open(FIXTURES / 'mind_dock_bottom.png').convert('RGB'))
         if strip is not None:
@@ -27,8 +26,8 @@ class NativeBottomTests(unittest.TestCase):
         scanner.device = SimpleNamespace(image=pixels)
         return scanner
 
-    def test_both_tasks_confirm_connected_native_bottom_cap_without_extending_thumb(self):
-        for task in (MindCalculatorScan, FleetTechScan):
+    def test_scanner_confirms_connected_native_bottom_cap_without_extending_thumb(self):
+        for task in (DockScan,):
             scanner = self.scanner(task)
             thumb = scanner._dock_scroll_thumb()
             self.assertEqual((thumb[0], thumb[-1], DOCK_SCROLL.total), (488, 562, 565))

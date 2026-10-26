@@ -11,9 +11,8 @@ import numpy as np
 from PIL import Image
 
 from module.exception import GameStuckError, MindCalculatorScanError
-from module.retire.mind_scan import MindCalculatorScan
+from module.retire.dock_scan import DockScan
 from module.retire.scanner import FleetScanner
-from module.runtime.mind_calculator import calculate
 from module.runtime.mind_recognition import (ScanMerger, ScanPolicy, _has_name_ellipsis, _match_name, _name_image,
                                            fleet_status, grid_rows, recognize_cards)
 from tests.test_mind_scan import FIXTURES, cards_for_levels
@@ -91,7 +90,7 @@ class ScanEvidenceCleanupTests(unittest.TestCase):
             protected = [current, current.with_suffix('.json'), other, root / 'manual.png', log_root / 'alas.txt']
             for path in [old, old.with_suffix('.json'), *protected]:
                 path.write_text('保留测试内容', encoding='utf-8')
-            scanner = MindCalculatorScan.__new__(MindCalculatorScan)
+            scanner = DockScan.__new__(DockScan)
             scanner.config = SimpleNamespace(config_name='testpilot')
             scanner._scan_evidence_paths = {current.resolve()}
             with patch('module.retire.dock_scan.logger.log_file', str(log_root / 'alas.txt')):
@@ -101,7 +100,7 @@ class ScanEvidenceCleanupTests(unittest.TestCase):
             self.assertTrue(all(path.exists() for path in protected))
 
     def test_authorized_diagnostics_preserve_all_rounds(self):
-        scanner = MindCalculatorScan.__new__(MindCalculatorScan)
+        scanner = DockScan.__new__(DockScan)
         with patch('module.retire.dock_scan.Path.is_file', return_value=True), \
                 patch('module.retire.dock_scan.Path.iterdir') as files:
             scanner._prune_scan_evidence()
@@ -115,7 +114,7 @@ class ScanEvidenceCleanupTests(unittest.TestCase):
             protected.mkdir()
             image = protected / '1791971000000000000.png'
             image.write_text('不能删除', encoding='utf-8')
-            scanner = MindCalculatorScan.__new__(MindCalculatorScan)
+            scanner = DockScan.__new__(DockScan)
             scanner.config = SimpleNamespace(config_name='../../protected')
             with patch('module.retire.dock_scan.logger.log_file', str(log_root / 'alas.txt')):
                 scanner._prune_scan_evidence()
@@ -138,7 +137,6 @@ class NamePhaseRegressionTests(unittest.TestCase):
             self.assertEqual(card.ship['rarity'], expected)
             self.assertEqual(card.ship['base_rarity'], '')
             self.assertTrue(card.ship['review'])
-            self.assertEqual(calculate([card.ship])['mind'], 0)
 
     def test_real_ryujo_phases_and_verified_retrofit_punctuation(self):
         pixels = np.array(Image.open(FIXTURES / 'mind_ryujo_phase.png').convert('RGB'))
@@ -253,7 +251,7 @@ class ScrollThumbRegressionTests(unittest.TestCase):
         self.scroll = DOCK_SCROLL
         self.strip = np.array(Image.open(FIXTURES / 'mind_dock_scroll_gap.png').convert('RGB'))
 
-    def scanner(self, scanner_type=MindCalculatorScan, strip=None):
+    def scanner(self, scanner_type=DockScan, strip=None):
         scanner = scanner_type.__new__(scanner_type)
         pixels = np.zeros((720, 1280, 3), np.uint8)
         x1, y1, x2, y2 = self.scroll.area
@@ -261,12 +259,12 @@ class ScrollThumbRegressionTests(unittest.TestCase):
         scanner.device = SimpleNamespace(image=pixels)
         return scanner
 
-    def test_real_threshold_tie_is_accepted_by_both_scan_tasks(self):
-        from module.retire.fleet_tech_scan import FleetTechScan
+    def test_real_threshold_tie_is_accepted_by_scan_task(self):
+        from module.retire.dock_scan import DockScan
         from module.base.utils import color_similarity_2d
         self.assertEqual(np.max(color_similarity_2d(self.strip[78:79], color=self.scroll.color)),
                          self.scroll.color_threshold)
-        for task in (MindCalculatorScan, FleetTechScan):
+        for task in (DockScan,):
             with self.subTest(task=task.__name__):
                 scanner = self.scanner(task)
                 strict = np.flatnonzero(self.scroll.match_color(scanner))
@@ -322,7 +320,7 @@ class ScrollThumbRegressionTests(unittest.TestCase):
 class ScanLoopRegressionTests(unittest.TestCase):
     def setUp(self):
         from tests.test_mind_calculator import RecognitionTests
-        self.scanner = MindCalculatorScan.__new__(MindCalculatorScan)
+        self.scanner = DockScan.__new__(DockScan)
         self.scanner.config = SimpleNamespace(Emulator_ControlMethod='MaaTouch', config_name='testpilot')
         self.scanner.device = Mock()
         self.scanner.appear = Mock(return_value=True)
@@ -365,7 +363,7 @@ class ScanLoopRegressionTests(unittest.TestCase):
                   else [94 - page] * 21)
         cards = cards_for_levels(levels, fleet=int(page == 0))
         for index, card in enumerate(cards):
-            card.ship.update(name=f'测试舰{page}-{index}', base_rarity='SR', excluded=False)
+            card.ship.update(name=f'测试舰{page}-{index}', base_rarity='SR')
         if page == 0:
             if self.kind == 'corrected_order' and self.page_calls[page] == 1 or self.kind == 'order':
                 cards[11].fleet = 0
@@ -477,7 +475,6 @@ class ScanLoopRegressionTests(unittest.TestCase):
                 if kind == 'level':
                     unknown = [ship for ship in ships if ship['level'] == 0]
                     self.assertEqual(len(unknown), 1)
-                    self.assertEqual(calculate(unknown)['mind'], 0)
 
     def test_continuously_unstable_frames_have_a_deadline(self):
         self.scanner._stable_pixels = Mock(side_effect=lambda _: np.full((2, 2), self.captures % 2 * 255, np.uint8))

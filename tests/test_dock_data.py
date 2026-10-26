@@ -5,7 +5,6 @@ import unittest
 from module.api.protocol import MindShip
 from module.runtime import dock_data as dock
 from module.runtime import fleet_tech as tech
-from module.runtime.mind_calculator import calculate
 
 
 def ship(gid=10102, level=105, **extra):
@@ -28,21 +27,23 @@ class DockDataTests(unittest.TestCase):
         self.assertEqual(rows, before)
         self.assertEqual(len(result['ships']), 2)
         self.assertEqual([row['slot'] for row in result['ships']], [0, 1])
-        self.assertEqual(result['history']['current'], {'10102': 120})
         self.assertTrue(result['complete'])
-        self.assertEqual(set(result['history']), {'observed', 'current', 'absent'})
+        self.assertEqual(result['review_count'], 0)
+        self.assertNotIn('history', result)
 
-    def test_范围和缺失证明不能降低历史(self):
-        previous = snapshot([ship(level=125)])
+    def test_完整扫描需要全范围无过滤无疑点且数量吻合(self):
         for extra in [dict(min_level=95), dict(filters_clear=False), dict(reached_bottom=False),
                       dict(expected_count=None), dict(physical_count=2)]:
             with self.subTest(extra=extra):
-                result = snapshot([ship(level=105)], previous=previous, **extra)
+                result = snapshot([ship(level=105)], **extra)
                 self.assertFalse(result['complete'])
-                self.assertEqual(result['history']['current']['10102'], 125)
-        result = snapshot([ship(level=105)], previous=previous)
-        self.assertEqual(result['history']['current']['10102'], 105)
-        self.assertEqual(result['history']['observed']['10102'], 125)
+                self.assertNotIn('history', result)
+        for uncertain in [dict(ship(), review=True), ship(gid=None), dict(ship(), level=0)]:
+            with self.subTest(uncertain=uncertain):
+                result = snapshot([uncertain])
+                self.assertFalse(result['complete'])
+                self.assertEqual(result['review_count'], 1)
+        self.assertTrue(snapshot([ship(level=105)])['complete'])
 
     def test_旧配置全部忽略且显式空快照有效(self):
         data = {
@@ -63,54 +64,32 @@ class DockDataTests(unittest.TestCase):
         self.assertEqual(dock.report_snapshot(data)['ships'], [])
         self.assertEqual(dock.report_snapshot(data)['source'], 'scan')
 
-    def test_心智限定名及特殊船排除不改变共享源(self):
-        result = snapshot([ship(30507), ship(30702), ship(10220)])
-        before = copy.deepcopy(result)
-        rows = dock.mind_ships(result)
-        for row in rows:
-            MindShip.model_validate(row)
-        self.assertEqual([row['name'] for row in rows[:2]], ['加贺（战列）', '加贺（正航）'])
-        report = calculate(rows)
-        self.assertEqual((report['included'], report['excluded']), (2, 1))
-        self.assertEqual(result, before)
 
     def test_科技合并保留人工阵营且只读(self):
-        previous = snapshot([ship(10103, 125)])
-        current = snapshot([ship()], min_level=95, previous=previous)
-        options = dict(manual={'10102': {'owned': False}}, nations={'1': 3})
+        current = snapshot([dict(ship(), id=1)])
+        options = dict(progress={'10102': dict(owned=False, full_star=False, lv120=False)}, nations={'1': 3})
         data = dict(snapshot=current, technology=options, mind={})
         before = copy.deepcopy(data)
         record = dock.technology_record(data)
-        self.assertEqual(record['manual'], options['manual'])
         self.assertEqual(record['nations'], options['nations'])
-        self.assertEqual(record['observed']['10103'], 125)
-        self.assertFalse(tech.progress(record, 10102)['owned'])
+        state = tech.progress(record, 10102)
+        self.assertFalse(state['owned'])
+        self.assertEqual(state['current_count'], 1)
+        self.assertFalse(tech.progress(record, 10103)['owned'])
         self.assertEqual(data, before)
 
     def test_无快照仍读取独立人工设置且默认全范围(self):
-        data = dict(snapshot=None, mind={}, technology={'manual': {'10102': {'owned': True}}})
+        data = dict(snapshot=None, mind={}, technology={'progress': {'10102': {'owned': True}}})
         self.assertTrue(tech.progress(dock.technology_record(data), 10102)['owned'])
         report = dock.report_snapshot(data)
         self.assertEqual((report['min_level'], report['max_level'], report['source']), (1, 125, 'empty'))
 
-    def test_局部扫描继承自动历史且不携带人工字段(self):
-        previous = snapshot([ship(level=125)])
-        result = snapshot([ship(level=105)], min_level=95, previous=previous)
-        self.assertEqual(result['history']['current']['10102'], 125)
-        self.assertFalse({'manual', 'nations', 'last_scan'} & result['history'].keys())
-        self.assertEqual(dock.technology_record({'snapshot': result})['current']['10102'], 125)
-
-    def test_心智合并确认副本而疑点卡位保持独立(self):
-        rows = [ship(level=105), ship(level=120), ship(None, 0), ship(None, 0)]
-        rows[2]['review'] = rows[3]['review'] = True
-        result = snapshot(rows)
-        projected = dock.mind_ships(result)
-        self.assertEqual(len(result['ships']), 4)
-        self.assertEqual(len(projected), 3)
-        self.assertEqual(projected[0]['level'], 120)
-        self.assertEqual(sum(row['review'] for row in projected), 2)
+    def test_局部扫描只提供本次卡片且不派生科技历史(self):
+        result = snapshot([ship(level=105)], min_level=95)
+        self.assertEqual(result['ships'][0]['level'], 105)
         self.assertFalse(result['complete'])
-        self.assertEqual(result['review_count'], 2)
+        self.assertNotIn('history', result)
+        self.assertFalse(tech.progress(dock.technology_record({'snapshot': result}), 10102)['owned'])
 
 
 if __name__ == '__main__':

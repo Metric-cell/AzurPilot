@@ -508,9 +508,31 @@
                 ],
                 "title": "Extra Exp"
               },
-              "excluded": {
-                "title": "Excluded",
-                "type": "boolean"
+              "full_star": {
+                "anyOf": [
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Full Star"
+              },
+              "form": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "base",
+                      "retrofit"
+                    ],
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Form"
               },
               "review": {
                 "title": "Review",
@@ -556,6 +578,118 @@
           "changes"
         ],
         "title": "DockPatchParams",
+        "type": "object"
+      }
+    },
+    "dock.stageImport": {
+      "mutates": true,
+      "params": {
+        "$defs": {
+          "MindShip": {
+            "additionalProperties": false,
+            "description": "导入的舰船字段与核对状态。",
+            "properties": {
+              "name": {
+                "maxLength": 100,
+                "minLength": 1,
+                "title": "Name",
+                "type": "string"
+              },
+              "level": {
+                "maximum": 125,
+                "minimum": 0,
+                "title": "Level",
+                "type": "integer"
+              },
+              "rarity": {
+                "default": "",
+                "enum": [
+                  "",
+                  "N",
+                  "R",
+                  "SR",
+                  "SSR",
+                  "UR"
+                ],
+                "title": "Rarity",
+                "type": "string"
+              },
+              "base_rarity": {
+                "default": "",
+                "enum": [
+                  "",
+                  "N",
+                  "R",
+                  "SR",
+                  "SSR",
+                  "UR"
+                ],
+                "title": "Base Rarity",
+                "type": "string"
+              },
+              "extra_exp": {
+                "anyOf": [
+                  {
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "default": null,
+                "title": "Extra Exp"
+              },
+              "review": {
+                "default": false,
+                "title": "Review",
+                "type": "boolean"
+              },
+              "source": {
+                "default": "",
+                "maxLength": 200,
+                "title": "Source",
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "level"
+            ],
+            "title": "MindShip",
+            "type": "object"
+          }
+        },
+        "additionalProperties": false,
+        "properties": {
+          "instance": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Instance",
+            "type": "string"
+          },
+          "revision": {
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Revision",
+            "type": "string"
+          },
+          "ships": {
+            "items": {
+              "$ref": "#/$defs/MindShip"
+            },
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Ships",
+            "type": "array"
+          }
+        },
+        "required": [
+          "instance",
+          "revision",
+          "ships"
+        ],
+        "title": "DockStageImportParams",
         "type": "object"
       }
     },
@@ -699,23 +833,28 @@
         "type": "object"
       }
     },
-    "fleetTech.syncMind": {
-      "mutates": false,
+    "fleetTech.mergeShips": {
+      "mutates": true,
       "params": {
         "additionalProperties": false,
-        "description": "单实例操作通用入参模型。",
+        "description": "带版本校验的请求参数模型。",
         "properties": {
           "instance": {
             "maxLength": 64,
             "minLength": 1,
             "title": "Instance",
             "type": "string"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "string"
           }
         },
         "required": [
-          "instance"
+          "instance",
+          "revision"
         ],
-        "title": "InstanceParams",
+        "title": "RevisionParams",
         "type": "object"
       }
     },
@@ -725,7 +864,7 @@
         "$defs": {
           "FleetTechChange": {
             "additionalProperties": false,
-            "description": "只修改明确提供的人工字段；恢复自动记录使用独立标记。",
+            "description": "只修改明确提供的人工字段；科技里程碑仅接受完成或未完成。",
             "properties": {
               "group_type": {
                 "minimum": 1,
@@ -733,81 +872,20 @@
                 "type": "integer"
               },
               "owned": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Owned"
-              },
-              "full_star": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Full Star"
-              },
-              "lv120": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Lv120"
-              },
-              "level": {
-                "anyOf": [
-                  {
-                    "maximum": 125,
-                    "minimum": 1,
-                    "type": "integer"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Level"
-              },
-              "restore": {
-                "title": "Restore",
+                "title": "Owned",
                 "type": "boolean"
               },
-              "toggle": {
-                "anyOf": [
-                  {
-                    "enum": [
-                      "owned",
-                      "complete",
-                      "star"
-                    ],
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Toggle"
+              "full_star": {
+                "title": "Full Star",
+                "type": "boolean"
               },
-              "target": {
-                "anyOf": [
-                  {
-                    "type": "boolean"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "title": "Target"
+              "lv120": {
+                "title": "Lv120",
+                "type": "boolean"
+              },
+              "awakening_pending": {
+                "title": "Awakening Pending",
+                "type": "boolean"
               }
             },
             "required": [
@@ -863,222 +941,47 @@
         "type": "object"
       }
     },
-    "mind.report": {
+    "mind.plan": {
       "mutates": false,
       "params": {
         "additionalProperties": false,
-        "description": "单实例操作通用入参模型。",
         "properties": {
           "instance": {
             "maxLength": 64,
             "minLength": 1,
             "title": "Instance",
             "type": "string"
-          }
-        },
-        "required": [
-          "instance"
-        ],
-        "title": "InstanceParams",
-        "type": "object"
-      }
-    },
-    "mind.calculate": {
-      "mutates": false,
-      "params": {
-        "$defs": {
-          "MindShip": {
-            "additionalProperties": false,
-            "description": "可编辑的舰船字段，核对状态与排除状态独立保存。",
-            "properties": {
-              "name": {
-                "maxLength": 100,
-                "minLength": 1,
-                "title": "Name",
-                "type": "string"
-              },
-              "level": {
-                "maximum": 125,
-                "minimum": 0,
-                "title": "Level",
-                "type": "integer"
-              },
-              "rarity": {
-                "default": "",
-                "enum": [
-                  "",
-                  "N",
-                  "R",
-                  "SR",
-                  "SSR",
-                  "UR"
-                ],
-                "title": "Rarity",
-                "type": "string"
-              },
-              "base_rarity": {
-                "default": "",
-                "enum": [
-                  "",
-                  "N",
-                  "R",
-                  "SR",
-                  "SSR",
-                  "UR"
-                ],
-                "title": "Base Rarity",
-                "type": "string"
-              },
-              "excluded": {
-                "default": false,
-                "title": "Excluded",
-                "type": "boolean"
-              },
-              "review": {
-                "default": false,
-                "title": "Review",
-                "type": "boolean"
-              },
-              "source": {
-                "default": "",
-                "maxLength": 200,
-                "title": "Source",
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "level"
-            ],
-            "title": "MindShip",
-            "type": "object"
-          }
-        },
-        "additionalProperties": false,
-        "properties": {
-          "instance": {
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Instance",
-            "type": "string"
-          },
-          "ships": {
-            "items": {
-              "$ref": "#/$defs/MindShip"
-            },
-            "maxItems": 5000,
-            "title": "Ships",
-            "type": "array"
-          }
-        },
-        "required": [
-          "instance",
-          "ships"
-        ],
-        "title": "MindCalculateParams",
-        "type": "object"
-      }
-    },
-    "mind.save": {
-      "mutates": true,
-      "params": {
-        "$defs": {
-          "MindShip": {
-            "additionalProperties": false,
-            "description": "可编辑的舰船字段，核对状态与排除状态独立保存。",
-            "properties": {
-              "name": {
-                "maxLength": 100,
-                "minLength": 1,
-                "title": "Name",
-                "type": "string"
-              },
-              "level": {
-                "maximum": 125,
-                "minimum": 0,
-                "title": "Level",
-                "type": "integer"
-              },
-              "rarity": {
-                "default": "",
-                "enum": [
-                  "",
-                  "N",
-                  "R",
-                  "SR",
-                  "SSR",
-                  "UR"
-                ],
-                "title": "Rarity",
-                "type": "string"
-              },
-              "base_rarity": {
-                "default": "",
-                "enum": [
-                  "",
-                  "N",
-                  "R",
-                  "SR",
-                  "SSR",
-                  "UR"
-                ],
-                "title": "Base Rarity",
-                "type": "string"
-              },
-              "excluded": {
-                "default": false,
-                "title": "Excluded",
-                "type": "boolean"
-              },
-              "review": {
-                "default": false,
-                "title": "Review",
-                "type": "boolean"
-              },
-              "source": {
-                "default": "",
-                "maxLength": 200,
-                "title": "Source",
-                "type": "string"
-              }
-            },
-            "required": [
-              "name",
-              "level"
-            ],
-            "title": "MindShip",
-            "type": "object"
-          }
-        },
-        "additionalProperties": false,
-        "properties": {
-          "instance": {
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Instance",
-            "type": "string"
-          },
-          "ships": {
-            "items": {
-              "$ref": "#/$defs/MindShip"
-            },
-            "maxItems": 5000,
-            "title": "Ships",
-            "type": "array"
           },
           "revision": {
             "maxLength": 64,
             "minLength": 64,
             "title": "Revision",
             "type": "string"
+          },
+          "ship_ids": {
+            "items": {
+              "type": "integer"
+            },
+            "maxItems": 5000,
+            "title": "Ship Ids",
+            "type": "array"
+          },
+          "target_level": {
+            "default": 120,
+            "enum": [
+              120,
+              125
+            ],
+            "title": "Target Level",
+            "type": "integer"
           }
         },
         "required": [
           "instance",
-          "ships",
-          "revision"
+          "revision",
+          "ship_ids"
         ],
-        "title": "MindSaveParams",
+        "title": "CultivationParams",
         "type": "object"
       }
     },
@@ -1145,35 +1048,6 @@
           "content"
         ],
         "title": "MindFileParams",
-        "type": "object"
-      }
-    },
-    "mind.export": {
-      "mutates": false,
-      "params": {
-        "additionalProperties": false,
-        "properties": {
-          "instance": {
-            "maxLength": 64,
-            "minLength": 1,
-            "title": "Instance",
-            "type": "string"
-          },
-          "format": {
-            "default": "xlsx",
-            "enum": [
-              "json",
-              "csv",
-              "xlsx"
-            ],
-            "title": "Format",
-            "type": "string"
-          }
-        },
-        "required": [
-          "instance"
-        ],
-        "title": "MindExportParams",
         "type": "object"
       }
     },

@@ -10,16 +10,15 @@ from unittest.mock import Mock, patch
 
 import numpy as np
 from PIL import Image
-from openpyxl import Workbook, load_workbook
+from openpyxl import Workbook
 
 from module.api.config_service import ConfigService
 from module.api.dock_service import DockService
-from module.runtime.fleet_database import FleetDatabase
+from module.runtime.fleet_database import FleetDatabase, FleetDatabaseConflict
 from module.runtime import dock_data, mind_calculator
 from module.api.mind_calculator_service import MindCalculatorService, import_ships
-from module.api.protocol import ApiError, MindCalculateParams, MindShip
-from module.api.router import Router
-from module.runtime.mind_calculator import MIND_COSTS, calculate, catalog, detect_rows, highest_ships, recognize
+from module.api.protocol import ApiError, MindShip
+from module.runtime.mind_calculator import catalog, highest_ships, recognize
 from module.runtime.mind_recognition import Card, ScanMerger, color_rows, estimate_scroll, level_vote, recognize_cards
 from tests.test_api import fixture
 
@@ -33,112 +32,14 @@ def encoded(raw):
 
 
 class CalculatorTests(unittest.TestCase):
-    def test_all_rarities_and_stage_boundaries(self):
-        for rarity, costs in MIND_COSTS.items():
-            for level, start in [(1, 0), (99, 0), (100, 0), (101, 1), (105, 1), (106, 2),
-                                 (110, 2), (111, 3), (115, 3), (116, 4), (119, 4), (120, 4), (125, 4)]:
-                with self.subTest(rarity=rarity, level=level):
-                    result = calculate([ship(level=level, rarity=rarity)])
-                    self.assertEqual(result['mind'], sum(costs[start:]))
-                    self.assertEqual(result['gold'], sum(costs[start:]) * 10)
-                    self.assertEqual(result['included'], 1)
 
-    def test_retrofit_merge_meta_and_exclusions(self):
-        result = calculate([ship('拉菲', 100), ship('拉菲.改', 106), ship('皇家方舟', 110),
-                            ship('皇家方舟·META', 100), ship('小企业'), ship('光辉(μ兵装)'),
-                            ship('人工排除', excluded=True)])
-        self.assertEqual(result['included'], 3)
-        self.assertEqual(result['merged'], 1)
-        self.assertEqual(result['excluded'], 3)
-        row = result['ships'][1]
-        self.assertEqual(row['base_rarity'], 'SR')
-        self.assertEqual(row['mind'], 960)
-        self.assertNotEqual(result['ships'][2]['base_name'], result['ships'][3]['name'])
-
-    def test_unknown_retrofit_and_review_never_silently_billed(self):
-        result = calculate([ship('未来舰.改'), ship('未来舰', review=True), ship('零等级', level=0)])
-        self.assertEqual(result['mind'], 0)
-        self.assertEqual(result['review'], 3)
-        self.assertEqual(calculate([ship('未来舰.改', base_rarity='R')])['mind'], 880)
-
-    def test_explicit_original_rarity_overrides_catalog_without_changing_identity(self):
-        default = calculate([ship('皇家财富号')])
-        override = calculate([ship('皇家财富号', base_rarity='SR')])
-        self.assertEqual(default['mind'], 2200)
-        self.assertEqual(override['mind'], 1320)
-        self.assertEqual(override['ships'][0]['rarity'], 'SSR')
-        self.assertEqual(override['ships'][0]['base_rarity'], 'SR')
-        self.assertEqual(override['summary'][2]['count'], 1)
-        self.assertEqual(override['summary'][1]['count'], 0)
 
     def test_public_catalog_integrity(self):
         for name, info in catalog()['ships'].items():
             self.assertEqual(name, info['name'])
-            self.assertIn(info['base_rarity'], MIND_COSTS)
+            self.assertIn(info['base_rarity'], ('N', 'R', 'SR', 'SSR', 'UR'))
         self.assertGreater(len(catalog()['ships']), 800)
 
-    def test_shared_catalog_preserves_base_rarity_and_separate_identities(self):
-        def record(name, **kwargs):
-            return dict(name={'cn': name}, rarity_name='SSR', nationality=1,
-                        group_type=1, star_max=6, is_retrofit=False,
-                        retrofit_base_id=None, type_name='驱逐', **kwargs)
-
-        data = {'10': record('测试舰', retrofit_names=['测试舰·改']),
-                '20': record('测试舰II'), '30': record('测试舰.META'),
-                '40': record('测试舰.改'), '50': record('测试舰')}
-        data['20']['group_type'] = 2
-        data['30'].update(nationality=97, group_type=3)
-        data['40'].update(is_retrofit=True, retrofit_base_id=10)
-        data['50']['rarity_name'] = 'UR'
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / 'ship_data.json'
-            path.write_text(json.dumps(data), encoding='utf-8')
-            catalog.cache_clear()
-            try:
-                with patch('module.runtime.mind_calculator.SHIP_DATA_FILE', path):
-                    result = calculate([ship('测试舰'), ship('测试舰·改', 106),
-                                        ship('测试舰II'), ship('测试舰·META')])
-                    self.assertEqual(result['included'], 3)
-                    self.assertEqual(result['ships'][1]['base_rarity'], 'SSR')
-                    self.assertEqual(result['ships'][1]['rarity'], 'UR')
-                    self.assertEqual(result['ships'][1]['mind'], 1600)
-                    self.assertEqual(catalog()['ships']['测试舰.改']['base_name'], '测试舰')
-                    self.assertEqual(catalog()['ships']['测试舰']['rarity'], 'SSR')
-            finally:
-                catalog.cache_clear()
-
-    def test_small_named_normal_ships_are_not_child_ships(self):
-        result = calculate([ship('小猎兔犬'), ship('小天鹅'), ship('小企业')])
-        self.assertEqual(result['included'], 2)
-        self.assertEqual(result['excluded'], 1)
-
-    def test_meta_uses_playable_rarity_instead_of_story_copy(self):
-        result = calculate([ship('灵敏·META')])
-        self.assertEqual(result['included'], 1)
-        self.assertEqual(result['ships'][0]['base_rarity'], 'SR')
-        self.assertEqual(result['ships'][0]['group'], 'META')
-        self.assertEqual(result['mind'], 1320)
-
-    def test_all_three_bulins_are_automatically_excluded_at_every_level(self):
-        for name, rarity in [('泛用型布里', 'SR'), ('试作型布里MKII', 'SSR'), ('特装型布里MKIII', 'UR')]:
-            self.assertEqual(catalog()['ships'][name]['base_rarity'], rarity)
-            for level in (1, 99, 100, 125):
-                with self.subTest(name=name, level=level):
-                    result = calculate([ship(name, level, excluded=False, review=False)])
-                    self.assertEqual(result['excluded'], 1)
-                    self.assertEqual(result['included'], 0)
-                    self.assertEqual(result['mind'], 0)
-                    self.assertEqual(result['gold'], 0)
-                    self.assertTrue(result['ships'][0]['automatic_excluded'])
-                    self.assertEqual(sum(row['count'] for row in result['summary']), 0)
-
-    def test_manual_status_changes_do_not_override_automatic_exclusions_or_invalid_levels(self):
-        for name in ('泛用型布里', 'DEAD MASTER', '小企业', '光辉(μ兵装)'):
-            self.assertEqual(calculate([ship(name, review=False, excluded=False)])['excluded'], 1)
-        result = calculate([ship('拉菲', 0, review=False, excluded=False)])
-        self.assertEqual(result['review'], 1)
-        self.assertEqual(result['mind'], 0)
-        self.assertFalse(calculate([ship('拉菲')])['ships'][0]['automatic_excluded'])
 
     def test_shared_data_extractor_attaches_resolved_retrofits_to_playable_ship(self):
         from dev_tools.ship_data_extractor import extract_ship_data
@@ -173,35 +74,20 @@ class CalculatorTests(unittest.TestCase):
                 info = catalog()['ships'][name]
                 self.assertEqual(info['base_rarity'], 'SSR')
                 self.assertEqual(info['group'], '联动')
-                result = calculate([ship(name, base_rarity='SR')])
-                self.assertEqual(result['mind'], 0)
-                self.assertEqual(result['excluded'], 1)
 
     def test_retrofit_identity_keeps_highest_and_prefers_retrofit_only_on_ties(self):
         for rows in ([ship('卡辛'), ship('卡辛.改')], [ship('卡辛.改'), ship('卡辛')]):
             self.assertEqual([row['name'] for row in highest_ships(rows)], ['卡辛.改'])
-            result = calculate(rows)
-            self.assertEqual(result['ships'][next(i for i, row in enumerate(rows) if row['name'].endswith('改'))]['status'], 'included')
         self.assertEqual(highest_ships([ship('卡辛', 105), ship('卡辛.改', 100)])[0]['name'], '卡辛')
         self.assertEqual(highest_ships([ship('卡辛', 100), ship('卡辛.改', 105)])[0]['name'], '卡辛.改')
         rows = highest_ships([ship('约克城'), ship('约克城II'), ship('皇家方舟'), ship('皇家方舟·META')])
         self.assertEqual(len(rows), 4)
-        self.assertEqual(calculate(rows)['included'], 4)
 
     def test_review_positions_survive_unknown_levels_and_same_name_merge(self):
         rows = [ship('拉菲', 100), ship('拉菲', 0, review=True), ship('拉菲', 120, review=True),
                 ship('重复误读', review=True), ship('重复误读', review=True)]
         self.assertEqual(highest_ships(rows), rows)
-        result = calculate(rows)
-        self.assertEqual(result['included'], 1)
-        self.assertEqual(result['review'], 4)
-        self.assertTrue(all(row['mind'] == 0 for row in result['ships'][1:]))
 
-    def test_unconfirmed_special_ship_is_visible_for_review_and_never_billed(self):
-        row = calculate([ship('泛用型布里', 0, review=True)])['ships'][0]
-        self.assertEqual(row['status'], 'review')
-        self.assertTrue(row['automatic_excluded'])
-        self.assertEqual(row['mind'], 0)
 
     def test_upload_keeps_local_level_failure_and_other_confirmed_cards(self):
         image = Image.open(Path(__file__).parent / 'fixtures/mind_dock_fleet_priority.png').convert('RGB')
@@ -213,14 +99,7 @@ class CalculatorTests(unittest.TestCase):
         self.assertEqual(rows[0]['level'], 0)
         self.assertTrue(rows[0]['review'])
         self.assertIn('第 1 行第 1 列', rows[0]['source'])
-        self.assertEqual(calculate(rows)['included'], 1)
 
-    def test_rows_follow_scrolled_level_headers(self):
-        ocr = Mock()
-        ocr.det.return_value = [('Lv.120', [[170, 105], [218, 105], [218, 120], [170, 120]], .99),
-                                ('Lv.99', [[350, 105], [398, 105], [398, 120], [350, 120]], .99),
-                                ('Lv.120', [[170, 332], [218, 332], [218, 348], [170, 348]], .99)]
-        self.assertEqual(detect_rows(Image.new('RGB', (1280, 720)), ocr), [105, 332])
 
     def test_offline_screenshot_uses_ap_models_and_bills_confirmed_results(self):
         image = Image.open(Path(__file__).parent / 'fixtures/fleet_names_vanguard.png').convert('RGB')
@@ -232,7 +111,6 @@ class CalculatorTests(unittest.TestCase):
         self.assertEqual(rows[13]['level'], 105)
         self.assertEqual([row['name'] for row in rows if row['review']], ['新月'])
         self.assertIn('同名同舰种', rows[7]['source'])
-        self.assertGreater(calculate(rows)['mind'], 0)
         self.assertEqual([row['level'] for row in rows], [125, 100, 125, 105, 125, 63, 99, 99, 117, 122, 99, 98, 105, 105,
                                                        120, 105, 105, 120, 120, 120, 120])
         with self.assertRaises(ValueError):
@@ -327,7 +205,7 @@ class RecognitionTests(unittest.TestCase):
 
     def scan_frames(self, offsets, *, bottom_offset, damaged=False, later_conflict=False, cross_conflict=False,
                     partial_last=False):
-        from module.retire.mind_scan import MindCalculatorScan
+        from module.retire.dock_scan import DockScan
         from types import SimpleNamespace
         class ImmediateTimer:
             def __init__(self, limit, *args, **kwargs):
@@ -341,7 +219,7 @@ class RecognitionTests(unittest.TestCase):
         images = self.scroll_frames(sorted(set(offsets)))
         by_offset = dict(zip(sorted(set(offsets)), images))
         frames = iter(offsets)
-        scanner = MindCalculatorScan.__new__(MindCalculatorScan)
+        scanner = DockScan.__new__(DockScan)
         scanner.config = SimpleNamespace(Emulator_ControlMethod='MaaTouch', config_name='testpilot')
         from module.runtime.mind_recognition import ScanPolicy
         scanner._policy = ScanPolicy(90, 115, sorted_desc=True)
@@ -434,10 +312,10 @@ class RecognitionTests(unittest.TestCase):
         self.assertGreater(correction.args[1][1], correction.args[0][1])
 
     def test_adb_fallback_is_slow_and_never_falls_back_to_clicking_a_ship(self):
-        from module.retire.mind_scan import MindCalculatorScan
+        from module.retire.dock_scan import DockScan
         from module.exception import MindCalculatorScanError
         from types import SimpleNamespace
-        scanner = MindCalculatorScan.__new__(MindCalculatorScan)
+        scanner = DockScan.__new__(DockScan)
         scanner.config = SimpleNamespace(Emulator_ControlMethod='ADB')
         scanner.device = Mock()
         scanner._drag_rows(227)
@@ -461,98 +339,13 @@ class ServiceTests(unittest.TestCase):
         previous = dock_data.read_snapshot(database.load())['ships']
         changes = [dict(id=row['id'], delete=True) for row in previous]
         for value in rows:
-            row = {key: value[key] for key in ('name', 'level', 'rarity', 'base_rarity', 'excluded', 'review', 'source') if key in value}
+            row = {key: value[key] for key in ('name', 'level', 'rarity', 'base_rarity', 'review', 'source') if key in value}
             info = mind_calculator.find_ship(row['name'])
             row['group_type'] = info['group_type'] if info else None
             changes.append(row)
         DockService(self.configs).patch(instance, revision, changes)
-        return self.service.report(instance)
+        return DockService(self.configs).report(instance)
 
-    def test_mind_save_is_read_only_and_canonical_instances_are_separate(self):
-        report = self.service.report('testpilot')
-        with self.assertRaises(ApiError) as caught:
-            self.service.save('testpilot', report['revision'], [ship()])
-        self.assertEqual(caught.exception.code, 'READ_ONLY')
-        self.assertFalse(FleetDatabase(self.configs.path('testpilot')).path.exists())
-        saved = self.save_ledger('testpilot', report['revision'], [ship('拉菲')])
-        self.assertEqual(saved['mind'], 1320)
-        self.assertEqual(saved['ships'][0]['name'], '拉菲')
-        with self.assertRaises(ApiError) as caught:
-            self.save_ledger('testpilot', report['revision'], [])
-        self.assertEqual(caught.exception.code, 'CONFLICT')
-        self.configs.create('other')
-        self.assertEqual(self.service.report('other')['ships'], [])
-
-    def test_unknown_level_review_survives_save_reload_and_all_exports(self):
-        rows = [ship('拉菲', 100), ship('拉菲', 0, review=True, source='第 2 页第 3 列等级未确认')]
-        report = self.save_ledger('testpilot', self.service.report('testpilot')['revision'], rows)
-        self.assertEqual(report['review'], 1)
-        self.assertEqual(report['included'], 1)
-        self.assertEqual(self.service.report('testpilot')['ships'][1]['level'], 0)
-        for format in ('json', 'csv', 'xlsx'):
-            file = self.service.export('testpilot', format)
-            imported = import_ships(file['filename'], file['content'])
-            self.assertEqual(len(imported), 2)
-            self.assertTrue(imported[1]['review'])
-            self.assertEqual(imported[1]['level'], 0)
-            self.assertEqual(calculate(imported)['review'], 1)
-
-    def test_manual_original_rarity_survives_save_reload_and_export(self):
-        rows = [ship('皇家财富号', base_rarity='SR'), ship('拉菲.改', 105)]
-        saved = self.save_ledger('testpilot', self.service.report('testpilot')['revision'], rows)
-        reloaded = MindCalculatorService(ConfigService(self.configs.root)).report('testpilot')
-        self.assertEqual(saved['mind'], 2520)
-        self.assertEqual(reloaded['mind'], saved['mind'])
-        self.assertEqual(reloaded['ships'][0]['base_rarity'], 'SR')
-        for format in ('json', 'csv', 'xlsx'):
-            file = self.service.export('testpilot', format)
-            imported = import_ships(file['filename'], file['content'])
-            self.assertEqual(calculate(imported)['mind'], saved['mind'])
-
-    def test_status_and_single_deletion_recalculate_and_persist_with_revision_checks(self):
-        rows = [ship('拉菲', 100), ship('约克城II', 100), ship('特装型布里MKIII', 99)]
-        report = self.save_ledger('testpilot', self.service.report('testpilot')['revision'], rows)
-        self.assertEqual(report['mind'], 4620)
-        dock = DockService(self.configs)
-        first_id = report['ships'][0]['id']
-        original_revision = report['revision']
-        stale_revision = original_revision
-        for status, expected in [('excluded', 3300), ('review', 3300), ('included', 4620)]:
-            dock.patch('testpilot', report['revision'], [dict(id=first_id, excluded=status == 'excluded', review=status == 'review')])
-            report = self.service.report('testpilot')
-            reloaded = self.service.report('testpilot')
-            self.assertEqual(reloaded['ships'][0]['status'], status)
-            self.assertEqual(reloaded['mind'], expected)
-            self.assertEqual(reloaded['gold'], expected * 10)
-            if status == 'excluded':
-                stale_revision = report['revision']
-        self.assertNotEqual(report['revision'], original_revision)
-        with self.assertRaises(ApiError):
-            dock.patch('testpilot', stale_revision, [dict(id=first_id, delete=True)])
-        self.assertEqual(len(self.service.report('testpilot')['ships']), 3)
-        dock.patch('testpilot', report['revision'], [dict(id=first_id, delete=True)])
-        report = self.service.report('testpilot')
-        self.assertEqual(report['included'], 1)
-        self.assertEqual(report['excluded'], 1)
-        self.assertEqual(report['mind'], 3300)
-        self.assertEqual(sum(row['count'] for row in report['summary']), 1)
-        reloaded = MindCalculatorService(ConfigService(self.configs.root)).report('testpilot')
-        self.assertEqual([row['name'] for row in reloaded['ships']], ['约克城II', '特装型布里MKIII'])
-        dock.patch('testpilot', report['revision'], [dict(id=row['id'], delete=True) for row in report['ships']])
-        report = self.service.report('testpilot')
-        self.assertEqual(report['ships'], [])
-        self.assertEqual(report['mind'], 0)
-
-    def test_all_exports_import_back_without_losing_review_or_exclusion(self):
-        rows = [ship('拉菲.改', 105, source='截图.png'), ship('待核对舰', review=True), ship('排除舰', excluded=True)]
-        self.save_ledger('testpilot', self.service.report('testpilot')['revision'], rows)
-        for format in ['json', 'csv', 'xlsx']:
-            file = self.service.export('testpilot', format)
-            restored = import_ships(file['filename'], file['content'])
-            self.assertEqual(restored[0]['level'], 105)
-            self.assertEqual(restored[0]['base_rarity'], 'SR')
-            self.assertTrue(restored[1]['review'])
-            self.assertTrue(restored[2]['excluded'])
 
     def test_import_original_excel_header_at_row_two(self):
         book = Workbook()
@@ -564,46 +357,40 @@ class ServiceTests(unittest.TestCase):
         output = io.BytesIO()
         book.save(output)
         rows = import_ships('原工具.xlsx', encoded(output.getvalue()))
-        self.assertEqual(calculate(rows)['mind'], 600)
+        self.assertEqual((rows[0]['name'], rows[0]['level']), ('独角兽.改', 115))
         sheet['F3'] = '存疑'
         sheet['M2'], sheet['M3'] = '排除船名', '小企业'
         output = io.BytesIO()
         book.save(output)
         rows = import_ships('原工具.xlsx', encoded(output.getvalue()))
-        self.assertTrue(rows[0]['review'])
-        self.assertTrue(rows[1]['excluded'])
-        self.assertEqual(calculate(rows)['mind'], 0)
+        # Historical status and excluded-name columns are not current import fields.
+        self.assertFalse(rows[0]['review'])
+        self.assertEqual(len(rows), 1)
+        sheet['F2'], sheet['F3'] = '需核对', '是'
+        output = io.BytesIO()
+        book.save(output)
+        self.assertTrue(import_ships('原工具.xlsx', encoded(output.getvalue()))[0]['review'])
 
-    def test_reject_invalid_import_and_formula_cells_are_text(self):
+    def test_reject_invalid_import_values(self):
         with self.assertRaises(ApiError):
             import_ships('bad.json', encoded(json.dumps([{'name': '错误', 'level': 126}]).encode()))
         with self.assertRaises(ApiError):
             import_ships('bad.csv', encoded('船名,等级\n测试,100.1'.encode()))
-        self.save_ledger('testpilot', self.service.report('testpilot')['revision'], [ship('=1+1')])
-        file = self.service.export('testpilot', 'xlsx')
-        book = load_workbook(io.BytesIO(base64.b64decode(file['content'])))
-        self.assertEqual(book['舰船明细']['A2'].data_type, 's')
-        file = self.service.export('testpilot', 'csv')
-        self.assertIn("'=1+1", base64.b64decode(file['content']).decode('utf-8-sig'))
-        self.assertEqual(import_ships(file['filename'], file['content'])[0]['name'], '=1+1')
-
-    def test_rpc_contract_and_demo_read_only(self):
-        router = Router(self.configs, Mock())
-        self.assertEqual(router.dispatch('mind.calculate', {'instance': 'testpilot', 'ships': [ship()]})['mind'], 2200)
-        with patch.dict('os.environ', {'DEMO': '1'}), self.assertRaises(ApiError):
-            router.dispatch('mind.save', {'instance': 'testpilot', 'ships': [], 'revision': self.service.report('testpilot')['revision']})
-        with self.assertRaises(ValueError):
-            MindCalculateParams(instance='testpilot', ships=[dict(name='测试', level=True)])
 
     def test_completed_scan_stages_and_rejects_concurrent_canonical_edits(self):
         from module.config.config import AzurLaneConfig
         from module.exception import MindCalculatorScanError
         from module.retire.assets import DOCK_SEARCH_CLOSED
-        from module.retire.mind_scan import MindCalculatorScan
+        from module.retire.dock_scan import DockScan
         for changed in (False, True):
             with self.subTest(changed=changed):
                 path = str(self.configs.path('testpilot'))
-                self.save_ledger('testpilot', self.service.report('testpilot')['revision'], [ship('拉菲')])
+                database = FleetDatabase(self.configs.path('testpilot'))
+                pending = database.load(include_pending=True)
+                if pending['pending_revision']:
+                    database.review([dict(id=row['id'], accept=False) for row in pending['pending_changes']],
+                                    pending['snapshot']['revision'], pending['pending_revision'])
+                self.save_ledger('testpilot', DockService(self.configs).report('testpilot')['revision'], [ship('拉菲')])
                 database = FleetDatabase(self.configs.path('testpilot'))
                 original = database.load()['snapshot']
                 card_id = original['ships'][0]['id']
@@ -620,7 +407,7 @@ class ServiceTests(unittest.TestCase):
                     config._loaded_data = copy.deepcopy(config.data)
                     config.modified = {}
                     config.Dock_MinLevel, config.Dock_MaxLevel = 1, 125
-                    scanner = MindCalculatorScan.__new__(MindCalculatorScan)
+                    scanner = DockScan.__new__(DockScan)
                     scanner.config, scanner.device = config, Mock()
                     scanner.ui_ensure = scanner.dock_reset = scanner.dock_sort_method_dsc_set = Mock()
                     scanner._close_search = Mock()
@@ -629,20 +416,21 @@ class ServiceTests(unittest.TestCase):
                     scrollbar.appear.return_value = scrollbar.at_top.return_value = True
                     def collect(*args):
                         if changed:
-                            database.patch_cards([dict(id=card_id, excluded=True)], original['revision'])
+                            database.patch_cards([dict(id=card_id, review=True)], original['revision'])
                         scanner._scan_slots = [dict(ship('拉菲', level=110), group_type=10117)]
                         scanner._scan_metadata = dict(reached_bottom=True, physical_count=1)
                     scanner._scan_pages = Mock(side_effect=collect)
                     if changed:
-                        with self.assertRaisesRegex(MindCalculatorScanError, '共享船坞数据已更新'):
+                        with self.assertRaises(MindCalculatorScanError) as error:
                             scanner.run()
+                        self.assertIsInstance(error.exception.__cause__, FleetDatabaseConflict)
                         scanner._prune_scan_evidence.assert_not_called()
                     else:
                         scanner.run()
                         scanner._prune_scan_evidence.assert_called_once_with()
-                    state = database.load()
+                    state = database.load(include_pending=True)
                     self.assertEqual(state['snapshot']['ships'][0]['level'], 100)
-                    self.assertEqual(state['snapshot']['ships'][0]['excluded'], changed)
+                    self.assertEqual(state['snapshot']['ships'][0]['review'], changed)
                     if not changed:
                         proposal = next(row for row in state['pending_changes'] if row['kind'] == 'ship')
                         self.assertEqual(proposal['after']['level'], 110)

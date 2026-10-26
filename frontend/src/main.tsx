@@ -35,20 +35,23 @@ class ErrorBoundary extends Component<{children: ReactNode}, {failed: boolean}> 
 const SchedulerProgram = lazy(() => import('./pages/SchedulerProgram').then(module => ({default: module.SchedulerProgram})))
 const FleetAnalysis = lazy(() => import('./pages/FleetAnalysis').then(module => ({default: module.FleetAnalysis})))
 const FleetRotation = lazy(() => import('./pages/FleetRotation').then(module => ({default: module.FleetRotation})))
+const FleetTraining = lazy(() => import('./pages/FleetTraining').then(module => ({default: module.FleetTraining})))
+const FleetEquipment = lazy(() => import('./pages/FleetEquipment').then(module => ({default: module.FleetEquipment})))
 
 const router = createHashRouter([
   {path: '/', element: <App/>, errorElement: <ErrorPage/>, children: [{index: true, element: <Home/>}, {path: 'interface', element: <InterfaceSettings/>}, {path: 'settings', element: <Settings/>}, {path: 'configs', element: <ConfigManager/>}, {path: 'dev', element: <DevControls/>}]},
   {path: '/i/:instance', element: <App/>, errorElement: <ErrorPage/>, children: [
     {index: true, element: <Navigate to="overview" replace/>},
     {path: 'overview', element: <Overview/>}, {path: 'task/:task', element: <TaskConfig/>},
-    {path: 'mind-calculator', element: <Navigate to="../task/FleetAnalysis?tab=mind" replace/>},
     {path: 'resources', element: <Navigate to="../statistics?view=management" replace/>},
     {path: 'logs', element: <Navigate to="../overview" replace/>}, {path: 'statistics', element: <Statistics/>}, {path: 'scheduler', element: <Navigate to="../task/SchedulerProgram" replace/>}, {path: 'settings', element: <Navigate to="/settings" replace/>},
     {path: 'task/SchedulerProgram', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><SchedulerProgram/></Suspense>},
-    {path: 'task/MindCalculator', element: <Navigate to="../task/FleetAnalysis?tab=mind" replace/>},
-    {path: 'task/FleetTechnology', element: <Navigate to="../task/FleetAnalysis?tab=technology" replace/>},
     {path: 'task/FleetAnalysis', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><FleetAnalysis/></Suspense>},
     {path: 'task/FleetRotation', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><FleetRotation/></Suspense>},
+    {path: 'task/FleetTraining', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><FleetTraining/></Suspense>},
+    {path: 'task/FleetLevelTraining', element: <Navigate to="../FleetTraining" relative="path" replace/>},
+    {path: 'task/FleetAffinityTraining', element: <Navigate to="../FleetTraining" relative="path" replace/>},
+    {path: 'task/FleetEquipment', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><FleetEquipment/></Suspense>},
   ]},
   {path: '*', element: <Navigate to="/" replace/>},
 ])

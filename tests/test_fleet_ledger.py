@@ -40,7 +40,7 @@ class FleetLedgerTest(unittest.TestCase):
             reached_bottom=True, filters_clear=True, physical_count=len(rows),
             expected_count=len(rows), updated_at='2026-10-25T12:00:00+00:00')
         self.db.save_scan(value, self.revision())
-        return self.db.load()
+        return self.db.load(include_pending=True)
 
     def decide(self, decisions):
         state = self.db.load()
@@ -52,9 +52,9 @@ class FleetLedgerTest(unittest.TestCase):
         first, second = self.cards()
         self.assertNotEqual(first['id'], second['id'])
         self.assertEqual((first['extra_exp'], second['extra_exp']), (None, 0))
-        self.edit(dict(id=first['id'], level=101, excluded=True))
+        self.edit(dict(id=first['id'], level=101, review=True))
         changed, untouched = self.cards()
-        self.assertEqual((changed['id'], changed['level'], changed['extra_exp'], changed['excluded']),
+        self.assertEqual((changed['id'], changed['level'], changed['extra_exp'], changed['review']),
                          (first['id'], 101, None, True))
         self.assertEqual(untouched, second)
         self.edit(dict(id=second['id'], delete=True))
@@ -78,7 +78,7 @@ class FleetLedgerTest(unittest.TestCase):
         cards = {row['id']: row for row in self.cards()}
         self.assertEqual(cards[before[0]['id']]['level'], 110)
         self.assertEqual(cards[before[1]['id']], before[1])
-        self.assertIn(rejected['id'], {item['id'] for item in self.db.load()['pending_changes']})
+        self.assertIn(rejected['id'], {item['id'] for item in self.db.load(include_pending=True)['pending_changes']})
         self.decide([dict(id=rejected['id'], accept=False)])
         self.assertEqual({row['id']: row for row in self.cards()}[before[1]['id']], before[1])
 
@@ -104,27 +104,30 @@ class FleetLedgerTest(unittest.TestCase):
         self.assertEqual(self.cards(), [])
         self.decide([dict(id=item['id'], accept=False) for item in pending['pending_changes']])
         self.assertEqual(self.cards(), [])
-        self.assertEqual(self.db.load()['pending_changes'], [])
+        self.assertEqual(self.db.load(include_pending=True)['pending_changes'], [])
         pending = self.scan([dict(name='杜威', group_type=10102, level=105),
                              dict(name='卡辛', group_type=10103, level=110)])
         self.decide([dict(id=item['id'], accept=True) for item in pending['pending_changes']])
         self.assertEqual(sorted((row['name'], row['level']) for row in self.cards()),
                          [('卡辛', 110), ('杜威', 105)])
-        self.assertEqual(self.db.load()['pending_changes'], [])
+        self.assertEqual(self.db.load(include_pending=True)['pending_changes'], [])
 
     def test_stale_manual_edit_and_stale_pending_review_do_not_change_state(self):
         stale_revision = self.revision()
         self.edit(dict(name='杜威', group_type=10102, level=100))
-        committed = self.db.load()
+        committed = self.db.load(include_pending=True)
         with self.assertRaises(FleetDatabaseConflict):
             self.db.patch_cards([dict(name='卡辛', level=100)], stale_revision)
-        self.assertEqual(self.db.load(), committed)
+        self.assertEqual(self.db.load(include_pending=True), committed)
         old = self.scan([dict(name='杜威', group_type=10102, level=110)])
+        with self.assertRaises(FleetDatabaseConflict):
+            self.scan([dict(name='杜威', group_type=10102, level=120)])
+        self.decide([dict(id=item['id'], accept=False) for item in old['pending_changes']])
         latest = self.scan([dict(name='杜威', group_type=10102, level=120)])
         with self.assertRaises(FleetDatabaseConflict):
             self.db.review([dict(id=old['pending_changes'][0]['id'], accept=True)],
                            self.revision(), old['pending_revision'])
-        self.assertEqual(self.db.load(), latest)
+        self.assertEqual(self.db.load(include_pending=True), latest)
 
     def test_technology_manual_decisions_survive_card_updates_and_rejected_scans(self):
         service = FleetTechService(self.configs)
@@ -133,12 +136,15 @@ class FleetLedgerTest(unittest.TestCase):
             owned=False, full_star=False)], {'1': 3})
         manual = copy.deepcopy(self.db.load()['technology'])
         self.edit(dict(name='杜威', group_type=10102, level=125))
+        self.assertEqual([row['level'] for row in self.cards()], [125])
         pending = self.scan([dict(name='杜威', group_type=10102, level=120)])
         self.decide([dict(id=item['id'], accept=False) for item in pending['pending_changes']])
         self.assertEqual(self.db.load()['technology'], manual)
         reloaded = service.report('pilot')
         row = next(item for item in reloaded['ships'] if item['group_type'] == 10102)
         self.assertFalse(row['owned'])
+        self.assertEqual(row['current_count'], 1)
+        self.assertEqual(row['current_level'], 125)
         self.assertEqual(reloaded['nation_levels']['1'], 3)
 
     def test_local_legacy_read_stages_without_mutating_ledger_or_source_json(self):
@@ -152,7 +158,7 @@ class FleetLedgerTest(unittest.TestCase):
         self.assertFalse(self.db.path.exists())
         service.import_legacy('pilot', initial['revision'])
         self.assertEqual(self.cards(), [])
-        self.assertTrue(self.db.load()['pending_changes'])
+        self.assertTrue(self.db.load(include_pending=True)['pending_changes'])
         self.assertEqual(self.path.read_bytes(), original)
         self.assertEqual(service.report('pilot')['ships'], [])
         self.assertEqual(self.path.read_bytes(), original)

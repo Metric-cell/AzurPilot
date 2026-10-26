@@ -2,8 +2,6 @@
 
 > 从「拿到一份源码」到「WebUI 起来、实例跑起来」的全部工程环节：安装器、启动脚本、Docker、依赖自举与前端构建。
 
-桌面启动器的预构建组件模式另见本文末尾的「桌面启动器组件模式」。该模式不执行下文的本机 Git/npm/uv 自举流程；开发、源码和容器启动仍沿用原路径。
-
 ## 1. 模块概述
 
 `deploy/` 不是游戏业务，而是把仓库变成可运行系统的安装与启动工程。它要解决三件事：
@@ -133,13 +131,3 @@ Alas.bat → python -m deploy.installer
 - [WebUI 总览](../webui/index.md) —— 更新事务与进程监督全貌
 - [运行时服务](../webui/runtime.md) —— updater 与 installer 共享的依赖同步
 - [外部桥接与开发工具](submodule-tools.md) —— dev_tools 中的生成器（CI 侧的对应物）
-
-## 桌面启动器组件模式
-
-桌面启动器从唯一的启动器 `stable.json` 下载 CI 编译的源码、游戏资源、前端、Python 3.14 最新稳定补丁、锁定依赖与 ADB，然后设置 `AZURPILOT_PREBUILT=1`、`AZURPILOT_NO_UV_BOOTSTRAP=1` 启动 `gui.py`。Python 的可用版本范围为 `>=3.14.6,<3.15`。
-
-`module/runtime/prebuilt.py` 读取 CI 的 `BUILD_MANIFEST` 与 `.azurpilot/installed.json`，检查源码提交、解释器版本及必需组件，并拒绝尚有部署事务日志的环境。GUI 监督器在此模式下校验组件并清除旧依赖同步标志，不启动 uv 同步服务。前端指纹失配时明确要求通过启动器重新部署，不执行 npm 构建。
-
-WebUI 的更新状态和历史从构建清单读取，不调用 Git；界面显示由桌面启动器管理，停止服务并再次启动可取得新组件。Git 更新与依赖同步接口在预构建模式下拒绝执行，普通源码启动不受影响。`config/deploy.yaml` 仍用于后端业务选项，不承担桌面启动器的安装职责。
-
-后端 `master` 更新后，可由 `.github/workflows/launcher-components.yml` 使用 `LAUNCHER_DISPATCH_TOKEN` 通知 `wess09/AzurPilotLauncher` 重新编译组件；未配置该跨仓库令牌时，启动器仓库的定时检查仍会更新组件。CI 的内部清单片段不作为独立线上 JSON 发布，运行元数据统一合并到原启动器 `stable.json`。

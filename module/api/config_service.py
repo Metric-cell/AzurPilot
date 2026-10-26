@@ -18,7 +18,9 @@ from deploy.atomic import atomic_write
 from module.api.protocol import ApiError
 from module.combat.emotion_state import EmotionRecoveryState
 from module.config.config_updater import campaign_event_options, refresh_campaign_events
-from module.config.redirect_utils.utils import meta_assist_limit_redirect, sea_miles_interval_redirect
+from module.config.redirect_utils.utils import (
+    fleet_training_interval_redirect, meta_assist_limit_redirect, sea_miles_interval_redirect,
+)
 from module.config.time_source import now as current_time
 from module.config.transaction import config_transaction
 
@@ -297,6 +299,12 @@ class ConfigService:
                             if 'RecordSeaMiles' in fields:
                                 merged[task][group]['RecordSeaMiles'] = sea_miles_interval_redirect(
                                     fields['RecordSeaMiles'])
+        fleet = data.get('FleetInfo')
+        if isinstance(fleet, dict):
+            merged['FleetInfo']['FleetTraining']['CheckIntervalHours'] = fleet_training_interval_redirect(fleet)
+            for group in ('FleetLevelTraining', 'FleetAffinityTraining'):
+                merged['FleetInfo'][group].pop('CheckIntervalHours', None)
+                merged['FleetInfo'][group].pop('CheckInterval', None)
         from module.config.redirect_utils.shop import migrate_shop_options
 
         merged, shop_warnings = migrate_shop_options(data, merged)
@@ -412,6 +420,26 @@ class ConfigService:
             return self.get(name)
 
 
+    @staticmethod
+    def _normalize_number(field, value):
+        """兼容数字文本和整数的小数写法，保存时仍保留参数需要的数值类型。"""
+        value_type = field.get('valuetype', field.get('type'))
+        if field.get('option') or value_type in ('checkbox', 'str') or isinstance(field.get('value'), bool):
+            return value
+        if value_type not in ('int', 'float', 'number') and type(field.get('value')) not in (int, float):
+            return value
+        if isinstance(value, str) and len(value) <= 20000:
+            text = value.strip()
+            if re.fullmatch(r'[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?', text):
+                try:
+                    value = float(text) if any(char in text for char in '.eE') else int(text)
+                except ValueError:
+                    return value
+        integer = value_type == 'int' or (value_type not in ('float', 'number') and type(field.get('value')) is int)
+        if integer and type(value) is float and math.isfinite(value) and value.is_integer():
+            return int(value)
+        return value
+
     def validate(self, path, value):
         """严格校验单项参数的修改路径与取值范围。
 
@@ -450,11 +478,15 @@ class ConfigService:
             return parts
         if options and not any(type(value) is type(item) and value == item for item in options):
             raise ApiError('INVALID_PARAMS', f'请选择有效选项：{path}')
+        value = self._normalize_number(field, value)
+        value_type = field.get('valuetype', kind)
         if kind == 'checkbox' or isinstance(default, bool):
             valid = isinstance(value, bool)
-        elif isinstance(default, int):
+        elif value_type == 'str':
+            valid = isinstance(value, str)
+        elif value_type == 'int' or (value_type not in ('float', 'number') and isinstance(default, int)):
             valid = type(value) is int
-        elif isinstance(default, float):
+        elif value_type in ('float', 'number') or isinstance(default, float):
             valid = type(value) in (float, int)
         else:
             valid = isinstance(value, str) or (default is None and value is None)
@@ -464,6 +496,12 @@ class ConfigService:
             from module.runtime.fleet_rotation import parse_rules
             try:
                 parse_rules(value)
+            except ValueError as exc:
+                raise ApiError('INVALID_PARAMS', str(exc)) from exc
+        if path == 'FleetInfo.FleetEquipment.Codes':
+            from module.runtime.fleet_equipment import parse_codes
+            try:
+                parse_codes(value)
             except ValueError as exc:
                 raise ApiError('INVALID_PARAMS', str(exc)) from exc
         rule = field.get('validate')
@@ -516,7 +554,8 @@ class ConfigService:
                 if change.path in seen:
                     raise ApiError('INVALID_PARAMS', '同一次保存不能重复修改同一个参数')
                 seen.add(change.path)
-                data.setdefault(task, {}).setdefault(group, {})[arg] = change.value
+                value = self._normalize_number(self.args[task][group][arg], change.value)
+                data.setdefault(task, {}).setdefault(group, {})[arg] = value
                 if change.path in OPSI_EXPLORE_PROGRESS:
                     self._reset_opsi_explore_progress(data, change.path)
                 edited_groups.setdefault((task, group), set()).add(arg)

@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {useParams} from 'react-router-dom'
+import {Link, useParams} from 'react-router-dom'
 import {api} from '../api/client'
 import {useApp, useConnection} from '../app/context'
 import {editor} from '../config/editors'
@@ -7,7 +7,7 @@ import {ErrorBox, Loading, PageTitle} from '../components/ui'
 
 type Rule = {slots: number[]; sources: number[]}
 type Rules = Record<string, Rule>
-type Progress = Record<string, {last_source?: number; source?: number; done?: number[]; pending?: unknown}>
+type Progress = Record<string, {last_source?: number; source?: number; done?: number[]; pending?: unknown; rescan?: boolean}>
 const numbers = [1, 2, 3, 4, 5, 6]
 const rotationProgress = (value: unknown): Progress => value && typeof value === 'object' && !Array.isArray(value) ? value as Progress : {}
 
@@ -24,7 +24,7 @@ export function rotationRules(value: unknown): Rules {
 export function FleetRotation() {
   const {instance = ''} = useParams()
   const {ui, instances, notify} = useApp(), connection = useConnection()
-  const [enabled, setEnabled] = useState(false), [rules, setRules] = useState<Rules>()
+  const [rules, setRules] = useState<Rules>()
   const [progress, setProgress] = useState<Progress>({})
   const [error, setError] = useState(''), [busy, setBusy] = useState(false), [dirty, setDirty] = useState(false)
   const running = instances.find(item => item.name === instance)?.status === 'running'
@@ -35,7 +35,6 @@ export function FleetRotation() {
     void api.request('config.get', {instance}).then(config => {
       if (!active) return
       const values = config.values.FleetInfo?.FleetRotation
-      setEnabled(values?.Enabled === true)
       setRules(rotationRules(values?.Rules))
       setProgress(rotationProgress(values?.State))
       setError(''); setDirty(false)
@@ -64,18 +63,16 @@ export function FleetRotation() {
     setDirty(true)
   }
 
-  async function save(nextEnabled = enabled, reset = false) {
+  async function save(reset = false) {
     if (!rules) return
     setBusy(true); setError('')
     try {
       await editor(`config:${instance}`).settled()
       const config = await api.request('config.get', {instance})
       const result = await api.request('config.patch', {instance, revision: config.revision, changes: [
-        {path: 'FleetInfo.FleetRotation.Enabled', value: nextEnabled},
         {path: 'FleetInfo.FleetRotation.Rules', value: JSON.stringify(rules)},
         ...(reset ? [{path: 'FleetInfo.FleetRotation.State', value: {}}] : []),
       ]})
-      setEnabled(result.values.FleetInfo.FleetRotation.Enabled === true)
       setProgress(rotationProgress(result.values.FleetInfo.FleetRotation.State))
       setDirty(false); notify(ui('rotation.saved'))
     } catch (error) {setError((error as Error).message)}
@@ -84,11 +81,11 @@ export function FleetRotation() {
 
   return <>
     <PageTitle title={ui('rotation.title')} actions={<>
-      <span>{ui('rotation.enable')}</span><button type="button" className={`toggle ${enabled ? 'on' : ''}`} role="switch" aria-label={ui('rotation.enable')} aria-checked={enabled} disabled={disabled || !rules} onClick={() => void save(!enabled)}><span/></button>
       <button className="button primary" disabled={disabled || !dirty} onClick={() => void save()}>{ui('rotation.save')}</button>
     </>}/>
     <p className="muted">{ui('rotation.help')}</p>
     <p className="muted">{ui('rotation.duplicates')}</p>
+    <p><Link to={`/i/${instance}/task/FleetTraining`}>{ui('training.title')}</Link></p>
     {error && <ErrorBox message={error}/>}
     {!rules ? !error && <Loading/> : <div className="fleet-grid">{numbers.map(fleet => <section className="panel" key={fleet} aria-label={ui('fleet.title', {number: fleet})}>
       <div className="panel-heading"><h2>{ui('fleet.title', {number: fleet})}</h2></div>
@@ -99,8 +96,8 @@ export function FleetRotation() {
       <div className="fleet-column"><h3>{ui('rotation.sources')}</h3><div style={{display: 'flex', flexWrap: 'wrap', gap: 10}}>{numbers.filter(number => number !== fleet).map(number => <label className="checkbox-label" key={number}>
         <input type="checkbox" aria-label={ui('rotation.source', {number})} checked={rules[fleet]!.sources.includes(number)} disabled={disabled} onChange={() => change(fleet, 'sources', number)}/>{number}
       </label>)}</div></div>
-      <div className="fleet-column"><p>{progress[fleet]?.pending && !running ? ui('rotation.uncertain') : progress[fleet]?.source ? ui('rotation.inProgress', {number: progress[fleet]!.source!}) : progress[fleet]?.last_source ? ui('rotation.last', {number: progress[fleet]!.last_source!}) : ui('rotation.none')}</p></div>
+      <div className="fleet-column"><p>{(progress[fleet]?.pending || progress[fleet]?.rescan) && !running ? ui('rotation.uncertain') : progress[fleet]?.source ? ui('rotation.inProgress', {number: progress[fleet]!.source!}) : progress[fleet]?.last_source ? ui('rotation.last', {number: progress[fleet]!.last_source!}) : ui('rotation.none')}</p></div>
     </section>)}</div>}
-    <button className="button" disabled={disabled || running || !rules} onClick={() => void save(enabled, true)}>{ui('rotation.reset')}</button>
+    <button className="button" disabled={disabled || running || !rules} onClick={() => void save(true)}>{ui('rotation.reset')}</button>
   </>
 }

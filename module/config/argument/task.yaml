@@ -474,6 +474,10 @@ FleetManagement:
     FleetInfo:
       - FleetInfo
       - FleetRotation
+      - FleetLevelTraining
+      - FleetAffinityTraining
+      - FleetTraining
+      - FleetEquipment
 
 # ==================== Run Params ====================
 
@@ -498,10 +502,6 @@ Tool:
     FleetScan: []
     DockScan:
       - Dock
-    MindCalculatorScan:
-      - MindCalculator
-    FleetTechScan:
-      - FleetTech
     Daemon:
       - Daemon
     OpsiDaemon:

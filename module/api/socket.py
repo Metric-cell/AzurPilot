@@ -257,7 +257,7 @@ class Session:
                 if isinstance(decoded, dict) and isinstance(decoded.get('id'), str):
                     request_id = decoded['id'][:100]
                 request = Request.model_validate(decoded)
-                if size > 1024 * 1024 and request.method not in ('mind.import', 'mind.recognize', 'mind.save', 'mind.calculate'):
+                if size > 1024 * 1024 and request.method not in ('mind.import', 'mind.recognize'):
                     raise ApiError('INVALID_REQUEST', '请求超过 1 MiB 限制')
                 request_id = request.id
                 if request.method == 'accounts.manage' and not self.gateway.is_local(self.ws) and self.ws.url.scheme != 'wss':

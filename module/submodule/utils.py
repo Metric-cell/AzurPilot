@@ -36,8 +36,6 @@ def get_available_func():
         'MeowfficerScore',
         'FleetScan',
         'DockScan',
-        'MindCalculatorScan',
-        'FleetTechScan',
         'GameManager',
         'EmulatorManager',
     )

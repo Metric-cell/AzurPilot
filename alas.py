@@ -75,8 +75,6 @@ def _get_task_display_name(task_command):
     return _i18n_task_names.get(task_command, task_command)
 
 
-
-
 class AzurLaneAutoScript:
     """碧蓝航线自动化脚本调度器核心类。
 
@@ -1745,14 +1743,6 @@ class AzurLaneAutoScript:
     def dock_scan(self):
         from module.retire.dock_scan import DockScan
         DockScan(config=self.config, device=self.device, task="DockScan").run()
-
-    def mind_calculator_scan(self):
-        """兼容旧入口，心智与科技统一读取共享扫描底账。"""
-        self.dock_scan()
-
-    def fleet_tech_scan(self):
-        """兼容旧入口，不再写入独立科技快照。"""
-        self.dock_scan()
 
     def game_manager(self):
         from module.daemon.game_manager import GameManager

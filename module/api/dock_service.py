@@ -1,5 +1,6 @@
 """共享船坞数据与扫描范围接口；浏览和配置不会启动游戏任务。"""
 import json
+from contextlib import contextmanager
 
 from deploy.atomic import atomic_write
 from module.api.protocol import ApiError
@@ -15,11 +16,12 @@ class DockService:
     def report(self, instance):
         data, _ = self.configs.read(instance)
         fields = data.get('DockScan', {}).get('Dock', {})
-        state = FleetDatabase(self.configs.path(instance)).load(include_import_status=True)
+        state = FleetDatabase(self.configs.path(instance)).load(include_pending=True, include_import_status=True)
         report = dock_data.report_snapshot(state)
         # 控制项显示下一次扫描的配置，快照覆盖范围另附在 scan_range 中。
         return dict(report, instance=instance, legacy_imported=state['legacy_imported'],
                     pending_revision=state.get('pending_revision'), pending_changes=state.get('pending_changes', []),
+                    pending_read=state.get('pending_read'),
                     scan_range=dict(min_level=report['min_level'], max_level=report['max_level']),
                     min_level=fields.get('MinLevel', 1), max_level=fields.get('MaxLevel', 125))
 
@@ -33,30 +35,35 @@ class DockService:
             atomic_write(str(self.configs.path(instance)), json.dumps(data, ensure_ascii=False, indent=2))
             return self.report(instance)
 
-    def patch(self, instance, expected_revision, changes):
-        """只更新用户明确编辑的物理副本。"""
+    @contextmanager
+    def _mutation(self, instance, invalid_message):
+        """Keep instance deletion and database edits under the same lifecycle locks."""
         path = self.configs.path(instance)
         with self.configs.lock, config_transaction(path):
             self.configs.path(instance)
             try:
-                FleetDatabase(path).patch_cards(changes, expected_revision)
+                yield FleetDatabase(path)
             except FleetDatabaseConflict as exc:
-                raise ApiError('CONFLICT', '舰船底账已更新，请重新载入后编辑') from exc
+                raise ApiError('CONFLICT', str(exc)) from exc
             except (ValueError, TypeError, KeyError) as exc:
-                raise ApiError('INVALID_PARAMS', f'舰船修改无效：{exc}') from exc
+                raise ApiError('INVALID_PARAMS', f'{invalid_message}：{exc}') from exc
+
+    def patch(self, instance, expected_revision, changes):
+        """只更新用户明确编辑的物理副本。"""
+        with self._mutation(instance, '舰船修改无效') as database:
+            database.patch_cards(changes, expected_revision)
         return self.report(instance)
 
     def review(self, instance, expected_revision, pending_revision, decisions):
-        """按候选项逐条采纳或拒绝，并同时检查底账和候选版本。"""
-        path = self.configs.path(instance)
-        with self.configs.lock, config_transaction(path):
-            self.configs.path(instance)
-            try:
-                FleetDatabase(path).review(decisions, expected_revision, pending_revision)
-            except FleetDatabaseConflict as exc:
-                raise ApiError('CONFLICT', '舰船底账或待审核变化已更新，请重新载入后审核') from exc
-            except (ValueError, TypeError, KeyError) as exc:
-                raise ApiError('INVALID_PARAMS', f'审核决定无效：{exc}') from exc
+        """按候选项逐条采纳或拒绝，并同时检查数据和候选版本。"""
+        with self._mutation(instance, '审核决定无效') as database:
+            database.review(decisions, expected_revision, pending_revision)
+        return self.report(instance)
+
+    def stage_import(self, instance, expected_revision, ships):
+        """File and screenshot readings share the ordinary pending-review workflow."""
+        with self._mutation(instance, '导入数据无效') as database:
+            database.stage_import(ships, expected_revision)
         return self.report(instance)
 
     def import_legacy(self, instance, expected_revision):
@@ -72,7 +79,7 @@ class DockService:
                 original = json.loads(path.read_text(encoding='utf-8-sig'))
                 database.stage_legacy(convert_legacy(original), expected_revision)
             except FleetDatabaseConflict as exc:
-                raise ApiError('CONFLICT', '舰船底账已更新，请重新载入后导入') from exc
+                raise ApiError('CONFLICT', '舰船数据已更新，请重新载入后导入') from exc
             except FleetDatabaseAlreadyImported as exc:
                 raise ApiError('ALREADY_IMPORTED', '本实例已完成旧数据迁移') from exc
             except (ValueError, TypeError, KeyError) as exc:

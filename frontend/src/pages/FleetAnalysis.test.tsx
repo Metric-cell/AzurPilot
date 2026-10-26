@@ -1,37 +1,48 @@
-import {describe, expect, it, vi} from 'vitest'
-import {renderToStaticMarkup} from 'react-dom/server'
+// @vitest-environment jsdom
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
-import {translateUi} from '../i18n'
 import {api} from '../api/client'
+import {translateUi} from '../i18n'
 import {FleetAnalysis} from './FleetAnalysis'
 
-vi.mock('../app/context', () => ({
-  useConnection: () => 'ready',
-  useApp: () => ({ui: (key: Parameters<typeof translateUi>[1]) => translateUi('zh-CN', key),
-    instances: [{name: 'test', status: 'stopped', region: 'cn'}], notify: vi.fn()}),
-}))
-vi.mock('./MindCalculator', () => ({MindCalculator: () => <p>mind editor</p>}))
-vi.mock('./FleetTechnology', () => ({FleetTechnology: () => <p>technology editor</p>}))
+vi.mock('../api/client', () => ({api: {request: vi.fn()}}))
+vi.mock('../app/context', () => ({useConnection: () => 'ready', useApp: () => ({ui: (key: Parameters<typeof translateUi>[1]) => translateUi('zh-CN', key), instances: [], notify: vi.fn()})}))
+vi.mock('./MindCalculator', () => ({MindCalculator: () => <p>mind content</p>}))
+vi.mock('./FleetTechnology', () => ({FleetTechnology: () => <p>technology content</p>}))
+vi.mock('./FleetLedger', () => ({FleetLedger: () => <p>data content</p>}))
+vi.mock('./ScanUpdate', () => ({ScanUpdate: () => <p>scan content</p>}))
+const tabs = ['data', 'technology', 'mind', 'scan'] as const
+function page(tab: string) {
+  return render(<MemoryRouter initialEntries={[`/i/test/task/FleetAnalysis?tab=${tab}`]}><Routes><Route path="/i/:instance/task/FleetAnalysis" element={<FleetAnalysis/>}/></Routes></MemoryRouter>)
+}
+beforeEach(() => {vi.mocked(api.request).mockReset().mockReturnValue(new Promise(() => {}))})
+afterEach(cleanup)
 
-describe('舰队数据分析页面', () => {
-  it.each(['data', 'mind', 'technology'])('使用统一扫描入口，%s 标签与两个编辑器保持独立', tab => {
-    const request = vi.spyOn(api, 'request')
-    const html = renderToStaticMarkup(<MemoryRouter initialEntries={[`/i/test/task/FleetAnalysis?tab=${tab}`]}><Routes>
-      <Route path="/i/:instance/task/FleetAnalysis" element={<FleetAnalysis/>}/>
-    </Routes></MemoryRouter>)
-    expect(html).toContain('共享船坞数据')
-    expect(html.match(/role="tab"/g)).toHaveLength(3)
-    expect(html).toContain('舰船数据')
-    expect(html.match(/>扫描船坞</g)).toHaveLength(1)
-    expect(html).toContain(`id="tab-${tab}"`)
-    expect(html).toContain(`aria-controls="analysis-${tab}"`)
-    expect(html).toContain('mind editor')
-    expect(html).toContain('technology editor')
-    expect(html).toContain('不升级、突破、自动觉醒或更换舰船')
-    expect(html).toContain('读取本实例旧舰船数据')
-    expect(html).toContain('无需上传文件')
-    expect(html).not.toContain('type="file"')
-    expect(request).not.toHaveBeenCalled()
-    request.mockRestore()
+describe('ship data navigation', () => {
+  it.each(tabs)('mounts only the active %s page and requests its dock snapshot', tab => {
+    page(tab)
+    expect(screen.getAllByRole('tab')).toHaveLength(4)
+    const panel = screen.getByRole('tabpanel')
+    expect(panel.textContent).toBe(`${tab} content`)
+    const selected = screen.getByRole('tab', {selected: true})
+    expect(panel.getAttribute('aria-labelledby')).toBe(selected.id)
+    for (const other of tabs.filter(value => value !== tab)) expect(screen.queryByText(`${other} content`)).toBeNull()
+    expect(api.request).toHaveBeenCalledExactlyOnceWith('dock.report', {instance: 'test'})
+  })
+
+  it('switches tabs on click and unmounts the previous page', () => {
+    page('data')
+    fireEvent.click(screen.getByRole('tab', {name: translateUi('zh-CN', 'analysis.scanPage')}))
+    expect(screen.getByRole('tabpanel').textContent).toBe('scan content')
+    expect(screen.queryByText('data content')).toBeNull()
+    expect(screen.getByRole('tab', {selected: true}).id).toBe('tab-scan')
+    expect(api.request).toHaveBeenCalledTimes(1)
+  })
+
+  it('renders dock load failures from the request effect', async () => {
+    vi.mocked(api.request).mockRejectedValueOnce(new Error('dock unavailable'))
+    page('data')
+    await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('dock unavailable'))
   })
 })

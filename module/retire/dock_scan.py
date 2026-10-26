@@ -91,7 +91,10 @@ class DockScan(Dock):
         self._scan_slots = []
         self._scan_metadata = dict(reached_bottom=False, physical_count=0)
         database = FleetDatabase(filepath_config(self.config.config_name))
-        original = dock_data.read_snapshot(database.load())
+        state = database.load()
+        if state.get('pending_revision') is not None:
+            raise MindCalculatorScanError('仍有待确认更新，请先采纳或忽略后再开始扫描')
+        original = dock_data.read_snapshot(state)
         logger.attr('船坞扫描等级范围', f'{self._policy.min_level}–{self._policy.max_level}（含边界）')
         self.ui_ensure(page_main)
         self.ui_ensure(page_dock)
@@ -119,7 +122,7 @@ class DockScan(Dock):
         snapshot = dock_data.build_snapshot(
             self._scan_slots, min_level=self._policy.min_level, max_level=self._policy.max_level,
             filters_clear=True, expected_count=expected_count,
-            updated_at=datetime.now().isoformat(timespec='seconds'), previous=original, **self._scan_metadata)
+            updated_at=datetime.now().isoformat(timespec='seconds'), **self._scan_metadata)
         try:
             # 与实例删除共用生命周期锁；扫描期间不持有配置锁。
             with config_transaction(filepath_config(self.config.config_name)):
@@ -127,7 +130,7 @@ class DockScan(Dock):
                     raise MindCalculatorScanError('实例配置已删除，未保存本次扫描')
                 database.save_scan(snapshot, expected_revision=original['revision'])
         except FleetDatabaseConflict as exc:
-            raise MindCalculatorScanError('共享船坞数据已更新，保留最新结果；请重新扫描') from exc
+            raise MindCalculatorScanError(str(exc)) from exc
         self._prune_scan_evidence()
         logger.info(f'[船坞扫描] 已读取 {len(snapshot["ships"])} 个物理船位，等待玩家采纳差异；'
                     f'待核对 {snapshot["review_count"]} 条；完整扫描：{snapshot["complete"]}')
@@ -242,7 +245,7 @@ class DockScan(Dock):
                 x = round(float(CARD_GRIDS.origin[0] + col * CARD_GRIDS.delta[0]))
                 recovered.append(Card(x, y, col, dict(
                     name=f'待核对舰船（{y}px 第 {col + 1} 列）', level=0, rarity='', base_rarity='',
-                    excluded=False, review=True, group_type=None, type=None, candidates=[], identity_ambiguous=True,
+                    review=True, group_type=None, type=None, candidates=[], identity_ambiguous=True,
                     source='当前卡位三帧仍未加载，保留位置待核对'), fleet=-1))
         return sorted(recovered, key=lambda card: (card.y, card.col))
 

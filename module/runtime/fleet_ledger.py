@@ -1,9 +1,7 @@
 """舰船底账的类型校验与待确认差异，不操作设备。"""
-import copy
 from collections import Counter
 
-CARD_FIELDS = ('group_type', 'name', 'level', 'rarity', 'base_rarity', 'extra_exp', 'excluded', 'review', 'source')
-MANUAL_FIELDS = ('owned', 'full_star', 'lv120', 'level', 'level_toggle')
+CARD_FIELDS = ('group_type', 'name', 'level', 'rarity', 'base_rarity', 'extra_exp', 'review', 'source', 'full_star', 'form')
 RARITIES = ('', 'N', 'R', 'SR', 'SSR', 'UR')
 
 
@@ -17,7 +15,7 @@ def integer(value, label, low=0, high=None, *, nullable=False):
 
 def card(values, base=None):
     result = dict(group_type=None, name='', level=0, rarity='', base_rarity='', extra_exp=None,
-                  excluded=False, review=False, source='')
+                  review=False, source='', full_star=None, form=None)
     if base:
         result.update({key: base[key] for key in CARD_FIELDS if key in base})
     result.update({key: values[key] for key in CARD_FIELDS if key in values})
@@ -31,19 +29,32 @@ def card(values, base=None):
     integer(result['group_type'], '舰船类型', 1, nullable=True)
     integer(result['level'], '等级', 0, 125)
     integer(result['extra_exp'], '零散经验', nullable=True)
+    if result['full_star'] is not None and type(result['full_star']) is not bool:
+        raise ValueError('满星状态必须是布尔值或空值')
+    if result['form'] not in (None, 'base', 'retrofit'):
+        raise ValueError('舰船形态无效')
+    if result['group_type'] is not None:
+        from module.runtime import fleet_tech
+        info = next((row for row in fleet_tech.catalog()['ships'] if row['group_type'] == result['group_type']), None)
+        if info is None and not result['review']:
+            raise ValueError('舰船身份不在图鉴中，请保留为待核对记录')
+        if result['form'] == 'retrofit' and info and not info['retrofit_names']:
+            raise ValueError('该舰船没有已知改造形态')
     for key in ('rarity', 'base_rarity'):
         if result[key] not in RARITIES:
             raise ValueError('稀有度无效')
-    for key in ('excluded', 'review'):
+    for key in ('review',):
         if type(result[key]) is not bool:
             raise ValueError(f'{key} 必须是布尔值')
     if not isinstance(result['source'], str) or len(result['source']) > 200:
         raise ValueError('来源不能超过 200 字')
+    from module.runtime import fleet_tech
+    result['full_star'] = fleet_tech.full_star_state(result)
     return result
 
 
 def observed_fields(raw):
-    # No experience observation means leave an existing manual experience untouched.
+    # Only supplied fields participate in a scan or import update.
     return tuple(key for key in CARD_FIELDS if key in raw)
 
 
@@ -85,42 +96,3 @@ def proposals(current, incoming, *, complete):
             if row['group_type'] is not None and row['group_type'] not in unresolved and not row['review']:
                 output.append(dict(operation='remove', ship_id=row['id'], values=card(row), fields=()))
     return output
-
-
-def legacy_cards(converted):
-    """Fold old calculator edits into proposed ordinary card fields, never a shadow store."""
-    from module.runtime import fleet_tech, mind_calculator, mind_analysis
-
-    snapshot = copy.deepcopy(converted.get('snapshot'))
-    rows = copy.deepcopy(snapshot.get('ships', [])) if snapshot else []
-    aliases = fleet_tech.catalog()['aliases']
-    for row in rows:
-        row.setdefault('name', '未识别舰船')
-        row.setdefault('group_type', aliases.get(mind_calculator.normalize_name(row['name'])))
-    options = converted.get('mind', {})
-    for key, override in options.get('overrides', {}).items():
-        if key.startswith('group:'):
-            gid = int(key.split(':')[1])
-            matches = [row for row in rows if row.get('group_type') == gid]
-            if matches:
-                target = max(matches, key=lambda row: row.get('level', 0))
-                target.update({field: value for field, value in override.items() if field in CARD_FIELDS})
-    for key in options.get('removed', []):
-        if key.startswith('group:'):
-            gid = int(key.split(':')[1])
-            for row in rows:
-                if row.get('group_type') == gid:
-                    row['excluded'] = True
-    for raw in options.get('extra', []):
-        row = copy.deepcopy(raw)
-        info = mind_calculator.find_ship(row.get('name', ''))
-        row['group_type'] = info['group_type'] if info else aliases.get(mind_calculator.normalize_name(row.get('name', '')))
-        rows.append(row)
-    # Review-specific fixes only bind to the exact old snapshot they were made against.
-    if snapshot and options.get('snapshot_revision') == snapshot.get('revision'):
-        for key, override in options.get('overrides', {}).items():
-            if key.startswith('review:'):
-                for row in rows:
-                    if mind_analysis.ship_key(row) == key:
-                        row.update({field: value for field, value in override.items() if field in CARD_FIELDS})
-    return rows

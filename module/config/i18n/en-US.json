@@ -402,14 +402,6 @@
       "name": "Dock data scan",
       "help": "Read dock cards into shared data for mental-chip and fleet-technology analysis; does not upgrade or swap ships."
     },
-    "MindCalculatorScan": {
-      "name": "Cognitive chip dock scan",
-      "help": "Scan a CN dock at 1280×720 and review results in the cognitive chip calculator. Keeps old data until completion; resets dock filters."
-    },
-    "FleetTechScan": {
-      "name": "Fleet technology scan",
-      "help": "Record ship identities and levels independently of cognitive chip exclusions."
-    },
     "Daemon": {
       "name": "Semi-Auto Click",
       "help": ""
@@ -6743,42 +6735,18 @@
       "help": "Read dock cards into shared data for mental-chip and fleet-technology analysis; does not upgrade or swap ships."
     }
   },
-  "MindCalculator": {
-    "_info": {
-      "name": "Cognitive chip calculator",
-      "help": "Calculate Cognitive Chips I and coins to reach level 120."
-    },
-    "MinLevel": {
-      "name": "Minimum scan level",
-      "help": "Inclusive. Import ships at or above this level."
-    },
-    "MaxLevel": {
-      "name": "Maximum scan level",
-      "help": "Inclusive. Import ships at or below this level."
-    }
-  },
-  "FleetTech": {
-    "_info": {
-      "name": "Technology scan",
-      "help": "Defaults to 95–125. Only a complete unfiltered 1–125 scan can confirm absence."
-    },
-    "MinLevel": {
-      "name": "Minimum level",
-      "help": "Inclusive; preserve existing records outside the range."
-    },
-    "MaxLevel": {
-      "name": "Maximum level",
-      "help": "Inclusive, up to level 125."
-    }
-  },
   "FleetRotation": {
     "_info": {
-      "name": "Smart ship rotation",
+      "name": "Rotation configuration",
       "help": "Normal main and event stages only; disabled by default."
     },
     "Enabled": {
-      "name": "Enable ship rotation",
+      "name": "Enable morale scheduling",
       "help": "Normal main and event stages only; disabled by default."
+    },
+    "SelectedOnly": {
+      "name": "Calculate morale for rotating ships only",
+      "help": "Off by default. When enabled, only selected slots control morale waiting and rotation; warnings from fixed ships may be confirmed. When disabled, wait for the whole fleet minimum. Both modes track training ships and retain task morale controls for rotation."
     },
     "Rules": {
       "name": "Rotation rules",
@@ -6787,6 +6755,66 @@
     "State": {
       "name": "Rotation history",
       "help": "Stores the last reserve and completed slots. Check the in-game formation before clearing."
+    }
+  },
+  "FleetLevelTraining": {
+    "_info": {
+      "name": "Level training",
+      "help": "Off by default. Uses training slots and reserves. Verify every enabled goal on the same ship before completion; morale swaps keep progress."
+    },
+    "Enabled": {
+      "name": "Enabled",
+      "help": "Off by default. Uses training slots and reserves. Verify every enabled goal on the same ship before completion; morale swaps keep progress."
+    },
+    "Target": {
+      "name": "Target level",
+      "help": "Off by default. Uses training slots and reserves. Verify every enabled goal on the same ship before completion; morale swaps keep progress."
+    }
+  },
+  "FleetAffinityTraining": {
+    "_info": {
+      "name": "Affinity training",
+      "help": "Off by default. Uses training slots and reserves. Verify every enabled goal on the same ship before completion; morale swaps keep progress."
+    },
+    "Enabled": {
+      "name": "Enabled",
+      "help": "Off by default. Uses training slots and reserves. Verify every enabled goal on the same ship before completion; morale swaps keep progress."
+    },
+    "Target": {
+      "name": "Target affinity",
+      "help": "Off by default. Uses training slots and reserves. Verify every enabled goal on the same ship before completion; morale swaps keep progress."
+    }
+  },
+  "FleetTraining": {
+    "_info": {
+      "name": "Training records",
+      "help": "Persists verified readings, completed goals and pending swaps across restarts."
+    },
+    "CheckIntervalHours": {
+      "name": "Shared read interval (hours)",
+      "help": "Shared by morale, level and affinity; nonnegative decimals with no upper limit. 0 checks after every battle, then reads after the current map. Migrate the shortest enabled legacy interval; retain completion records."
+    },
+    "State": {
+      "name": "Training records",
+      "help": "Persists verified readings, completed goals and pending swaps across restarts."
+    }
+  },
+  "FleetEquipment": {
+    "_info": {
+      "name": "Automatic equipment",
+      "help": "Unequip outgoing ships and apply incoming ship codes by actual type. Off by default."
+    },
+    "Enabled": {
+      "name": "Enable automatic equipment",
+      "help": "When off, keep the original smart rotation behavior."
+    },
+    "Codes": {
+      "name": "Equipment codes by type",
+      "help": "Up to three codes per type, ordered by actual slot separately in each row. Empty positions are skipped; old single codes remain first."
+    },
+    "State": {
+      "name": "Pending equipment",
+      "help": "Pending target slots are processed before resuming a task when enabled."
     }
   },
   "FleetInfo": {

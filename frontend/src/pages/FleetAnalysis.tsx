@@ -3,98 +3,46 @@ import {useParams, useSearchParams} from 'react-router-dom'
 import {api} from '../api/client'
 import type {DockReport} from '../api/types'
 import {useApp, useConnection} from '../app/context'
-import {ErrorBox, Loading, PageTitle} from '../components/ui'
+import {ErrorBox, PageTitle} from '../components/ui'
 import {MindCalculator} from './MindCalculator'
 import {FleetTechnology} from './FleetTechnology'
 import {FleetLedger} from './FleetLedger'
+import {ScanUpdate} from './ScanUpdate'
 import '../mind/mind.css'
+import './fleet-analysis.css'
 
 export function FleetAnalysis() {
   const {instance = ''} = useParams(), [params, setParams] = useSearchParams()
-  const {ui, instances, notify} = useApp(), connection = useConnection()
+  const {ui} = useApp(), connection = useConnection()
   const [report, setReport] = useState<DockReport>(), [error, setError] = useState(''), [busy, setBusy] = useState(false)
-  const [dirty, setDirty] = useState(false)
-  const [min, setMin] = useState('1'), [max, setMax] = useState('125')
-  const importing = useRef(false), epoch = useRef(0), scope = useRef({instance, token: 0})
-  if (scope.current.instance !== instance) scope.current = {instance, token: scope.current.token + 1}
-  const tab = params.get('tab') === 'technology' ? 'technology' : params.get('tab') === 'mind' ? 'mind' : 'data'
-  const current = instances.find(item => item.name === instance)
-  const scanning = current?.status === 'running' && ['DockScan', 'dock_scan'].includes(current.currentTask ?? '')
-  const reason = dirty ? ui('analysis.dirty') : connection !== 'ready' ? ui('mind.scanDisconnected') : !current || !report ? ui('mind.scanLoading')
-    : current.status === 'running' ? ui(scanning ? 'mind.scanInProgress' : 'mind.scanRunning')
-    : current.status === 'updating' ? ui('mind.scanUpdating') : current.region && current.region !== 'cn' ? ui('mind.scanUnsupported') : ''
+  const writing = useRef(false), epoch = useRef(0), refresh = useRef<(() => Promise<void>) | undefined>(undefined)
+  const value = params.get('tab'), tab = value === 'technology' || value === 'mind' || value === 'scan' ? value : 'data'
+  useEffect(() => {writing.current = false; setBusy(false)}, [instance, tab])
   useEffect(() => {
-    let active = true
-    setReport(undefined); setError(''); setBusy(false); importing.current = false; epoch.current++
+    let active = true, pending = false
+    setReport(undefined); setError(''); setBusy(false); writing.current = false; epoch.current++
     if (connection !== 'ready') return
-    const load = async (initial = false) => {
+    const load = async () => {
+      if (writing.current || pending) return
+      pending = true
       const version = epoch.current
-      try {
-        const value = await api.request('dock.report', {instance})
-        if (active && !importing.current && version === epoch.current) {
-          setReport(value)
-          if (initial) {setMin(String(value.min_level)); setMax(String(value.max_level))}
-        }
-      } catch (e) {if (active && !importing.current && version === epoch.current) setError((e as Error).message)}
+      try {const value = await api.request('dock.report', {instance}); if (active && version === epoch.current && !writing.current) {setReport(value); setError('')}}
+      catch (e) {if (active && version === epoch.current) setError((e as Error).message)}
+      finally {pending = false}
     }
-    void load(true)
-    const timer = setInterval(() => void load(), 5000)
-    return () => {active = false; scope.current.token++; clearInterval(timer)}
+    refresh.current = load
+    void load(); const timer = setInterval(() => void load(), 5000)
+    return () => {active = false; refresh.current = undefined; clearInterval(timer)}
   }, [instance, connection])
-  async function run(stop = false) {
-    if (busy || importing.current || !stop && reason) return
-    const token = scope.current.token
-    importing.current = true; epoch.current++; setBusy(true); setError('')
-    try {
-      if (stop) await api.request('scheduler.stop', {instance})
-      else {
-        const low = Number(min), high = Number(max)
-        if (!min.trim() || !max.trim() || !Number.isInteger(low) || !Number.isInteger(high) || low < 1 || high > 125 || low > high) throw new Error(ui('mind.invalidRange'))
-        const value = await api.request('dock.configure', {instance, min_level: low, max_level: high})
-        if (scope.current.token !== token) return
-        setReport(value)
-        await api.request('tasks.run', {instance, task: 'DockScan'})
-        if (scope.current.token === token) notify(ui('mind.scanStarted'))
-      }
-    } catch (e) {if (scope.current.token === token) setError((e as Error).message)}
-    finally {if (scope.current.token === token) {epoch.current++; importing.current = false; setBusy(false)}}
-  }
-  async function importLegacy() {
-    if (busy || dirty || importing.current || !report || report.legacy_imported || connection !== 'ready') return
-    const token = scope.current.token
-    importing.current = true; epoch.current++; setBusy(true); setError('')
-    try {
-      const value = await api.request('dock.importLegacy', {instance, revision: report.revision})
-      if (scope.current.token !== token) return
-      setReport(value); notify(ui('analysis.stageLegacy'))
-    } catch (e) {if (scope.current.token === token) setError((e as Error).message)}
-    finally {if (scope.current.token === token) {epoch.current++; importing.current = false; setBusy(false)}}
-  }
-  const sourceKey = report?.ships.length ? 'analysis.source_ledger' : 'analysis.source_empty'
-  return <div className="mind-calculator">
-    <PageTitle title={ui('analysis.title')}/><p>{ui('analysis.hint')}</p>
-    <section className="mind-panel" aria-label={ui('analysis.source')}>
-      <h2>{ui('analysis.source')}</h2>
-      {error && <ErrorBox message={error}/>}
-      {!report && !error && <Loading/>}
-      {report && <p role="status">{ui('analysis.origin')}: {ui(sourceKey)} · {ui('analysis.time')}: {report.updated_at?.replace('T', ' ') || ui('analysis.empty')} · {ui('analysis.confirmedCount')}: {report.ships.length} · {ui('analysis.pendingCount')}: {report.pending_changes.length}</p>}
-      <div className="mind-toolbar">
-        <label>{ui('mind.minLevel')}<input type="number" min={1} max={125} value={min} disabled={busy || !!reason} onChange={e => setMin(e.target.value)}/></label>
-        <label>{ui('mind.maxLevel')}<input type="number" min={1} max={125} value={max} disabled={busy || !!reason} onChange={e => setMax(e.target.value)}/></label>
-        <button className="button primary" title={reason} disabled={busy || !!reason} onClick={() => void run()}>{ui(scanning ? 'mind.scanning' : 'analysis.scan')}</button>
-        {scanning && <button className="button secondary" disabled={busy || connection !== 'ready'} onClick={() => void run(true)}>{ui('mind.stop')}</button>}
-        <button className="button secondary" disabled={busy || connection !== 'ready' || !report || dirty || !!report.legacy_imported}
-          onClick={() => void importLegacy()}>{ui(report?.legacy_imported ? 'analysis.legacyImported' : 'analysis.importLegacy')}</button>
-        {reason && <p role="status">{reason}</p>}
-      </div><p className="muted">{ui('analysis.legacyHint')}</p><p className="muted">{ui('analysis.scanHint')}</p>
+  const onBusy = (value: boolean) => {epoch.current++; writing.current = value; setBusy(value)}
+  const onReport = (value: DockReport) => {epoch.current++; setReport(value)}
+  return <div className="mind-calculator fleet-analysis"><PageTitle title={ui('analysis.title')}/>{error && <ErrorBox message={error}/>}
+    <div className="ft-chips" role="tablist" aria-label={ui('analysis.title')}>{(['data', 'technology', 'mind', 'scan'] as const).map(value => <button key={value} role="tab" disabled={busy} aria-selected={tab === value} aria-controls={`analysis-${value}`} id={`tab-${value}`} onClick={() => setParams({tab: value}, {replace: true})}>{ui(value === 'scan' ? 'analysis.scanPage' : `analysis.${value}`)}</button>)}</div>
+    <section role="tabpanel" id={`analysis-${tab}`} aria-labelledby={`tab-${tab}`}>
+      {tab === 'data' && <FleetLedger key={instance} instance={instance} report={report} locked={busy} onReport={onReport} onBusy={onBusy}/>}
+      {tab === 'technology' && <FleetTechnology key={instance}/>}
+      {tab === 'mind' && <MindCalculator key={instance} report={report} onRefresh={() => refresh.current?.()}/>}
+      {tab === 'scan' && <ScanUpdate key={instance} instance={instance} report={report} locked={busy} onReport={onReport} onBusy={onBusy}/>}
     </section>
-    <div className="ft-chips" role="tablist" aria-label={ui('analysis.title')}>
-      {(['data', 'mind', 'technology'] as const).map(value => <button key={value} role="tab" aria-selected={tab === value} aria-controls={`analysis-${value}`} id={`tab-${value}`} onClick={() => setParams({tab: value}, {replace: true})}>{ui(value === 'data' ? 'analysis.data' : value === 'mind' ? 'analysis.mind' : 'analysis.technology')}</button>)}
-    </div>
-    <section role="tabpanel" id="analysis-data" aria-labelledby="tab-data" hidden={tab !== 'data'}><FleetLedger key={instance} instance={instance} report={report} locked={busy}
-      onReport={value => {epoch.current++; setReport(value)}} onDirty={setDirty}
-      onBusy={value => {epoch.current++; importing.current = value; setBusy(value)}}/></section>
-    <section role="tabpanel" id="analysis-mind" aria-labelledby="tab-mind" hidden={tab !== 'mind'}><MindCalculator key={instance}/></section>
-    <section role="tabpanel" id="analysis-technology" aria-labelledby="tab-technology" hidden={tab !== 'technology'}><FleetTechnology key={instance}/></section>
   </div>
 }

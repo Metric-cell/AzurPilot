@@ -85,7 +85,11 @@ describe('TaskNav 导航组件', () => {
     expect(html).toContain('task-group-button expanded active')
     expect(html).toContain('href="/i/default/task/FleetInfo"')
     expect(html).toContain('href="/i/default/task/FleetAnalysis"')
-    expect(html).toContain('舰队数据分析')
+    expect(html).toContain('href="/i/default/task/FleetTraining"')
+    expect(html).toContain('href="/i/default/task/FleetEquipment"')
+    expect(html).not.toContain('href="/i/default/task/MindCalculator"')
+    expect(html).not.toContain('href="/i/default/task/FleetTechnology"')
+    expect(html).toContain('舰船数据')
     expect(html).not.toContain('Task.MindCalculator.name')
   })
 

@@ -1,5 +1,4 @@
-"""玩家编辑的舰船底账；设备读取仅产生待确认更新。"""
-import copy
+"""玩家编辑的舰船数据；设备读取仅产生待确认更新。"""
 import os
 import sqlite3
 import stat
@@ -22,7 +21,7 @@ class FleetDatabaseAlreadyImported(ValueError):
 
 
 class FleetDatabase:
-    SCHEMA_VERSION = 3
+    SCHEMA_VERSION = 11
     BUSY_TIMEOUT_MS = 10000
 
     def __init__(self, config_path):
@@ -100,7 +99,7 @@ class FleetDatabase:
             return
         if version != 0 or not create:
             raise ValueError(f'Unsupported fleet database schema version: {version}; '
-                             '请先备份旧试验版舰船数据库，再使用新底账重新扫描或显式导入旧配置')
+                             '当前仅支持新版舰船数据库；旧 JSON 数据请使用扫描更新中的导入入口')
         if connection.execute("SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%'").fetchone():
             raise ValueError('Unversioned fleet database contains existing tables')
         # Execute statements individually: executescript would commit the caller's transaction.
@@ -122,8 +121,8 @@ class FleetDatabase:
     def _cards(self, connection):
         rows = self._rows(connection, 'SELECT id, ' + ', '.join(ledger.CARD_FIELDS) + ' FROM ships ORDER BY position')
         for row in rows:
-            for field in ('review', 'excluded'):
-                row[field] = bool(row[field])
+            for field in ('review', 'full_star'):
+                row[field] = None if row[field] is None else bool(row[field])
         return rows
 
     def _snapshot(self, connection):
@@ -131,54 +130,45 @@ class FleetDatabase:
         if info['revision'] is None:
             return None
         rows = self._cards(connection)
-        observed = dict(connection.execute('SELECT group_type, max_observed_level FROM technology '
-                                           'WHERE max_observed_level IS NOT NULL'))
-        current = {}
-        for row in rows:
-            if not row['review'] and row['group_type'] is not None and 1 <= row['level'] <= 125:
-                key = str(row['group_type'])
-                current[key] = max(current.get(key, 0), row['level'])
-        return dict(version=1, revision=info['revision'], ships=rows, history=dict(
-            observed=observed, current=current, absent=[]), updated_at=info['updated_at'],
+        return dict(version=1, revision=info['revision'], ships=rows, updated_at=info['updated_at'],
             min_level=1, max_level=125, reached_bottom=False, filters_clear=False,
             physical_count=len(rows), expected_count=None, complete=False,
             review_count=sum(row['review'] for row in rows), source='ledger')
 
-    @staticmethod
-    def _manual(row):
-        result = {field: (bool(row[field]) if field in ('owned', 'full_star', 'lv120') and row[field] is not None
-                          else row[field]) for bit, field in enumerate(ledger.MANUAL_FIELDS[:-1], 1)
-                  if row['manual_fields'] & (1 << bit)}
-        if row['manual_fields'] & (1 << len(ledger.MANUAL_FIELDS)):
-            result['level_toggle'] = ({} if row['low_level'] is None and row['high_level'] is None
-                                      else dict(low=row['low_level'], high=row['high_level']))
-        return result
-
-    def _options(self, connection, scope='technology'):
-        if scope != 'technology':
-            return {}
-        values = dict(manual={}, nations={})
-        for row in self._rows(connection, 'SELECT * FROM technology WHERE manual_fields != 0'):
-            values['manual'][row['group_type']] = self._manual(row)
-        values['nations'] = dict(connection.execute('SELECT nation_key, level FROM nation_technology'))
-        mask = self._info(connection)['technology_fields']
-        return {key: values[key] for index, key in enumerate(('manual', 'nations')) if mask & (1 << index)}
+    def _options(self, connection):
+        output = {}
+        nations = dict(connection.execute('SELECT nation_key, level FROM nation_technology'))
+        if nations:
+            output['nations'] = nations
+        progress = {row.pop('group_type'): row for row in self._rows(connection, 'SELECT * FROM technology_progress')}
+        for row in progress.values():
+            for key in (*tech.MILESTONES, 'awakening_pending'):
+                row[key] = bool(row[key])
+        if progress:
+            output['progress'] = progress
+        return output
 
     @staticmethod
     def _legacy_imported(connection):
         return connection.execute('SELECT imported_at IS NOT NULL FROM fleet_info WHERE id=1').fetchone()[0] == 1
 
-    def _load(self, connection, *, include_import_status=False):
+    def _load(self, connection, *, include_pending=False, include_import_status=False):
         info = self._info(connection)
-        value = dict(snapshot=self._snapshot(connection), technology=self._options(connection), mind={},
-                     pending_revision=info['pending_revision'], pending_changes=self._differences(connection))
+        value = dict(snapshot=self._snapshot(connection), technology=self._options(connection),
+                     pending_revision=info['pending_revision'])
+        if include_pending:
+            value['pending_changes'] = self._differences(connection)
+        if info['reading_count'] is not None:
+            value['pending_read'] = dict(source=info['pending_source'], updated_at=info['pending_updated_at'],
+                                        observed_count=info['reading_count'], review_count=info['reading_review_count'],
+                                        complete=bool(info['reading_complete']))
         if include_import_status:
             value['legacy_imported'] = self._legacy_imported(connection)
         return value
 
-    def load(self, *, include_import_status=False):
+    def load(self, *, include_pending=False, include_import_status=False):
         try:
-            return self._read_only(include_import_status=include_import_status)
+            return self._read_only(include_pending=include_pending, include_import_status=include_import_status)
         except sqlite3.OperationalError as exc:
             if getattr(exc, 'sqlite_errorcode', None) != sqlite3.SQLITE_READONLY_ROLLBACK:
                 raise
@@ -188,23 +178,24 @@ class FleetDatabase:
         if connection is not None:
             try:
                 connection.execute('BEGIN IMMEDIATE')
-                self._schema(connection)
                 connection.rollback()
             finally:
                 connection.close()
-        return self._read_only(include_import_status=include_import_status)
+        return self.load(include_pending=include_pending, include_import_status=include_import_status)
 
-    def _read_only(self, *, include_import_status=False):
+    def _read_only(self, *, include_pending=False, include_import_status=False):
         connection = self._connect(write=False)
         if connection is None:
-            value = dict(snapshot=None, mind={}, technology={}, pending_revision=None, pending_changes=[])
+            value = dict(snapshot=None, technology={}, pending_revision=None)
+            if include_pending:
+                value['pending_changes'] = []
             if include_import_status:
                 value['legacy_imported'] = False
             return value
         try:
             connection.execute('BEGIN')
             self._schema(connection)
-            return self._load(connection, include_import_status=include_import_status)
+            return self._load(connection, include_pending=include_pending, include_import_status=include_import_status)
         finally:
             connection.close()
 
@@ -227,7 +218,7 @@ class FleetDatabase:
 
     def _check_revision(self, connection, expected):
         if self._revision(connection) != expected:
-            raise FleetDatabaseConflict('舰船底账已更新，请重新载入后操作')
+            raise FleetDatabaseConflict('舰船数据已更新，请重新载入后操作')
 
     @staticmethod
     def _now():
@@ -235,59 +226,6 @@ class FleetDatabase:
 
     def _touch(self, connection):
         connection.execute('UPDATE fleet_info SET revision=?, updated_at=? WHERE id=1', (tech.revision(uuid4().hex), self._now()))
-
-    def _write_options(self, connection, scope, options):
-        if scope != 'technology':
-            return
-        connection.execute('UPDATE technology SET manual_fields=0, owned=NULL, full_star=NULL, '
-                           'lv120=NULL, level=NULL, low_level=NULL, high_level=NULL')
-        for gid, entry in options.get('manual', {}).items():
-            self._write_technology(connection, 'technology', gid, None, entry)
-        connection.execute('DELETE FROM technology WHERE max_observed_level IS NULL AND manual_fields=0')
-        connection.execute('DELETE FROM nation_technology')
-        for key, value in options.get('nations', {}).items():
-            ledger.integer(value, '阵营等级', nullable=True)
-            connection.execute('INSERT INTO nation_technology VALUES (?, ?)', (key, value))
-        mask = sum(1 << index for index, key in enumerate(('manual', 'nations')) if key in options)
-        connection.execute('UPDATE fleet_info SET technology_fields=? WHERE id=1', (mask,))
-
-    @staticmethod
-    def _write_technology(connection, table, gid, observed, entry):
-        if not isinstance(gid, str) or not gid.isdecimal():
-            raise ValueError('舰船群组必须是数字编号')
-        ledger.integer(observed, '累计科技等级', 1, 125, nullable=True)
-        ledger.integer(entry.get('level'), '人工等级', 1, 125, nullable=True)
-        for field in ('owned', 'full_star', 'lv120'):
-            if entry.get(field) is not None and type(entry[field]) is not bool:
-                raise ValueError('人工科技状态必须是布尔值或空值')
-        pair = entry.get('level_toggle', {})
-        if not isinstance(pair, dict):
-            raise ValueError('等级切换端点无效')
-        if pair:
-            ledger.integer(pair.get('low'), '低等级端点', 1, 119)
-            ledger.integer(pair.get('high'), '高等级端点', 120, 125)
-        mask = (1 | sum(1 << bit for bit, field in enumerate(ledger.MANUAL_FIELDS, 1) if field in entry)) if entry else 0
-        connection.execute(f'INSERT INTO {table} (group_type, max_observed_level, manual_fields, owned, '
-                           'full_star, lv120, level, low_level, high_level) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) '
-                           'ON CONFLICT(group_type) DO UPDATE SET max_observed_level='
-                           f'CASE WHEN excluded.max_observed_level IS NULL THEN {table}.max_observed_level '
-                           f'ELSE MAX(COALESCE({table}.max_observed_level, 0), excluded.max_observed_level) END, '
-                           'manual_fields=excluded.manual_fields, owned=excluded.owned, full_star=excluded.full_star, '
-                           'lv120=excluded.lv120, level=excluded.level, low_level=excluded.low_level, high_level=excluded.high_level',
-                           (gid, observed, mask, entry.get('owned'), entry.get('full_star'), entry.get('lv120'),
-                            entry.get('level'), pair.get('low'), pair.get('high')))
-
-    @contextmanager
-    def edit(self, *, import_legacy=False):
-        if import_legacy:
-            raise ValueError('读取旧数据请使用待确认更新入口')
-        with self._transaction() as connection:
-            state = self._load(connection)
-            original = copy.deepcopy(state['technology'])
-            yield state
-            if original != state['technology']:
-                self._write_options(connection, 'technology', state['technology'])
-                self._touch(connection)
 
     @staticmethod
     def _insert_card(connection, values):
@@ -301,14 +239,112 @@ class FleetDatabase:
         connection.execute('UPDATE ships SET ' + ', '.join(f'{field}=?' for field in ledger.CARD_FIELDS)
                            + ' WHERE id=?', (*(values[field] for field in ledger.CARD_FIELDS), ship_id))
 
-    def _accumulate(self, connection):
-        known = {row['group_type'] for row in tech.catalog()['ships']}
-        for row in self._cards(connection):
-            if row['group_type'] in known and not row['review'] and 1 <= row['level'] <= 125:
-                connection.execute('INSERT INTO technology (group_type, max_observed_level) VALUES (?, ?) '
-                                   'ON CONFLICT(group_type) DO UPDATE SET max_observed_level='
-                                   'MAX(COALESCE(technology.max_observed_level, 0), excluded.max_observed_level)',
-                                   (str(row['group_type']), row['level']))
+    def _set_progress(self, connection, gid, values, *, source):
+        values = dict(values)
+        if 'awakening_pending' in values and type(values['awakening_pending']) is not bool:
+            raise ValueError('满级待觉醒标记必须为布尔值')
+        for key in tech.MILESTONES:
+            if key in values and type(values[key]) is not bool:
+                raise ValueError('科技里程碑必须为布尔值')
+            values.setdefault(key, False)
+        connection.execute('INSERT INTO technology_progress '
+                           '(group_type, owned, full_star, lv120, source, updated_at) VALUES (?, ?, ?, ?, ?, ?) '
+                           'ON CONFLICT(group_type) DO UPDATE SET owned=excluded.owned, '
+                           'full_star=excluded.full_star, lv120=excluded.lv120, source=excluded.source, '
+                           'updated_at=excluded.updated_at',
+                           (str(gid), *(values.get(key) for key in tech.MILESTONES), source, self._now()))
+        # Inferred milestone writes preserve independently configured manual flags.
+        if 'awakening_pending' in values:
+            connection.execute('UPDATE technology_progress SET awakening_pending=? WHERE group_type=?',
+                               (values['awakening_pending'], str(gid)))
+
+    def _initialize_technology(self, connection):
+        """Seed account facts once, after the first confirmed ledger is built."""
+        if self._info(connection)['technology_initialized']:
+            return
+        progress = self._options(connection).get('progress', {})
+        inferred = {}
+        for card in self._cards(connection):
+            facts = tech.positive_facts(card)
+            if not facts:
+                continue
+            gid = str(card['group_type'])
+            # Even an explicitly incomplete saved row is an independent decision.
+            if gid in progress:
+                continue
+            values = inferred.setdefault(gid, {})
+            for key in facts:
+                values[key] = True
+        for gid, values in inferred.items():
+            self._set_progress(connection, gid, values, source='initial ledger')
+        connection.execute('UPDATE fleet_info SET technology_initialized=1 WHERE id=1')
+
+    def patch_technology(self, changes, nations, expected_revision):
+        with self._transaction() as connection:
+            from module.runtime import dock_data
+            record = dock_data.technology_record(self._load(connection))
+            if tech.revision(record) != expected_revision:
+                raise FleetDatabaseConflict('科技记录已更新，请重新载入后编辑')
+            known = {row['group_type']: row for row in tech.catalog()['ships']}
+            seen = set()
+            for change in changes:
+                gid = change['group_type']
+                if gid not in known or gid in seen:
+                    raise ValueError('舰船群组不存在或重复')
+                seen.add(gid)
+                if change.keys() - {'group_type', *tech.MILESTONES, 'awakening_pending'}:
+                    raise ValueError('只允许编辑科技里程碑；等级请在我的舰船维护')
+                values = dict(record['progress'].get(str(gid), {}))
+                values.update({key: change[key] for key in (*tech.MILESTONES, 'awakening_pending') if key in change})
+                # Enabling fills omitted prerequisites. Clearing a prerequisite
+                # also clears the milestones that require it for this ship type.
+                if 'owned' not in change and any(change.get(key) is True for key in ('full_star', 'lv120')):
+                    values['owned'] = True
+                if ('full_star' not in change and change.get('lv120') is True
+                        and known[gid]['full_star_rule'] == 'ordinary_level_cap'):
+                    values['full_star'] = True
+                if change.get('owned') is False:
+                    values.update(full_star=False, lv120=False)
+                if change.get('full_star') is False and known[gid]['full_star_rule'] == 'ordinary_level_cap':
+                    values['lv120'] = False
+                self._set_progress(connection, gid, values, source='manual correction')
+            if changes:
+                connection.execute('UPDATE fleet_info SET technology_initialized=1 WHERE id=1')
+            for key, value in nations.items():
+                if key not in tech.catalog()['nations'] or (value is not None and
+                        (type(value) is not int or not 0 <= value <= len(tech.catalog()['nations'][key]))):
+                    raise ValueError('阵营科技等级无效')
+                connection.execute('INSERT INTO nation_technology VALUES (?, ?) ON CONFLICT(nation_key) '
+                                   'DO UPDATE SET level=excluded.level', (key, value))
+            if changes or nations:
+                self._touch(connection)
+
+    def merge_ship_technology(self, expected_revision):
+        """Explicitly union saved milestones with confirmed current ship facts."""
+        with self._transaction() as connection:
+            from module.runtime import dock_data
+            record = dock_data.technology_record(self._load(connection))
+            if tech.revision(record) != expected_revision:
+                raise FleetDatabaseConflict('科技记录或舰船数据已更新，请重新载入后合并')
+            progress = record['progress']
+            changed = {}
+            for card in self._cards(connection):
+                facts = tech.positive_facts(card)
+                if not facts:
+                    continue
+                gid = str(card['group_type'])
+                values = changed.get(gid, progress.get(gid, {}))
+                additions = facts - {key for key in tech.MILESTONES if values.get(key) is True}
+                if not additions:
+                    continue
+                values = changed.setdefault(gid, dict(values))
+                for key in additions:
+                    values[key] = True
+            if changed:
+                for gid, values in changed.items():
+                    self._set_progress(connection, gid, values, source='explicit union: current ship')
+                connection.execute('UPDATE fleet_info SET technology_initialized=1 WHERE id=1')
+                self._touch(connection)
 
     def patch_cards(self, changes, expected_revision):
         with self._transaction() as connection:
@@ -333,14 +369,14 @@ class FleetDatabase:
                     else:
                         self._update_card(connection, ship_id, values)
             if changes:
-                self._accumulate(connection)
+                self._initialize_technology(connection)
                 self._touch(connection)
 
     def _differences(self, connection):
         cards = {row['id']: row for row in self._cards(connection)}
         output = []
         for row in self._rows(connection, 'SELECT * FROM pending_ships ORDER BY id'):
-            values = {field: bool(row[field]) if field in ('excluded', 'review') else row[field]
+            values = {field: bool(row[field]) if field in ('review', 'full_star') and row[field] is not None else row[field]
                       for field in ledger.CARD_FIELDS}
             before = cards.get(row['ship_id'])
             operation = row['operation']
@@ -366,15 +402,12 @@ class FleetDatabase:
                                after=None if operation == 'remove' else values, fields=delta,
                                candidates=candidates if operation == 'resolve' else []))
         current = self._options(connection)
-        observed = dict(connection.execute('SELECT group_type, max_observed_level FROM technology'))
         names = {str(row['group_type']): row['name'] for row in tech.catalog()['ships']}
         for row in self._rows(connection, 'SELECT * FROM pending_technology ORDER BY group_type'):
             gid = row['group_type']
-            before = dict(current.get('manual', {}).get(gid, {}), observed_level=observed.get(gid))
-            after = self._manual(row)
-            if row['max_observed_level'] is not None and row['max_observed_level'] > (observed.get(gid) or 0):
-                after['observed_level'] = row['max_observed_level']
-            fields = [field for field in after if field not in before or before[field] != after[field]]
+            before = current.get('progress', {}).get(gid, {key: False for key in tech.MILESTONES})
+            after = {key: bool(row[key]) for key in tech.MILESTONES if row[key] is not None}
+            fields = [key for key in after if before.get(key) != after[key]]
             if fields:
                 output.append(dict(id=f'technology:{gid}', kind='technology', operation='update', ship_id=None,
                                    group_type=int(gid), name=names.get(gid, gid), before=before,
@@ -387,7 +420,12 @@ class FleetDatabase:
                                    after=dict(level=value), fields=['level'], candidates=[]))
         return output
 
-    def _stage(self, connection, rows, *, complete, observed, options, source, updated_at):
+    def _stage(self, connection, rows, *, complete, source, updated_at, technology=None, nations=None):
+        if source != 'legacy':
+            rows = [{key: value for key, value in row.items()
+                     if not (key in ('extra_exp', 'full_star', 'form') and value is None)} for row in rows]
+        if self._info(connection)['pending_revision'] is not None:
+            raise FleetDatabaseConflict('仍有待确认更新，请先采纳或忽略后再读取新数据')
         for table in ('pending_ships', 'pending_technology', 'pending_nations'):
             connection.execute(f'DELETE FROM {table}')
         for proposal in ledger.proposals(self._cards(connection), rows, complete=complete):
@@ -400,15 +438,20 @@ class FleetDatabase:
                                 *(values[field] for field in ledger.CARD_FIELDS)))
             connection.executemany('INSERT INTO pending_targets VALUES (?, ?)',
                                    ((cursor.lastrowid, target) for target in proposal.get('candidates', [])))
-        for gid in observed.keys() | options.get('manual', {}).keys():
-            self._write_technology(connection, 'pending_technology', gid, observed.get(gid),
-                                   options.get('manual', {}).get(gid, {}))
-        for key, value in options.get('nations', {}).items():
+        for gid, values in (technology or {}).items():
+            if not isinstance(gid, str) or not gid.isdecimal():
+                raise ValueError('舰船群组必须是数字编号')
+            if values.keys() - set(tech.MILESTONES) or any(type(value) is not bool for value in values.values()):
+                raise ValueError('待导入科技里程碑必须为布尔值')
+            connection.execute('INSERT INTO pending_technology (group_type, owned, full_star, lv120) VALUES (?, ?, ?, ?)',
+                               (gid, *(values.get(key) for key in tech.MILESTONES)))
+        for key, value in (nations or {}).items():
             ledger.integer(value, '阵营等级', nullable=True)
             connection.execute('INSERT INTO pending_nations VALUES (?, ?)', (key, value))
-        has_changes = bool(self._differences(connection))
-        connection.execute('UPDATE fleet_info SET pending_revision=?, pending_source=?, pending_updated_at=? WHERE id=1',
-                           (tech.revision(uuid4().hex) if has_changes else None, source, updated_at))
+        connection.execute('UPDATE fleet_info SET reading_count=?, reading_review_count=?, reading_complete=? WHERE id=1',
+                           (len(rows), sum(ledger.card(row)['review'] for row in rows), int(complete)))
+        connection.execute('UPDATE fleet_info SET pending_source=?, pending_updated_at=? WHERE id=1',
+                           (source, updated_at))
         self._prune_pending(connection)
 
     def _prune_pending(self, connection):
@@ -432,26 +475,33 @@ class FleetDatabase:
         for field in ('reached_bottom', 'filters_clear'):
             if type(metadata[field]) is not bool:
                 raise ValueError('扫描完整性证明必须为布尔值')
-        rows = snapshot['ships']
-        derived = tech.merge_scan({}, rows, **metadata)
+        rows = [row for row in snapshot['ships']
+                if not (type(row.get('level')) is int and 1 <= row['level'] <= 125
+                        and not metadata['min_level'] <= row['level'] <= metadata['max_level'])]
+        summary = tech.scan_summary(rows, **{key: value for key, value in metadata.items() if key != 'updated_at'})
         with self._transaction() as connection:
             self._check_revision(connection, expected_revision)
-            self._stage(connection, rows, complete=derived['last_scan']['complete'],
-                        observed=derived['observed'], options={}, source='scan', updated_at=metadata['updated_at'])
+            self._stage(connection, rows, complete=summary['complete'],
+                        source='scan', updated_at=metadata['updated_at'])
+
+    def stage_import(self, rows, expected_revision):
+        if not isinstance(rows, list) or not 1 <= len(rows) <= 5000:
+            raise ValueError('导入舰船数量必须介于 1 到 5000')
+        with self._transaction() as connection:
+            self._check_revision(connection, expected_revision)
+            self._stage(connection, rows, complete=False,
+                        source='import', updated_at=self._now())
 
     def stage_legacy(self, converted, expected_revision):
-        rows = ledger.legacy_cards(converted)
-        observed = copy.deepcopy((converted.get('snapshot') or {}).get('history', {}).get('observed', {}))
-        for row in rows:
-            if row.get('group_type') and not row.get('review') and 1 <= row.get('level', 0) <= 125:
-                key = str(row['group_type'])
-                observed[key] = max(observed.get(key, 0), row['level'])
+        from module.runtime.fleet_legacy import sqlite_payload
+
+        payload = sqlite_payload(converted)
         with self._transaction() as connection:
             self._check_revision(connection, expected_revision)
             if self._legacy_imported(connection):
                 raise FleetDatabaseAlreadyImported('本实例旧数据已经读取')
-            self._stage(connection, rows, complete=False, observed=observed, options=converted.get('technology', {}),
-                        source='legacy', updated_at=self._now())
+            self._stage(connection, payload['ships'], complete=False, technology=payload['technology'],
+                        nations=payload['nations'], source='legacy', updated_at=self._now())
             connection.execute('UPDATE fleet_info SET imported_at=? WHERE id=1', (self._now(),))
 
     def review(self, decisions, expected_revision, pending_revision):
@@ -460,7 +510,7 @@ class FleetDatabase:
             if pending_revision is None or self._info(connection)['pending_revision'] != pending_revision:
                 raise FleetDatabaseConflict('待采纳数据已变化，请重新载入')
             differences = {row['id']: row for row in self._differences(connection)}
-            seen, used_targets, accepted = set(), set(), False
+            seen, used_targets, accepted, accepted_ship = set(), set(), False, False
             for decision in decisions:
                 key = decision['id']
                 if key in seen or key not in differences:
@@ -470,8 +520,11 @@ class FleetDatabase:
                     raise ValueError('必须明确选择采纳或忽略')
                 row = differences[key]
                 if decision['accept']:
+                    if row['operation'] == 'remove' and len(decisions) != 1:
+                        raise ValueError('移除建议必须单独确认，不能批量采纳')
                     accepted = True
                     if row['kind'] == 'ship':
+                        accepted_ship = True
                         target = row['ship_id']
                         if row['operation'] == 'resolve':
                             if 'ship_id' not in decision:
@@ -500,26 +553,19 @@ class FleetDatabase:
                                       if pending['fields'] & (1 << bit)}
                             self._update_card(connection, target, ledger.card(values, current))
                     elif row['kind'] == 'technology':
-                        options = self._options(connection)
                         gid = str(row['group_type'])
-                        entry = options.setdefault('manual', {}).setdefault(gid, {})
-                        entry.update({field: row['after'][field] for field in row['fields'] if field != 'observed_level'})
-                        if not entry:
-                            options['manual'].pop(gid, None)
-                        self._write_options(connection, 'technology', options)
-                        if row['after'].get('observed_level'):
-                            connection.execute('INSERT INTO technology (group_type, max_observed_level) VALUES (?, ?) '
-                                               'ON CONFLICT(group_type) DO UPDATE SET max_observed_level='
-                                               'MAX(COALESCE(technology.max_observed_level, 0), excluded.max_observed_level)',
-                                               (gid, row['after']['observed_level']))
+                        values = dict(self._options(connection).get('progress', {}).get(gid, {}))
+                        values.update({field: row['after'][field] for field in row['fields']})
+                        self._set_progress(connection, gid, values, source='confirmed import')
+                        connection.execute('UPDATE fleet_info SET technology_initialized=1 WHERE id=1')
                     else:
                         connection.execute('INSERT INTO nation_technology VALUES (?, ?) ON CONFLICT(nation_key) '
                                            'DO UPDATE SET level=excluded.level', (row['name'], row['after']['level']))
-                        connection.execute('UPDATE fleet_info SET technology_fields=technology_fields | 2 WHERE id=1')
                 table, column = {'ship': ('pending_ships', 'id'), 'technology': ('pending_technology', 'group_type'),
                                  'nation': ('pending_nations', 'nation_key')}[row['kind']]
                 connection.execute(f'DELETE FROM {table} WHERE {column}=?', (key.split(':', 1)[1],))
             if accepted:
-                self._accumulate(connection)
+                if accepted_ship:
+                    self._initialize_technology(connection)
                 self._touch(connection)
             self._prune_pending(connection)

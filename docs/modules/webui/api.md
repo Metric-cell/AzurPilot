@@ -441,4 +441,4 @@ clean 不注册 `stock.status`、`stock.request`、`stock.rebuild`，也不接�
 
 心智的编辑、导入、截图识别和导出继续使用 `mind.*`；舰船科技的人工历史修订继续使用 `fleetTech.patch`。两者的草稿和人工设置独立，分析页面本身不触发游戏任务。
 
-`dock.report` 返回可编辑的已确认舰船底账与待采纳差异。`dock.patch` 按内部序号修改、新增或删除舰船行，`dock.review` 在底账及候选双版本校验下逐条或全部采纳、忽略差异。主动扫描和 `dock.importLegacy` 仅生成候选，不覆盖人工底账；后者只读取当前实例本地旧 JSON，不上传、不清理原文件。`mind.report` 直接从已确认底账计算，旧 `mind.save` 引导到舰船数据表；不再保存独立心智覆盖。科技和阵营等级保留直接编辑，重新载入不采纳候选。见 [舰队数据分析](fleet-analysis.md)。
+`dock.report` 返回已确认的逐卡舰船、待确认差异和最近读取摘要。`dock.patch` 按副本 ID 新增、修改或删除舰船，`dock.stageImport` 暂存解析后的文件或截图记录，`dock.review` 校验正式数据及候选双版本后逐项确认或忽略。扫描与 `dock.importLegacy` 只生成候选；旧 JSON 转换必须显式发起，只读取当前实例本地文件，保留原文件。`fleetTech.report/patch` 读取或独立编辑累计科技和阵营等级，`fleetTech.mergeShips` 显式合并当前舰船的正向里程碑。`mind.plan` 按已确认副本和实际等级只读计算，`mind.import/recognize` 只解析上传内容；公共资料由 `mind.catalog`、`fleetTech.catalog` 提供。当前舰船不保存额外经验或旧计费排除标记。见 [舰船数据](fleet-analysis.md)。

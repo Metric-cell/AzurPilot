@@ -1250,7 +1250,10 @@ GuildOperation:
   Enable: true
   SelectNewOperation: false
   NewOperationMaxDate: 15
-  JoinThreshold: 1
+  JoinThreshold:
+    value: 1.0
+    valuetype: float
+    validate: [0.0, 1.0]
   AttackBoss: true
   BossFleetRecommend: false
 Reward:
@@ -2473,30 +2476,47 @@ Dock:
     value: 125
     validate: "^[1-9][0-9]?$|^1[01][0-9]$|^12[0-5]$"
 
-MindCalculator:
-  MinLevel:
-    value: 95
-    validate: "^[1-9][0-9]?$|^1[01][0-9]$|^12[0-5]$"
-  MaxLevel:
-    value: 125
-    validate: "^[1-9][0-9]?$|^1[01][0-9]$|^12[0-5]$"
-
-FleetTech:
-  MinLevel:
-    value: 95
-    validate: "^[1-9][0-9]?$|^1[01][0-9]$|^12[0-5]$"
-  MaxLevel:
-    value: 125
-    validate: "^[1-9][0-9]?$|^1[01][0-9]$|^12[0-5]$"
-
 FleetRotation:
   Enabled: false
+  SelectedOnly: false
   Rules:
     type: textarea
     value: '{}'
   State:
     type: storage
     value: {}
+
+FleetLevelTraining:
+  Enabled: false
+  Target:
+    value: 120
+    validate: [1, 125]
+
+FleetAffinityTraining:
+  Enabled: false
+  Target:
+    value: 100
+    validate: [1, 200]
+
+FleetTraining:
+  CheckIntervalHours:
+    value: 0.5
+    valuetype: float
+    validate: '^[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$'
+  State:
+    type: stored
+    value: {}
+    display: hide
+
+FleetEquipment:
+  Enabled: false
+  Codes:
+    type: textarea
+    value: '{}'
+  State:
+    type: stored
+    value: {}
+    display: hide
 
 FleetInfo:
   UpdateEmotion: true

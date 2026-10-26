@@ -1,6 +1,236 @@
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 
+test('换船调度集中三种开关，共用换船配置并按不限上限的小时保存', async ({page}) => {
+  const requests: {method: string; params?: {changes?: {path: string; value: unknown}[]}}[] = []
+  await page.addInitScript(() => {
+    localStorage.setItem('azurpilot.language', 'zh-CN')
+    localStorage.setItem('azurpilot.theme', 'light')
+    localStorage.setItem('azurpilot.material', 'plain')
+    localStorage.setItem('azurpilot.background.plain', JSON.stringify({source: 'off'}))
+  })
+  await page.routeWebSocket('**/api/v1/ws', socket => {
+    const server = socket.connectToServer()
+    socket.onMessage(message => {requests.push(JSON.parse(String(message))); server.send(message)})
+    server.onMessage(message => socket.send(message))
+  })
+  await page.goto('/#/i/demo-main/task/FleetRotation')
+  await expect(page.getByRole('heading', {name: '换船配置', exact: true})).toBeVisible()
+  await expect(page.getByRole('switch')).toHaveCount(0)
+  await expect(page.getByRole('checkbox', {name: '仅计算更换舰船心情', exact: true})).toHaveCount(0)
+  const fleet = page.getByRole('region', {name: '第 1 舰队', exact: true})
+  await fleet.getByRole('checkbox', {name: '舰位 4 · 不变', exact: true}).check()
+  await fleet.getByRole('checkbox', {name: '候补舰队 3', exact: true}).check()
+  await page.getByRole('button', {name: '保存规则', exact: true}).click()
+  await expect(page.getByRole('button', {name: '保存规则', exact: true})).toBeDisabled()
+  await page.locator('main').getByRole('link', {name: '换船调度', exact: true}).click()
+  await expect(page.getByRole('heading', {name: '换船调度', exact: true})).toBeVisible()
+  const level = page.getByRole('region', {name: '等级调度', exact: true})
+  const affinity = page.getByRole('region', {name: '好感调度', exact: true})
+  const interval = '共用实读间隔（小时，0为每次结算，无上限）'
+  const sharedInterval = page.getByRole('spinbutton', {name: interval, exact: true})
+  for (const title of ['心情调度', '等级调度', '好感调度'])
+    await expect(page.getByRole('switch', {name: `启用${title}`, exact: true})).toHaveAttribute('aria-checked', 'false')
+  await expect(sharedInterval).toHaveCount(1)
+  await expect(sharedInterval).toHaveValue('0.5')
+  await expect(level.getByRole('spinbutton')).toHaveCount(1)
+  await expect(affinity.getByRole('spinbutton')).toHaveCount(1)
+  await level.getByRole('spinbutton', {name: '目标等级', exact: true}).fill('125')
+  await affinity.getByRole('spinbutton', {name: '目标好感', exact: true}).fill('200')
+  await sharedInterval.fill('48.5')
+  expect(await sharedInterval.getAttribute('max')).toBeNull()
+  expect(await sharedInterval.evaluate(element => {
+    const cards = document.querySelector('.fleet-grid')!
+    return !!(element.compareDocumentPosition(cards) & Node.DOCUMENT_POSITION_FOLLOWING)
+  })).toBe(true)
+  const selected = page.getByRole('checkbox', {name: '仅计算更换舰船心情', exact: true})
+  await selected.check()
+  await page.getByRole('button', {name: '保存调度设置', exact: true}).click()
+  await expect(page.getByRole('button', {name: '保存调度设置', exact: true})).toBeDisabled()
+  for (const title of ['等级调度', '好感调度', '心情调度']) {
+    const toggle = page.getByRole('switch', {name: `启用${title}`, exact: true})
+    await toggle.click()
+    await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  }
+  await page.reload()
+  for (const title of ['心情调度', '等级调度', '好感调度'])
+    await expect(page.getByRole('switch', {name: `启用${title}`, exact: true})).toHaveAttribute('aria-checked', 'true')
+  await page.getByRole('switch', {name: '启用心情调度', exact: true}).click()
+  await expect(page.getByRole('switch', {name: '启用心情调度', exact: true})).toHaveAttribute('aria-checked', 'false')
+  for (const title of ['等级调度', '好感调度'])
+    await expect(page.getByRole('switch', {name: `启用${title}`, exact: true})).toHaveAttribute('aria-checked', 'true')
+  await expect(selected).toBeChecked()
+  await expect(sharedInterval).toHaveValue('48.5')
+  await expect(level.getByRole('spinbutton', {name: '目标等级', exact: true})).toHaveValue('125')
+  await expect(affinity.getByRole('spinbutton', {name: '目标好感', exact: true})).toHaveValue('200')
+  await sharedInterval.fill('-1')
+  await expect(page.getByRole('button', {name: '保存调度设置', exact: true})).toBeDisabled()
+  await sharedInterval.fill('0')
+  await page.getByRole('button', {name: '保存调度设置', exact: true}).click()
+  await expect(page.getByRole('button', {name: '保存调度设置', exact: true})).toBeDisabled()
+  await expect(sharedInterval).toBeEnabled()
+  await page.reload()
+  await expect(sharedInterval).toHaveValue('0')
+  await expect(page.locator('.right-rail')).toHaveCount(0)
+  await page.screenshot({path: 'test-results/fleet-scheduling-desktop.png', fullPage: true, animations: 'disabled'})
+  await page.locator('main').getByRole('link', {name: '换船配置：设置舰位与候补舰队'}).click()
+  await expect(fleet.getByRole('checkbox', {name: '舰位 4 · 换船', exact: true})).toBeChecked()
+  await expect(fleet.getByRole('checkbox', {name: '候补舰队 3', exact: true})).toBeChecked()
+  for (const path of ['FleetLevelTraining', 'FleetAffinityTraining']) {
+    await page.goto(`/#/i/demo-main/task/${path}`)
+    await expect(page).toHaveURL(/task\/FleetTraining$/)
+    await expect(page.getByRole('heading', {name: '换船调度', exact: true})).toBeVisible()
+  }
+  await page.setViewportSize({width: 390, height: 844})
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await page.screenshot({path: 'test-results/fleet-scheduling-mobile.png', fullPage: true, animations: 'disabled'})
+  expect(requests.map(item => item.method)).not.toContain('tasks.run')
+  expect(requests.map(item => item.method)).not.toContain('scheduler.start')
+  const patches = requests.filter(item => item.method === 'config.patch')
+  expect(patches.slice(1).flatMap(item => item.params?.changes ?? []).some(item => /\.(Rules|State)$/.test(item.path))).toBe(false)
+  const intervals = patches.flatMap(item => item.params?.changes ?? []).filter(item => /CheckInterval/.test(item.path))
+  expect(intervals.length).toBeGreaterThan(0)
+  expect(intervals.every(item => item.path === 'FleetInfo.FleetTraining.CheckIntervalHours')).toBe(true)
+})
+
+test('换船调度记录按舰位展示真实舰名心情，三框区分且历史各不超过六条', async ({page}) => {
+  const methods: string[] = []
+  await page.setViewportSize({width: 1440, height: 1800})
+  await page.addInitScript(() => {
+    localStorage.setItem('azurpilot.language', 'zh-CN')
+    localStorage.setItem('azurpilot.theme', 'light')
+    localStorage.setItem('azurpilot.material', 'plain')
+    localStorage.setItem('azurpilot.background.plain', JSON.stringify({source: 'off'}))
+  })
+  await page.routeWebSocket('**/api/v1/ws', socket => {
+    const server = socket.connectToServer()
+    socket.onMessage(message => {methods.push(JSON.parse(String(message)).method); server.send(message)})
+    server.onMessage(message => {
+      const response = JSON.parse(String(message)), values = response.result?.values?.FleetInfo
+      if (values) {
+        const names = ['企业', '胡德', '厌战', '拉菲', '克利夫兰', '海伦娜']
+        values.FleetRotation.Rules = JSON.stringify({'1': {slots: [6, 2, 3, 1, 5, 4], sources: [3]}})
+        values.FleetInfo.Result = {
+          main: {'1': [3, 1, 2].map(slot => ({name: names[slot - 1], slot, level: 119, emotion: 151 - slot}))},
+          vanguard: {'1': [6, 4, 5].map(slot => ({name: names[slot - 1], slot, level: 119, emotion: slot === 6 ? 0 : 151 - slot}))},
+        }
+        values.FleetTraining.State = {records: Object.fromEntries([
+          ...names.map((name, index) => [name, {level: 119, exp: 23456 + index, affinity: 98,
+            checked_at: '2026-10-26T12:34:56', fleet: 5, slot: 6, emotion: 80}]),
+          ...['欧根亲王', '圣地亚哥', '独角兽', '萨拉托加', '光辉', '明石', '贝尔法斯特', '绫波'].map((name, index) =>
+            [name, {level: 125, exp: 0, affinity: 200, emotion: 100, fleet: 2, slot: index % 6 + 1,
+              completed_at: `2026-10-26T11:0${index}:00`, completed_for: {level: 120, affinity: 100}}]),
+          ...['加贺', '赤城', '高雄', '爱宕', '翔鹤', '瑞鹤', '长门', '陆奥'].map((name, index) =>
+            [name, {level: 80, affinity: 50, checked_at: `2026-10-26T10:0${index}:00`,
+              ...(index === 7 ? {} : {fleet: 3, slot: index % 6 + 1, emotion: 50})}]),
+        ])}
+      }
+      socket.send(JSON.stringify(response))
+    })
+  })
+  await page.goto('/#/i/demo-main/task/FleetTraining')
+  const training = page.getByRole('region', {name: '培养舰船', exact: true})
+  const completed = page.getByRole('region', {name: '完成舰船', exact: true})
+  const history = page.getByRole('region', {name: '旧记录舰船', exact: true})
+  for (const group of [training, completed, history]) {
+    await expect(group).toBeVisible()
+    await expect(group.locator('tbody tr')).toHaveCount(6)
+  }
+  await expect(training.locator('tbody tr td:nth-child(2)')).toHaveText(['舰位 1', '舰位 2', '舰位 3', '舰位 4', '舰位 5', '舰位 6'])
+  await expect(training.locator('tbody tr td:nth-child(3)')).toHaveText(['企业', '胡德', '厌战', '拉菲', '克利夫兰', '海伦娜'])
+  const row = training.getByRole('row').filter({hasText: '企业'})
+  for (const value of ['第 1 舰队', '舰位 1', '150', '119', '23456', '98', '2026-10-26 12:34:56'])
+    await expect(row.getByRole('cell', {name: value, exact: true})).toBeVisible()
+  await expect(training.getByRole('row').filter({hasText: '海伦娜'}).locator('td').nth(3)).toHaveText('0')
+  await expect(completed.getByText('最多显示最近 6 条，共 8 条；完整历史记录保留。')).toBeVisible()
+  await expect(history.getByText('最多显示最近 6 条，共 8 条；完整历史记录保留。')).toBeVisible()
+  await expect(completed.getByRole('heading')).toHaveText('完成舰船 · 6')
+  await expect(history.getByRole('heading')).toHaveText('旧记录舰船 · 6')
+  for (const name of ['欧根亲王', '圣地亚哥']) await expect(completed.getByRole('cell', {name, exact: true})).toHaveCount(0)
+  for (const name of ['加贺', '赤城']) await expect(history.getByRole('cell', {name, exact: true})).toHaveCount(0)
+  await expect(completed.getByRole('row').filter({hasText: '绫波'}).locator('td').nth(5)).toHaveText('0')
+  await expect(history.getByRole('row').filter({hasText: '陆奥'}).getByRole('cell', {name: '未读取', exact: true})).toHaveCount(4)
+  await page.screenshot({path: 'test-results/fleet-training-three-panels-desktop.png', fullPage: true, animations: 'disabled'})
+  await training.locator('..').screenshot({path: 'test-results/fleet-training-three-panels.png', animations: 'disabled'})
+  await page.setViewportSize({width: 390, height: 844})
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  for (const group of [training, completed, history]) {
+    await group.scrollIntoViewIfNeeded()
+    await expect(group.getByRole('heading')).toBeVisible()
+  }
+  await training.scrollIntoViewIfNeeded()
+  const tableViewport = training.locator('.training-record-table')
+  expect(await tableViewport.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true)
+  await tableViewport.evaluate(element => {
+    const name = element.querySelector('tbody tr td:nth-child(3)') as HTMLElement
+    element.scrollLeft += name.getBoundingClientRect().left - element.getBoundingClientRect().left - 4
+  })
+  const headingBox = await training.getByRole('heading').boundingBox()
+  expect(headingBox!.x).toBeGreaterThanOrEqual(0)
+  const nameBox = await row.getByRole('cell', {name: '企业', exact: true}).boundingBox()
+  const moraleBox = await row.getByRole('cell', {name: '150', exact: true}).boundingBox()
+  expect(nameBox!.x).toBeGreaterThanOrEqual(0)
+  expect(moraleBox!.x + moraleBox!.width).toBeLessThanOrEqual(390)
+  await training.screenshot({path: 'test-results/fleet-training-three-panels-mobile.png', animations: 'disabled'})
+  expect(methods).not.toContain('config.patch')
+  expect(methods).not.toContain('tasks.run')
+  expect(methods).not.toContain('scheduler.start')
+})
+
+test('自动换装备页面默认关闭并可独立保存舰种码与开关', async ({page}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('azurpilot.language', 'zh-CN')
+    localStorage.setItem('azurpilot.theme', 'light')
+  })
+  await page.goto('/#/i/demo-main/task/FleetEquipment')
+  await expect(page.getByRole('heading', {name: '自动换装备', exact: true})).toBeVisible()
+  const toggle = page.getByRole('switch', {name: '启用自动换装备'})
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await expect(page.locator('.fleet-grid input[type="text"]')).toHaveCount(45)
+  const destroyer = page.getByRole('textbox', {name: '驱逐舰 装备码 1', exact: true})
+  const second = page.getByRole('textbox', {name: '驱逐舰 装备码 2', exact: true})
+  const third = page.getByRole('textbox', {name: '驱逐舰 装备码 3', exact: true})
+  const carrier = page.getByRole('textbox', {name: '航空母舰 装备码 1', exact: true})
+  const code = 'MTExLzIyMi8zMzMvMC8wXDA='
+  await destroyer.fill(code)
+  await second.fill('NDQ0LzU1NS82NjYvMC8wXDA=')
+  await third.fill('Nzc3Lzg4OC85OTkvMC8wXDA=')
+  await page.getByRole('button', {name: '保存装备码', exact: true}).click()
+  await expect(page.getByText('自动换装备设置已保存', {exact: true})).toBeVisible()
+  await expect(page.getByRole('button', {name: '保存装备码', exact: true})).toBeDisabled()
+  await page.reload()
+  await expect(destroyer).toHaveValue(code)
+  await expect(second).toHaveValue('NDQ0LzU1NS82NjYvMC8wXDA=')
+  await expect(third).toHaveValue('Nzc3Lzg4OC85OTkvMC8wXDA=')
+  await expect(carrier).toHaveValue('')
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  await page.reload()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  await expect(page.getByText(/同舰种依次使用第1、2、3格/)).toBeVisible()
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await page.screenshot({path: 'test-results/fleet-equipment-desktop.png', fullPage: true, animations: 'disabled'})
+})
+
+test('自动换装备页面在手机宽度可编辑且不横向溢出', async ({page}) => {
+  await page.setViewportSize({width: 390, height: 844})
+  await page.addInitScript(() => {
+    localStorage.setItem('azurpilot.language', 'zh-CN')
+    localStorage.setItem('azurpilot.theme', 'light')
+  })
+  await page.goto('/#/i/demo-main/task/FleetEquipment')
+  await expect(page.getByRole('heading', {name: '自动换装备', exact: true})).toBeVisible()
+  await expect(page.locator('.fleet-grid input[type="text"]')).toHaveCount(45)
+  await page.getByRole('textbox', {name: '驱逐舰 装备码 1', exact: true}).fill('MC8wLzAvMC8wXDA=')
+  await page.getByRole('textbox', {name: '风帆舰 装备码 3', exact: true}).scrollIntoViewIfNeeded()
+  await expect(page.getByRole('textbox', {name: '风帆舰 装备码 3', exact: true})).toBeVisible()
+  await page.getByRole('heading', {name: '自动换装备', exact: true}).scrollIntoViewIfNeeded()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+  await page.screenshot({path: 'test-results/fleet-equipment-mobile.png', fullPage: true, animations: 'disabled'})
+})
+
 for (const [server, packageName, language] of [
   ['cn', 'com.bilibili.azurlane', 'zh-CN'],
   ['en', 'com.YoStarEN.AzurLane', 'en-US'],
@@ -66,72 +296,48 @@ test('侵蚀一资源检查配置位于献祭流下方且通用页不再显示',
   await expect(page.locator('label[for$=".SkipStrategicSearchCheck"]')).toHaveCount(0)
 })
 
-test('舰队科技本轮快照缩小和清空不混入累计记录，人工历史仍可查看', async ({page}) => {
-  let pairs: [number, number][] = [[10102, 100], [10103, 105], [10104, 120]]
+test('舰队科技完整图鉴区分累计里程碑与当前持有', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('azurpilot.language', 'zh-CN'))
+  let catalogCount = 0
   await page.routeWebSocket('**/api/v1/ws', socket => {
-    const server = socket.connectToServer()
-    const methods = new Map<string, string>()
-    socket.onMessage(message => {
-      const request = JSON.parse(String(message))
-      methods.set(request.id, request.method)
-      server.send(message)
-    })
+    const server = socket.connectToServer(), methods = new Map<string, string>()
+    socket.onMessage(message => {const request = JSON.parse(String(message)); methods.set(request.id, request.method); server.send(message)})
     server.onMessage(message => {
       const response = JSON.parse(String(message))
+      if (response.ok && methods.get(response.id) === 'fleetTech.catalog') catalogCount = response.result.ships.filter((ship: any) => ship.technology).length
       if (response.ok && methods.get(response.id) === 'fleetTech.report') {
-        const report = response.result
-        report.ships = report.ships.map((ship: any) => [10102, 10103, 10104].includes(ship.group_type)
-          ? {...ship, owned: true, level: 125, observed_level: 125, lv120: true, status: 'complete', manual: true}
-          : ship)
-        report.completed = 3
-        report.last_scan = {min_level: 95, max_level: 125, complete: false, reached_bottom: false,
-          physical_count: pairs.length, expected_count: 100, matched_count: pairs.length,
-          review_count: 0, updated_at: '2026-10-16T00:00:00', fingerprint: JSON.stringify(pairs), ships: pairs}
-        socket.send(JSON.stringify(response))
-      } else socket.send(message)
+        response.result.ships = response.result.ships.map((ship: any) => ({...ship,
+          owned: ship.group_type === 10102,
+          full_star: ship.group_type === 10102, lv120: ship.group_type === 10102,
+          current_count: 0, current_level: null, evidence: {owned: [], full_star: [], lv120: []},
+          points: ship.group_type === 10102 ? 15 : 0, status: ship.group_type === 10102 ? 'complete' : 'unowned',
+        }))
+        response.result.milestone_counts = {owned: 1, full_star: 1, lv120: 1}
+        response.result.confirmed_points = 15
+        response.result.ship_bonuses = {}; response.result.nation_bonuses = {}
+      }
+      socket.send(JSON.stringify(response))
     })
   })
-  await page.addInitScript(() => {
-    localStorage.setItem('azurpilot.language', 'zh-CN')
-    localStorage.setItem('azurpilot.theme', 'light')
-  })
-  await page.goto('/#/i/demo-main/task/FleetTechnology')
-  const views = page.getByRole('region', {name: '结果视图'})
+  await page.goto('/#/i/demo-main/task/FleetAnalysis?tab=technology')
   const table = page.locator('.ft-table-wrap')
-  await views.getByRole('button', {name: '舰船底账', exact: true}).click()
-  await expect(views.getByRole('button', {name: '舰船底账', exact: true})).toHaveAttribute('aria-pressed', 'true')
-  await expect(table.locator('tbody tr')).toHaveCount(3)
-  await expect(table.locator('tr[data-group="10102"]')).toContainText('Lv.100')
-  await expect(table.locator('tr[data-group="10102"]')).toHaveClass('ft-unfinished')
-  pairs = [[10102, 100]]
-  await page.reload()
-  await views.getByRole('button', {name: '舰船底账', exact: true}).click()
-  await expect(table.locator('tbody tr')).toHaveCount(1)
-  await expect(table.locator('tr[data-group="10103"]')).toHaveCount(0)
-  await views.getByRole('button', {name: '合并记录', exact: true}).click()
-  await page.getByLabel('搜索舰名或编号').fill('杜威')
-  await expect(table.locator('tr[data-group="10102"]')).toHaveClass('ft-complete')
-  await expect(table.locator('tr[data-group="10102"]')).toHaveAttribute('title', /Lv\.125/)
-  await page.screenshot({path: test.info().outputPath('fleet-scan-history-desktop.png'), fullPage: true, animations: 'disabled'})
-  await views.getByRole('button', {name: '舰船底账', exact: true}).click()
-  await expect(table.locator('tr[data-group="10102"]')).toHaveClass('ft-unfinished')
-  await expect(table.locator('tr[data-group="10102"]')).toContainText('Lv.100')
-  await page.screenshot({path: test.info().outputPath('fleet-scan-latest-desktop.png'), fullPage: true, animations: 'disabled'})
-  await page.setViewportSize({width: 412, height: 950})
-  expect(await page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true)
-  await page.screenshot({path: test.info().outputPath('fleet-scan-latest-mobile.png'), fullPage: true, animations: 'disabled'})
-  await table.scrollIntoViewIfNeeded()
-  await expect(table.locator('tr[data-group="10102"]')).toBeVisible()
-  expect(await table.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true)
-  await page.screenshot({path: test.info().outputPath('fleet-scan-latest-mobile-table.png'), animations: 'disabled'})
-  pairs = []
-  await page.reload()
-  await views.getByRole('button', {name: '舰船底账', exact: true}).click()
-  await expect(views.getByRole('button', {name: '舰船底账', exact: true})).toHaveAttribute('aria-pressed', 'true')
+  await expect.poll(() => catalogCount).toBeGreaterThan(50)
+  await expect(table.locator('tbody tr')).toHaveCount(catalogCount)
+  await expect(page.locator('.ft-summary')).toContainText('里程碑独立保存')
+  await expect(page.getByRole('button', {name: '舰船底账', exact: true})).toHaveCount(0)
+  await expect(page.getByRole('button', {name: '合并记录', exact: true})).toHaveCount(0)
+  await page.getByLabel('搜索舰名', {exact: true}).fill('杜威')
+  await expect(table.locator('tr[data-group="10102"]')).toHaveCount(1)
+  await expect(table.getByRole('link', {name: '杜威', exact: true})).toHaveAttribute('title', /当前持有: 0/)
+  await expect(table.getByRole('button', {name: '杜威 · 满星 · 已完成', exact: true})).toHaveAttribute('aria-pressed', 'true')
+  await page.getByRole('button', {name: '未获得', exact: true}).click()
   await expect(table.locator('tbody tr')).toHaveCount(0)
-  await views.getByRole('button', {name: '合并记录', exact: true}).click()
-  await page.getByLabel('搜索舰名或编号').fill('卡辛')
-  await expect(table.locator('tr[data-group="10103"]')).toHaveClass('ft-complete')
+  await page.getByRole('button', {name: '未获得', exact: true}).click()
+  await page.locator('.ft-filters').getByRole('button', {name: 'Lv.120', exact: true}).click()
+  await expect(table.locator('tr[data-group="10102"]')).toHaveCount(1)
+  await page.setViewportSize({width: 412, height: 950})
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
+  expect(await table.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true)
 })
 
 test('统计慢请求合并更新且概览事件不重复取数', async ({page}) => {
@@ -1223,39 +1429,29 @@ test('关闭背景后切回填写 URL 直接铺上，不必再点应用背景', 
   await expect(page.locator('.wallpaper img')).toBeVisible()
 })
 
-test('舰队数据分析统一扫描入口与旧路由兼容，查看分析不启动任务', async ({page}) => {
+test('舰船数据四页直接导航，扫描控件只在扫描更新页', async ({page}) => {
   const requests: string[] = [], tasks: string[] = []
-  await page.routeWebSocket('**/api/v1/ws', socket => {
-    const server = socket.connectToServer()
-    socket.onMessage(message => {
-      const request = JSON.parse(String(message))
-      requests.push(request.method)
-      if (request.method === 'tasks.run') tasks.push(request.params.task)
-      server.send(message)
-    })
-  })
-  await page.addInitScript(() => {
-    localStorage.setItem('azurpilot.language', 'zh-CN')
-    localStorage.setItem('azurpilot.theme', 'light')
-  })
-  await page.goto('/#/i/demo-main/task/MindCalculator')
+  page.on('websocket', socket => socket.on('framesent', ({payload}) => {
+    const request = JSON.parse(String(payload)); if (request.type !== 'request') return
+    requests.push(request.method); if (request.method === 'tasks.run') tasks.push(request.params.task)
+  }))
+  await page.addInitScript(() => {localStorage.setItem('azurpilot.language', 'zh-CN'); localStorage.setItem('azurpilot.theme', 'light')})
+  await page.goto('/#/i/demo-main/task/FleetAnalysis?tab=mind')
   await expect(page).toHaveURL(/task\/FleetAnalysis\?tab=mind/)
-  const source = page.getByRole('region', {name: '共享船坞数据'})
-  await expect(source.getByRole('button', {name: '扫描船坞', exact: true})).toBeVisible()
+  await expect(page.getByRole('tab')).toHaveCount(4)
+  await expect(page.getByRole('tab', {name: '养成计算', exact: true})).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByRole('button', {name: '扫描船坞', exact: true})).toHaveCount(0)
+  await expect(page.locator('input[type=file]')).toHaveCount(0)
+  await page.getByRole('tab', {name: '舰队科技', exact: true}).click()
+  await expect(page).toHaveURL(/task\/FleetAnalysis\?tab=technology/)
+  await expect(page.getByRole('button', {name: '扫描船坞', exact: true})).toHaveCount(0)
+  await expect(page.getByRole('button', {name: '同步已有心智数据'})).toHaveCount(0)
+  expect(requests).not.toContain('tasks.run'); expect(requests).not.toContain('dock.configure')
+  await page.getByRole('tab', {name: '扫描更新', exact: true}).click()
+  const source = page.getByRole('tabpanel')
   await expect(source.getByLabel('最低扫描等级')).toHaveValue('1')
   await expect(source.getByLabel('最高扫描等级')).toHaveValue('125')
-  await expect(source).toContainText('识别待核对')
-  await expect(page.getByRole('tab', {name: '心智分析'})).toHaveAttribute('aria-selected', 'true')
-  await page.getByRole('tab', {name: '舰船科技分析'}).click()
-  await expect(page.getByRole('tab', {name: '舰船科技分析'})).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByRole('button', {name: '扫描船坞', exact: true})).toHaveCount(1)
-  await expect(page.getByRole('button', {name: '同步已有心智数据'})).toHaveCount(0)
-  expect(requests).not.toContain('tasks.run')
-  expect(requests).not.toContain('dock.configure')
-  await page.goto('/#/i/demo-main/task/FleetTechnology')
-  await expect(page).toHaveURL(/task\/FleetAnalysis\?tab=technology/)
-  await expect(source).toContainText('识别待核对')
-  await expect(page.getByRole('region', {name: '结果视图'})).toBeVisible()
+  await expect(source.getByRole('button', {name: '扫描船坞', exact: true})).toBeVisible()
   await page.screenshot({path: test.info().outputPath('fleet-analysis-desktop.png'), fullPage: true, animations: 'disabled'})
   await page.setViewportSize({width: 412, height: 950})
   expect(await page.evaluate(() => document.body.scrollWidth <= innerWidth)).toBe(true)
@@ -1264,4 +1460,14 @@ test('舰队数据分析统一扫描入口与旧路由兼容，查看分析不�
   await source.getByRole('button', {name: '扫描船坞', exact: true}).click()
   await expect.poll(() => tasks).toEqual(['DockScan'])
   expect(requests).toContain('dock.configure')
+})
+
+test('舰队科技直达路由刷新保持科技标签', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('azurpilot.language', 'zh-CN'))
+  await page.goto('/#/i/demo-main/task/FleetAnalysis?tab=technology')
+  await expect(page).toHaveURL(/task\/FleetAnalysis\?tab=technology/)
+  await expect(page.getByRole('tab', {name: '舰队科技', exact: true})).toHaveAttribute('aria-selected', 'true')
+  await expect(page.locator('.fleet-technology table')).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('tab', {name: '舰队科技', exact: true})).toHaveAttribute('aria-selected', 'true')
 })
