@@ -135,6 +135,13 @@ export function MindCalculator({report: dock, onRefresh}: {report?: DockReport; 
     setPlan(current => current && ({...current, excluded_groups: excluded
       ? [...new Set([...current.excluded_groups, group])] : current.excluded_groups.filter(value => value !== group)}))
   }
+  const allSelected = rows.length > 0 && rows.every(card => included.has(card.id))
+  function selectFiltered(selected: boolean) {
+    const groups = new Set(rows.map(card => card.group_type!))
+    setPlan(current => current && ({...current, excluded_groups: selected
+      ? current.excluded_groups.filter(group => !groups.has(group))
+      : [...new Set([...current.excluded_groups, ...groups])]}))
+  }
   function group(key: string, options: [string, string][], label = tr(key === 'type' ? 'category' : key)) {
     return <FleetFilterRow filter={key} label={label} options={options} filters={filters} setFilters={setFilters} all={tr('all')}/>
   }
@@ -177,6 +184,7 @@ export function MindCalculator({report: dock, onRefresh}: {report?: DockReport; 
     <p className="ft-edit-hint">{ui('mind.costHint')}</p>
     <p className="ft-edit-hint">{ui('mind.efficiencyHint')}</p>
     <div className="ft-search"><input type="search" aria-label={ui('mind.search')} placeholder={ui('mind.searchPlaceholder')} value={query} onChange={event => setQuery(event.target.value)}/><span title={ui('mind.detailHint')}>{ui('mind.shownCount', {shown: rows.length, total: candidates.length})}</span>
+      <label className="cultivation-included"><input type="checkbox" checked={allSelected} disabled={!rows.length} onChange={event => selectFiltered(event.target.checked)}/>{ui('mind.selectAll')}</label>
       <label className="cultivation-included"><input type="checkbox" checked={includedOnly} onChange={event => setIncludedOnly(event.target.checked)}/>{ui('mind.includedOnly')}</label>
       <button className="button secondary" disabled={!plan.excluded_groups.length} onClick={() => setPlan({excluded_groups: []})}>{ui('mind.restore')}</button>
     </div>
