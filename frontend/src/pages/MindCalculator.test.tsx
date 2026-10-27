@@ -45,6 +45,7 @@ afterEach(cleanup)
 it('starts selected, follows individual choices, and toggles all visible ships together', async () => {
   await show()
   expect(all().checked).toBe(true)
+  expect(all().closest('th')?.textContent).toContain('参与计算')
   fireEvent.click(ship('企业'))
   expect(all().checked).toBe(false)
   expect(ship('杜威').checked).toBe(true)
