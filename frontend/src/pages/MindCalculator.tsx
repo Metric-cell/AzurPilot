@@ -137,7 +137,7 @@ export function MindCalculator({report: dock, onRefresh}: {report?: DockReport; 
   }
   const allSelected = rows.length > 0 && rows.every(card => included.has(card.id))
   function selectFiltered(selected: boolean) {
-    const groups = new Set(rows.map(card => card.group_type!))
+    const groups = new Set((selected ? rows : candidates).map(card => card.group_type!))
     setPlan(current => current && ({...current, excluded_groups: selected
       ? current.excluded_groups.filter(group => !groups.has(group))
       : [...new Set([...current.excluded_groups, ...groups])]}))

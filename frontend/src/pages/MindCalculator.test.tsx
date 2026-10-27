@@ -57,13 +57,17 @@ it('starts selected, follows individual choices, and toggles all visible ships t
   await waitFor(() => expect(api.request).toHaveBeenLastCalledWith('mind.plan', expect.objectContaining({ship_ids: []})))
 })
 
-it('limits bulk changes to category and search filters and preserves hidden selections', async () => {
+it('clears all ships from a filtered view and only selects ships matching the current filters', async () => {
   await show()
   fireEvent.click(screen.getAllByRole('button', {name: '航母'})[0])
   expect(screen.queryByRole('checkbox', {name: '参与计算 杜威'})).toBeNull()
   fireEvent.click(all())
   expect(ship('企业').checked).toBe(false)
   expect(ship('埃塞克斯').checked).toBe(false)
+  await waitFor(() => expect(api.request).toHaveBeenLastCalledWith('mind.plan', expect.objectContaining({ship_ids: []})))
+  fireEvent.click(screen.getAllByRole('button', {name: '全部'})[0])
+  expect(ship('杜威').checked).toBe(false)
+  fireEvent.click(screen.getAllByRole('button', {name: '航母'})[0])
   search('企业')
   fireEvent.click(all())
   expect(all().checked).toBe(true)
@@ -73,7 +77,7 @@ it('limits bulk changes to category and search filters and preserves hidden sele
   search('不存在')
   expect(all().disabled).toBe(true)
   expect(all().checked).toBe(false)
-  await waitFor(() => expect(api.request).toHaveBeenLastCalledWith('mind.plan', expect.objectContaining({ship_ids: [1, 3]})))
+  await waitFor(() => expect(api.request).toHaveBeenLastCalledWith('mind.plan', expect.objectContaining({ship_ids: [1]})))
 })
 
 it('respects saved exclusions and the included-only filter', async () => {
