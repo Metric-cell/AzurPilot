@@ -163,8 +163,7 @@ export function MindCalculator({report: dock, onRefresh}: {report?: DockReport; 
     {technologyError && <ErrorBox message={technologyError} retry={retry}/>}
     {error && <ErrorBox message={error} retry={retry}/>}
     <section className="ft-summary" aria-busy={calculating}>
-      <h2>{ui('mind.title')}</h2>
-      {calculating && <p role="status">{ui('mind.calculating')}</p>}
+      <div className="cultivation-heading"><h2>{ui('mind.title')}</h2><span role="status">{calculating ? ui('mind.calculating') : ''}</span></div>
       <div className="cultivation-totals">
         <div>{ui('mind.units')}<strong>{amount(result.mind)}</strong></div><div>{ui('mind.gold')}<strong>{amount(result.gold)}</strong></div>
       </div><p role="status">{ui('mind.includedCount', {count: result.included - result.unknown})}{result.unknown > 0 && ui('mind.unknownCount', {count: result.unknown})}{candidates.length > ids.length && ui('mind.excludedCount', {count: candidates.length - ids.length})}</p>

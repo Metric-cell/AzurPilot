@@ -1,4 +1,6 @@
-.cultivation-calculator .ft-summary h2 { margin: 0 0 16px; font-size: var(--fleet-font-heading, 15px); }
+.cultivation-heading { display: flex; align-items: center; gap: 12px; min-height: 24px; margin-bottom: 16px; }
+.cultivation-calculator .ft-summary h2 { margin: 0; font-size: var(--fleet-font-heading, 15px); }
+.cultivation-heading [role=status] { color: var(--theme-muted); font-size: var(--fleet-font-body, 13px); }
 .cultivation-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
 .cultivation-totals > div { display: flex; flex-direction: column; gap: 8px; padding: 16px; border: 1px solid var(--ft-line); border-radius: var(--theme-radius-control); background: var(--theme-plate-bg); color: var(--theme-muted); }
 .cultivation-totals strong { color: var(--theme-text); font-size: var(--fleet-font-metric, 24px); font-variant-numeric: tabular-nums; }
