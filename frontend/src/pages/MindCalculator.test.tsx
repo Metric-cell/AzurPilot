@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import {afterEach, beforeEach, expect, it, vi} from 'vitest'
-import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {cleanup, fireEvent, render, screen, within} from '@testing-library/react'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {api} from '../api/client'
 import type {DockReport} from '../api/types'
 import type {Catalog, Report} from '../fleet-tech/types'
 import {translateUi} from '../i18n'
+import type {CultivationReport} from '../mind/cultivation'
 import {MindCalculator} from './MindCalculator'
 
 vi.mock('../api/client', () => ({api: {request: vi.fn()}}))
@@ -24,6 +25,10 @@ const catalog: Catalog = {updated_at: '', source_commit: '', max_points: 0, nati
 const technology: Report = {instance: 'test', revision: 't1', data_version: 'r1', ships: [],
   nation_levels: {}, bonuses: {}, ship_bonuses: {}, nation_bonuses: {}, confirmed_points: 0,
   completed: 0, milestone_counts: {owned: 0, full_star: 0, lv120: 0}}
+const costs: CultivationReport = {instance: 'test', revision: 'r1', target_level: 120, included: 3,
+  unknown: 0, mind: 600, mind2: 0, gold: 6000, rules_sha256: 'rules', mind_costs_100_to_120: {SSR: 2200},
+  ships: dock.ships.map(card => ({id: card.id, name: card.name, current_level: card.level, level: card.level,
+    target_level: 120, mind: card.id * 100, mind2: 0, gold: card.id * 1000, status: 'exact', notes: [], stages: []}))}
 const all = () => screen.getByRole<HTMLInputElement>('checkbox', {name: '全选当前筛选'})
 const ship = (name: string) => screen.getByRole<HTMLInputElement>('checkbox', {name: `参与计算 ${name}`})
 const search = (value: string) => fireEvent.change(screen.getByRole('searchbox'), {target: {value}})
@@ -36,7 +41,7 @@ beforeEach(() => {
   vi.mocked(api.request).mockReset().mockImplementation(async method => {
     if (method === 'fleetTech.catalog') return catalog
     if (method === 'fleetTech.report') return technology
-    if (method === 'mind.plan') return {ships: [], included: 3, unknown: 0, mind: 0, gold: 0}
+    if (method === 'mind.plan') return costs
     throw new Error(`Unexpected method: ${method}`)
   })
 })
@@ -54,7 +59,7 @@ it('starts selected, follows individual choices, and toggles all visible ships t
   expect(ship('企业').checked).toBe(true)
   fireEvent.click(all())
   for (const name of ['企业', '埃塞克斯', '杜威']) expect(ship(name).checked).toBe(false)
-  await waitFor(() => expect(api.request).toHaveBeenLastCalledWith('mind.plan', expect.objectContaining({ship_ids: []})))
+  expect(screen.getByText('计入 0 种舰船', {exact: false})).toBeTruthy()
 })
 
 it('clears all ships from a filtered view and only selects ships matching the current filters', async () => {
@@ -64,7 +69,7 @@ it('clears all ships from a filtered view and only selects ships matching the cu
   fireEvent.click(all())
   expect(ship('企业').checked).toBe(false)
   expect(ship('埃塞克斯').checked).toBe(false)
-  await waitFor(() => expect(api.request).toHaveBeenLastCalledWith('mind.plan', expect.objectContaining({ship_ids: []})))
+  expect(screen.getByText('计入 0 种舰船', {exact: false})).toBeTruthy()
   fireEvent.click(screen.getAllByRole('button', {name: '全部'})[0])
   expect(ship('杜威').checked).toBe(false)
   fireEvent.click(screen.getAllByRole('button', {name: '航母'})[0])
@@ -77,7 +82,7 @@ it('clears all ships from a filtered view and only selects ships matching the cu
   search('不存在')
   expect(all().disabled).toBe(true)
   expect(all().checked).toBe(false)
-  await waitFor(() => expect(api.request).toHaveBeenLastCalledWith('mind.plan', expect.objectContaining({ship_ids: [1]})))
+  expect(screen.getByText('计入 1 种舰船', {exact: false})).toBeTruthy()
 })
 
 it('respects saved exclusions and the included-only filter', async () => {
@@ -90,4 +95,58 @@ it('respects saved exclusions and the included-only filter', async () => {
   expect(all().disabled).toBe(true)
   fireEvent.click(screen.getByRole('checkbox', {name: '仅显示参与计算'}))
   for (const name of ['企业', '埃塞克斯', '杜威']) expect(ship(name).checked).toBe(false)
+})
+
+it('retains costs for excluded ships from initial load and updates totals without recalculating', async () => {
+  localStorage.setItem('azurpilot.cultivation-auto.test', JSON.stringify({excluded_groups: [100]}))
+  await show()
+  const row = within(ship('企业').closest('tr')!)
+  expect(row.getAllByText('100')).toHaveLength(2)
+  expect(row.getByText('1,000')).toBeTruthy()
+  const totalValues = () => [...document.querySelectorAll('.cultivation-totals strong')].map(el => el.textContent)
+  expect(totalValues()).toEqual(['500', '5,000'])
+  fireEvent.click(ship('埃塞克斯'))
+  expect(within(ship('埃塞克斯').closest('tr')!).getByText('2,000')).toBeTruthy()
+  expect(totalValues()).toEqual(['300', '3,000'])
+  fireEvent.click(all())
+  expect(totalValues()).toEqual(['600', '6,000'])
+  fireEvent.click(all())
+  expect(totalValues()).toEqual(['0', '0'])
+  expect(row.getByText('1,000')).toBeTruthy()
+  expect(vi.mocked(api.request).mock.calls.filter(([method]) => method === 'mind.plan')).toEqual([
+    ['mind.plan', {instance: 'test', revision: 'r1', ship_ids: [1, 2, 3], target_level: 120}],
+  ])
+})
+
+it('recalculates costs after the dock revision changes while preserving exclusions', async () => {
+  let updated = false
+  vi.mocked(api.request).mockImplementation(async method => {
+    if (method === 'fleetTech.catalog') return catalog
+    if (method === 'fleetTech.report') return updated ? {...technology, revision: 't2', data_version: 'r2'} : technology
+    if (method === 'mind.plan') return updated ? {...costs, revision: 'r2',
+      ships: costs.ships.map(row => ({...row, mind: row.mind! + 50, gold: row.gold! + 500}))} : costs
+    throw new Error(`Unexpected method: ${method}`)
+  })
+  const view = (report: DockReport) => <MemoryRouter initialEntries={['/test']}><Routes><Route path="/:instance" element={<MindCalculator report={report}/>}/></Routes></MemoryRouter>
+  const rendered = render(view(dock))
+  await screen.findByRole('table')
+  fireEvent.click(ship('企业'))
+  updated = true
+  rendered.rerender(view({...dock, revision: 'r2'}))
+  await within(ship('企业').closest('tr')!).findByText('1,500')
+  expect(ship('企业').checked).toBe(false)
+  expect([...document.querySelectorAll('.cultivation-totals strong')].map(el => el.textContent)).toEqual(['600', '6,000'])
+  expect(vi.mocked(api.request).mock.calls.filter(([method]) => method === 'mind.plan')).toHaveLength(2)
+})
+
+it('excludes unknown costs from totals and keeps unknown counts scoped to selected ships', async () => {
+  costs.ships[0] = {...costs.ships[0], status: 'unknown', mind: null, gold: null}
+  try {
+    await show()
+    expect(screen.getByText('计入 2 种舰船', {exact: false}).textContent).toContain('信息不足 1 种')
+    expect([...document.querySelectorAll('.cultivation-totals strong')].map(el => el.textContent)).toEqual(['500', '5,000'])
+    fireEvent.click(ship('企业'))
+    expect(screen.getByText('计入 2 种舰船', {exact: false}).textContent).not.toContain('信息不足')
+    expect([...document.querySelectorAll('.cultivation-totals strong')].map(el => el.textContent)).toEqual(['500', '5,000'])
+  } finally {costs.ships[0] = {...costs.ships[0], status: 'exact', mind: 100, gold: 1000}}
 })

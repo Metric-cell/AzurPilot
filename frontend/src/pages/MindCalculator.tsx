@@ -72,16 +72,21 @@ export function MindCalculator({report: dock, onRefresh}: {report?: DockReport; 
   }, [dock, technology, catalog, instance, key])
   const candidates = useMemo(() => facts ? automaticCandidates(facts.dock.ships, facts.catalog, facts.technology.ships) : [], [facts])
   const technologyRows = useMemo(() => new Map(facts ? catalogRows(facts.catalog, facts.technology.ships).map(row => [row.group_type, row]) : []), [facts])
+  const candidateIds = useMemo(() => candidates.map(card => card.id), [candidates])
   const ids = useMemo(() => candidates.filter(card => !plan?.excluded_groups.includes(card.group_type!)).map(card => card.id), [candidates, plan?.excluded_groups])
   useEffect(() => {
-    if (!facts || facts.dock.instance !== instance || !plan || connection !== 'ready') return
+    if (!facts || facts.dock.instance !== instance || !plan) return
     memory.current = {instance, plan}
     try {localStorage.setItem(key, JSON.stringify(plan))} catch { /* Calculation works without browser storage. */ }
+  }, [facts, plan, instance, key])
+  useEffect(() => {
+    if (!facts || facts.dock.instance !== instance || connection !== 'ready') return
     let active = true
     // Keep the completed view mounted during subsequent recalculations.
     setCalculating(true)
     const timer = setTimeout(() => {
-      void api.request('mind.plan', {instance, revision: facts.dock.revision, ship_ids: ids,
+      // Selection only changes totals; keep cost details for every candidate.
+      void api.request('mind.plan', {instance, revision: facts.dock.revision, ship_ids: candidateIds,
         target_level: 120}).then(value => {
         if (active) {setResult(value); setCalculating(false); setError('')}
       }).catch(e => {
@@ -92,9 +97,15 @@ export function MindCalculator({report: dock, onRefresh}: {report?: DockReport; 
       })
     }, 200)
     return () => {active = false; clearTimeout(timer)}
-  }, [facts, plan, ids, connection, instance, key, calculateAttempt])
+  }, [facts, candidateIds, connection, instance, calculateAttempt])
   const included = useMemo(() => new Set(ids), [ids])
   const estimates = useMemo(() => new Map(result?.ships.map(row => [row.id, row])), [result])
+  const totals = useMemo(() => {
+    const selected = result?.ships.filter(row => included.has(row.id)) ?? []
+    return {included: selected.length, unknown: selected.filter(row => row.status === 'unknown').length,
+      mind: selected.reduce((sum, row) => sum + (row.mind ?? 0), 0),
+      gold: selected.reduce((sum, row) => sum + (row.gold ?? 0), 0)}
+  }, [result, included])
   const efficiencies = useMemo(() => {
     const ships = new Map(facts?.catalog.ships.map(ship => [ship.group_type, ship]))
     const mindCosts = result?.mind_costs_100_to_120 ?? {}
@@ -165,8 +176,8 @@ export function MindCalculator({report: dock, onRefresh}: {report?: DockReport; 
     <section className="ft-summary" aria-busy={calculating}>
       <div className="cultivation-heading"><h2>{ui('mind.title')}</h2><span role="status">{calculating ? ui('mind.calculating') : ''}</span></div>
       <div className="cultivation-totals">
-        <div>{ui('mind.units')}<strong>{amount(result.mind)}</strong></div><div>{ui('mind.gold')}<strong>{amount(result.gold)}</strong></div>
-      </div><p role="status">{ui('mind.includedCount', {count: result.included - result.unknown})}{result.unknown > 0 && ui('mind.unknownCount', {count: result.unknown})}{candidates.length > ids.length && ui('mind.excludedCount', {count: candidates.length - ids.length})}</p>
+        <div>{ui('mind.units')}<strong>{amount(totals.mind)}</strong></div><div>{ui('mind.gold')}<strong>{amount(totals.gold)}</strong></div>
+      </div><p role="status">{ui('mind.includedCount', {count: totals.included - totals.unknown})}{totals.unknown > 0 && ui('mind.unknownCount', {count: totals.unknown})}{candidates.length > ids.length && ui('mind.excludedCount', {count: candidates.length - ids.length})}</p>
       <small>{ui('mind.autoHint')}</small>
       {review > 0 && <p className="cultivation-review">{ui('mind.reviewCount', {count: review})}<Link to="?tab=data">{ui('mind.reviewLink')}</Link></p>}
     </section>
