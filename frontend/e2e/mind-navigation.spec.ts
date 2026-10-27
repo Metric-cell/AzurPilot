@@ -73,7 +73,7 @@ test('舰队管理打开四页舰船数据与舰队信息，扫描开关只运�
   await expect(page).toHaveURL(url => url.hash === '#/i/demo-alt/task/FleetAnalysis?tab=mind')
   await page.reload()
   await expect(page.getByRole('heading', {name: '养成计算', exact: true})).toBeVisible()
-  await expect(page.getByRole('button', {name: '恢复全部参与', exact: true})).toBeVisible()
+  await expect(page.getByRole('checkbox', {name: '全选当前筛选'})).toBeVisible()
   await expect(page.locator('input[type=file]')).toHaveCount(0)
   await expect(page.locator('.breadcrumb-current')).toHaveText('舰船数据')
   await page.getByRole('button', {name: '舰队管理', exact: true}).hover()
