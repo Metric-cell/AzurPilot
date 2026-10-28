@@ -39,7 +39,7 @@ function validateField(path, value) {
   if (field.option?.length && !field.option.includes(value)) fail('INVALID_PARAMS', '请选择有效选项')
   const kind = typeof field.value
   const valid = field.type === 'checkbox' || kind === 'boolean' ? typeof value === 'boolean'
-    : kind === 'number' ? typeof value === 'number' && Number.isFinite(value) && (!Number.isInteger(field.value) || Number.isInteger(value))
+    : kind === 'number' ? typeof value === 'number' && Number.isFinite(value) && (field.valuetype === 'float' || !Number.isInteger(field.value) || Number.isInteger(value))
       : typeof value === 'string' || (field.value === null && value === null)
   if (!valid || (typeof value === 'string' && value.length > 20000)) fail('INVALID_PARAMS', '参数类型或长度不正确')
   if (Array.isArray(field.validate) && (typeof value !== 'number' || value < field.validate[0] || value > field.validate[1])) fail('INVALID_PARAMS', '数值超出允许范围')
@@ -465,6 +465,22 @@ export function createMockState({ empty = false } = {}) {
         instances.delete(name); startup.delete(name); programs.delete(name); simulations.delete(name); fleetStates.delete(name)
         return { deleted: name }
       case 'config.get': return snapshot(name)
+      case 'fleetTraining.reset': {
+        if (get(name).status === 'running') fail('INSTANCE_RUNNING', '请先停止实例，再刷新换船状态')
+        const current = snapshot(name)
+        if (params.revision !== current.revision) fail('CONFLICT', '配置已变化，请重新载入后刷新状态')
+        const fleet = current.values.FleetInfo
+        const training = fleet.FleetTraining.State ?? {}, rotation = fleet.FleetRotation.State ?? {}
+        if (Object.keys(training.pending ?? {}).length || training.reading
+          || Object.keys(fleet.FleetEquipment.State ?? {}).length
+          || Object.values(rotation).some(item => item && (item.source || item.pending)))
+          fail('PENDING_OPERATION', '存在未完成的换船、读取或换装，请先完成恢复再刷新状态')
+        fleet.FleetTraining.State = {}; fleet.FleetRotation.State = {}
+        fleet.FleetInfo.Result = {}; fleet.FleetInfo.Record = '2020-01-01 00:00:00'
+        fleet.FleetTraining.FullScanRecord = '2020-01-01 00:00:00'
+        get(name).values = current.values
+        return snapshot(name)
+      }
       case 'config.export': {
         if (!programs.has(name)) return snapshot(name).values
         const {mode, draft, active} = program(name)

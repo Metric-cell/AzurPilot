@@ -1,7 +1,10 @@
-import {expect, test, type Page} from '@playwright/test'
+import {expect as baseExpect, test, type Page} from '@playwright/test'
 import {fleetAnalysisHash, rpc} from './fleet-helpers'
 import type {Parameters} from '../src/api/generated'
 
+// 隔离服务逐次运行真实 Python，等待完整数据就绪，不依赖定时刷新补齐。
+const expect = baseExpect.configure({timeout: 15000})
+test.setTimeout(60000)
 
 async function seed(page: Page, name: string, ships: Parameters['dock.patch']['changes']) {
   await page.goto('/')
@@ -70,9 +73,11 @@ test('current level120 copies suppress duplicates but only explicit merge preser
   await page.goto(`/#/i/${instance}/task/FleetAnalysis?tab=mind`)
   await expect(page.getByText('计入 1 种舰船', {exact: false})).toBeVisible()
   saved = await rpc(page, 'dock.patch', {instance, revision: saved.revision, changes: [ship(110)]})
+  await page.getByRole('button', {name: '重新载入', exact: true}).click()
   await expect(page.getByRole('link', {name: '企业', exact: true})).toHaveAttribute('href', fleetAnalysisHash(instance, 'data', saved.ships[1].id))
   await expect(page.locator('tbody tr')).toHaveCount(1)
   saved = await rpc(page, 'dock.patch', {instance, revision: saved.revision, changes: [ship(120)]})
+  await page.getByRole('button', {name: '重新载入', exact: true}).click()
   await expect(page.getByText('计入 0 种舰船', {exact: false})).toBeVisible()
   saved = await rpc(page, 'dock.patch', {instance, revision: saved.revision, changes: [{id: saved.ships[2].id, delete: true}]})
   await page.reload()
@@ -99,6 +104,7 @@ test('group exclusions follow the highest copy and remain isolated between insta
   await page.getByLabel('参与计算 企业', {exact: true}).uncheck()
   await expect(page.getByText('计入 0 种舰船', {exact: false})).toBeVisible()
   const updated = await rpc(page, 'dock.patch', {instance, revision: saved.revision, changes: [ship(110)]})
+  await page.getByRole('button', {name: '重新载入', exact: true}).click()
   await expect(page.getByRole('link', {name: '企业', exact: true})).toHaveAttribute('href', fleetAnalysisHash(instance, 'data', updated.ships[1].id))
   await expect(page.getByLabel('参与计算 企业', {exact: true})).not.toBeChecked()
   await page.goto(`/#/i/${other}/task/FleetAnalysis?tab=mind`)

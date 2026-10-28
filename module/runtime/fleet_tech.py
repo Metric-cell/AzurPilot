@@ -87,7 +87,7 @@ def fixed_full_star_state(ship):
     level = ship.get('level', 0)
     if type(level) is int and 1 <= level < 70:
         return False
-    if type(level) is int and level > 100 and not ship.get('review'):
+    if type(level) is int and level >= 100 and not ship.get('review'):
         info = next((row for row in catalog()['ships'] if row['group_type'] == ship.get('group_type')), None)
         if info and info['full_star_rule'] == 'ordinary_level_cap':
             return True

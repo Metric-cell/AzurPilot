@@ -34,9 +34,7 @@ class ErrorBoundary extends Component<{children: ReactNode}, {failed: boolean}> 
 }
 const SchedulerProgram = lazy(() => import('./pages/SchedulerProgram').then(module => ({default: module.SchedulerProgram})))
 const FleetAnalysis = lazy(() => import('./pages/FleetAnalysis').then(module => ({default: module.FleetAnalysis})))
-const FleetRotation = lazy(() => import('./pages/FleetRotation').then(module => ({default: module.FleetRotation})))
-const FleetTraining = lazy(() => import('./pages/FleetTraining').then(module => ({default: module.FleetTraining})))
-const FleetEquipment = lazy(() => import('./pages/FleetEquipment').then(module => ({default: module.FleetEquipment})))
+const FleetSwitch = lazy(() => import('./pages/FleetSwitch').then(module => ({default: module.FleetSwitch})))
 
 const router = createHashRouter([
   {path: '/', element: <App/>, errorElement: <ErrorPage/>, children: [{index: true, element: <Home/>}, {path: 'interface', element: <InterfaceSettings/>}, {path: 'settings', element: <Settings/>}, {path: 'configs', element: <ConfigManager/>}, {path: 'dev', element: <DevControls/>}]},
@@ -47,11 +45,13 @@ const router = createHashRouter([
     {path: 'logs', element: <Navigate to="../overview" replace/>}, {path: 'statistics', element: <Statistics/>}, {path: 'scheduler', element: <Navigate to="../task/SchedulerProgram" replace/>}, {path: 'settings', element: <Navigate to="/settings" replace/>},
     {path: 'task/SchedulerProgram', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><SchedulerProgram/></Suspense>},
     {path: 'task/FleetAnalysis', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><FleetAnalysis/></Suspense>},
-    {path: 'task/FleetRotation', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><FleetRotation/></Suspense>},
-    {path: 'task/FleetTraining', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><FleetTraining/></Suspense>},
-    {path: 'task/FleetLevelTraining', element: <Navigate to="../FleetTraining" relative="path" replace/>},
-    {path: 'task/FleetAffinityTraining', element: <Navigate to="../FleetTraining" relative="path" replace/>},
-    {path: 'task/FleetEquipment', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><FleetEquipment/></Suspense>},
+    {path: 'task/FleetSwitch', element: <Suspense fallback={<div>{translateCurrentUi('common.loading')}</div>}><FleetSwitch/></Suspense>},
+    {path: 'task/FleetInfo', element: <Navigate to="../FleetSwitch?tab=info" relative="path" replace/>},
+    {path: 'task/FleetRotation', element: <Navigate to="../FleetSwitch?tab=rotation" relative="path" replace/>},
+    {path: 'task/FleetTraining', element: <Navigate to="../FleetSwitch?tab=training" relative="path" replace/>},
+    {path: 'task/FleetLevelTraining', element: <Navigate to="../FleetSwitch?tab=training" relative="path" replace/>},
+    {path: 'task/FleetAffinityTraining', element: <Navigate to="../FleetSwitch?tab=training" relative="path" replace/>},
+    {path: 'task/FleetEquipment', element: <Navigate to="../FleetSwitch?tab=equipment" relative="path" replace/>},
   ]},
   {path: '*', element: <Navigate to="/" replace/>},
 ])

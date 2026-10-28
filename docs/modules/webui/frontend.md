@@ -12,12 +12,16 @@
 
 [资源管理](resource-management.md) 位于「资源统计」内的「资源趋势」旁边，路径为 `/i/:instance/statistics?view=management`；旧 `/resources` 路径自动跳转。由 `pages/ResourceManagement.tsx` 与 `resources/` 提供 ECharts 桑基图、库存与收支明细。图节点支持资源与任务筛选，明细支持分页和完整区间 CSV 导出；原调度的石油自动控制使用现有配置事务接口保存。五种语言、窄屏和空数据状态均沿用控制台组件与主题。
 
-「舰队管理」下并列放置「舰队信息」与 [心智单元计算器](mind-calculator.md)。计算器路径为 `/i/:instance/task/MindCalculator`，旧 `/mind-calculator` 自动跳转；沿用 `components/taskNavItems.ts` 的 WebUI 页面导航机制，同时覆盖侧栏树、悬浮菜单及顶栏任务跳转，不注册新的游戏任务。「舰队信息」由 `pages/FleetInfoPage.tsx` 提供舰队卡片和扫描开关，调用 `tasks.run(FleetScan)`，只在该扫描运行时调用 `scheduler.stop`；其他任务运行、更新或连接不可用时禁用。启动前等待配置队列保存，再以最新修订保存 `FleetInfo.FleetInfo.UpdateEmotion`（扫描时更新心情）选项；关闭时保留已有舰位心情参考，不进行被动学习。扫描运行期间及结束后重读舰队信息，显示扫描确认的舰位，不为历史记录推断舰位。浏览页面不启动游戏，也不修改实例自启设置；手动指定舰位互换尚未提供独立按钮，智能换船使用下述策略页。
+「舰队管理」下并列放置「智能换船」与「舰船数据」。`pages/FleetSwitch.tsx` 在 `/i/:instance/task/FleetSwitch` 整合「舰队信息」「换船配置」「换船调度」「换船装备」四个页签，使用与舰船数据相同的分段按钮样式；查询参数 `tab=info|rotation|training|equipment` 记录当前页签，刷新后保持选择。原 `FleetInfo`、`FleetRotation`、`FleetTraining`、`FleetEquipment` 及等级/好感调度链接自动跳转到对应页签。侧栏树、悬浮菜单及顶栏任务跳转共用 `components/taskNavItems.ts`，只保留一个智能换船入口，不注册新的游戏任务，各页签继续使用原有配置路径与保存接口。原「自动换装备」页面显示名称改为「换船装备」，默认开关和装备码规则不变。
+
+整合前的[四个菜单入口](images/fleet-switch-before.png)来自用户提供的界面截图；整合后的[桌面](images/fleet-switch-desktop.png)与[手机](images/fleet-switch-mobile.png)截图来自隔离模拟服务，仅验证界面展示和交互，不代表实际游戏验证。
+
+「舰队信息」页签仍由 `pages/FleetInfoPage.tsx` 提供舰队卡片和扫描开关，调用 `tasks.run(FleetScan)`，只在该扫描运行时调用 `scheduler.stop`；其他任务运行、更新或连接不可用时禁用。启动前等待配置队列保存，再以最新修订保存 `FleetInfo.FleetInfo.UpdateEmotion`（扫描时更新心情）选项；关闭时保留已有舰位心情参考，不进行被动学习。扫描运行期间及结束后重读舰队信息，显示扫描确认的舰位，不为历史记录推断舰位。浏览页面不启动游戏，也不修改实例自启设置；手动指定舰位互换尚未提供独立按钮，智能换船使用下述策略页签。
 
 舰队信息的[桌面截图](images/fleet-management-desktop.png)与[手机截图](images/fleet-management-mobile.png)
 来自隔离服务及合成记录，只验证舰位、未知心情和扫描选项展示，不代表实际账号操作。
 
-「舰队管理」的 `/i/:instance/task/FleetRotation` 页面名为「换船配置」，属于独立配置页，
+「智能换船」的 `/i/:instance/task/FleetSwitch?tab=rotation` 页签名为「换船配置」，继续独立保存配置，
 不注册游戏任务，也不显示调度状态或启动任务按钮。六支水面
 舰队的36个舰位默认均为“不变”，可逐位改为“换船”，并为每支目标队多选候补队。
 此页只保存共享的 `FleetInfo.FleetRotation.Rules`，不修改三个调度的开关和心情计算选项，
@@ -25,7 +29,7 @@
 的上次来源与本轮进度，任务运行时只刷新进度，不覆盖尚未保存的规则编辑。
 清空轮换记录按钮仅在任务停止时可用，不清空培养完成记录。实际刷图触发由战役出击前策略负责。
 
-同组的`/i/:instance/task/FleetTraining`「换船调度」集中展示心情、等级和好感三个独立开关，
+同页的`/i/:instance/task/FleetSwitch?tab=training`「换船调度」集中展示心情、等级和好感三个独立开关，
 默认均关闭，共享上述舰位及候补。原等级/好感页面链接自动跳转到此页。等级与好感分别保存目标；
 页面上方只保留一个`FleetInfo.FleetTraining.CheckIntervalHours`共用小时实读间隔，三个卡片内不再重复。
 支持小数、不设上限、默认0.5小时；旧独立间隔优先按启用项目的最短值迁移，都关闭时取已有最短值，
@@ -37,6 +41,8 @@
 其余未完成记录归旧记录。每框按实际舰队、舰位1–6向下排列；完成和旧记录各选最近6条展示，
 完整持久记录不裁剪，也不影响已完成舰船的排除。当前编队快照提供最近确认的位置和心情，
 快照中不在队的记录回退到保存的位置及心情；同名多艘不能归并培养进度，缺失值不猜测。
+同名舰船可以展示`State.readings`中同舰队、同舰位且舰名一致的实读值，不能借用其他同名舰船的记录，
+这些舰位读数不进入完成分类，也不作为自动完成或换船依据。
 旧空字符串编队快照按尚未扫描处理，已有历史仍可展示，不要求额外启动扫描。
 各项保留最近记录值、不表示即时值，未知经验及旧记录缺项显示“未读取”，真实0心情/经验正常显示。
 窄屏仅在表格内部横向滚动，分类标题保持可见。

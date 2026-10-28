@@ -115,7 +115,7 @@ class AccountProgressTests(unittest.TestCase):
                                      else dict(values, **{key: False}))
 
     def test_card_full_star_changes_do_not_override_independent_correction(self):
-        self.database.patch_cards([dict(group_type=10102, name='杜威', level=100, full_star=True)], self.revision())
+        self.database.patch_cards([dict(group_type=10102, name='杜威', level=99, full_star=True)], self.revision())
         self.assertTrue(self.row()['full_star'])
         self.database.patch_cards([dict(id=1, full_star=False)], self.revision())
         self.assertEqual(self.row()['evidence']['full_star'], [])
@@ -126,6 +126,18 @@ class AccountProgressTests(unittest.TestCase):
         self.assertEqual(self.row()['evidence']['full_star'], [1])
         self.patch_tech([dict(group_type=10102, full_star=True)])
         self.assertTrue(self.row()['full_star'])
+
+    def test_常规舰船满星包含100级且保留其他等级与特殊舰规则(self):
+        for level, expected in [(0, None), (69, False), (70, None), (99, None), (100, True), (101, True)]:
+            with self.subTest(level=level):
+                self.assertIs(tech.full_star_state(dict(group_type=10102, level=level)), expected)
+        self.assertTrue(tech.full_star_state(dict(group_type=10102, level=100, full_star=False)))
+        self.assertIsNone(tech.full_star_state(dict(group_type=10102, level=100, review=True)))
+        for gid in (29901, 970101, 10517):
+            with self.subTest(group_type=gid):
+                self.assertIsNone(tech.full_star_state(dict(group_type=gid, level=100)))
+        self.database.patch_cards([dict(group_type=10102, name='杜威', level=100)], self.revision())
+        self.assertTrue(self.database.load()['snapshot']['ships'][0]['full_star'])
 
     def test_retirement_preserves_progress_and_manual_correction_stays_corrected(self):
         self.database.patch_cards([dict(group_type=10102, name='杜威', level=120)], self.revision())

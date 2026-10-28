@@ -109,6 +109,33 @@ class DeploySettingsTransactionsTests(unittest.TestCase):
         self.assertEqual(second, {'updated': ['WebuiPort']})
         self.assert_saved(Theme='dark', WebuiPort=30001)
 
+    def test_parallel_startup_is_offline_and_preserves_transactions(self):
+        for config_module in (deploy_config, windows_config):
+            with self.subTest(config_module=config_module.__name__):
+                repository = 'https://github.com/wess09/AzurPilot'
+                text = TEMPLATE.replace('https://example.invalid/custom', repository)
+                self.file.write_text(text)
+                self.template.write_text(text)
+                barrier = threading.Barrier(8, timeout=5)
+
+                def start_and_update(_):
+                    barrier.wait()
+                    config = config_module.DeployConfig(str(self.file))
+                    with config.transaction() as values:
+                        values['WebuiPort'] += 1
+                    return config
+
+                with patch('requests.sessions.Session.request', side_effect=AssertionError('unexpected HTTP')) as request, \
+                        patch('socket.socket.connect', side_effect=AssertionError('unexpected socket')) as connect, \
+                        ThreadPoolExecutor(max_workers=8) as executor:
+                    configs = list(executor.map(start_and_update, range(8)))
+                request.assert_not_called()
+                connect.assert_not_called()
+                self.assertTrue(all(config.Repository == repository for config in configs))
+                saved = poor_yaml_read(str(self.file))
+                self.assertEqual(saved['Repository'], repository)
+                self.assertEqual(saved['WebuiPort'], 25556)
+
     def test_concurrent_startup_additions_preserve_both_instances(self):
         self.race(lambda: deploy_settings.set_startup_run('account_a', True),
                   lambda: deploy_settings.set_startup_run('account_b', True))

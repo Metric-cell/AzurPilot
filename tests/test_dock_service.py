@@ -32,6 +32,21 @@ class SharedAnalysisTests(unittest.TestCase):
     def write(self, data):
         self.configs.path('testpilot').write_text(json.dumps(data), encoding='utf-8')
 
+    def test_旧100级记录读取默认满星但不回写舰船或累计科技(self):
+        database = FleetDatabase(self.configs.path('testpilot'))
+        initial = self.dock.report('testpilot')
+        self.dock.patch('testpilot', initial['revision'], [dict(name='杜威', group_type=10102, level=100)])
+        with database._transaction() as connection:
+            connection.execute('UPDATE ships SET full_star=NULL')
+        before = database.path.read_bytes()
+        stored = database.load()
+        report = self.dock.report('testpilot')
+        self.assertTrue(report['ships'][0]['full_star'])
+        self.assertEqual(report['revision'], stored['snapshot']['revision'])
+        self.assertIsNone(database.load()['snapshot']['ships'][0]['full_star'])
+        self.assertEqual(database.load()['technology'], stored['technology'])
+        self.assertEqual(database.path.read_bytes(), before)
+
     def scan(self, level=105, rows=None, confirm=True, **extra):
         database = FleetDatabase(self.configs.path('testpilot'))
         state = database.load()

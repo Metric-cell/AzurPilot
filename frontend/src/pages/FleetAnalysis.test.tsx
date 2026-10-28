@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {act, cleanup, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {api} from '../api/client'
 import {translateUi} from '../i18n'
@@ -14,15 +14,16 @@ vi.mock('./FleetLedger', () => ({FleetLedger: () => <p>data content</p>}))
 vi.mock('./ScanUpdate', () => ({ScanUpdate: () => <p>scan content</p>}))
 const tabs = ['data', 'technology', 'mind', 'scan'] as const
 function page(tab: string) {
-  return render(<MemoryRouter initialEntries={[`/i/test/task/FleetAnalysis?tab=${tab}`]}><Routes><Route path="/i/:instance/task/FleetAnalysis" element={<FleetAnalysis/>}/></Routes></MemoryRouter>)
+  return render(<MemoryRouter initialEntries={[`/i/test/task/FleetAnalysis${tab ? `?tab=${tab}` : ''}`]}><Routes><Route path="/i/:instance/task/FleetAnalysis" element={<FleetAnalysis/>}/></Routes></MemoryRouter>)
 }
-beforeEach(() => {vi.mocked(api.request).mockReset().mockReturnValue(new Promise(() => {}))})
-afterEach(cleanup)
+beforeEach(() => {localStorage.clear(); vi.mocked(api.request).mockReset().mockReturnValue(new Promise(() => {}))})
+afterEach(() => {cleanup(); vi.useRealTimers()})
 
 describe('ship data navigation', () => {
   it.each(tabs)('mounts only the active %s page and requests its dock snapshot', tab => {
     page(tab)
     expect(screen.getAllByRole('tab')).toHaveLength(4)
+    expect(screen.getAllByRole('tab').map(tab => tab.textContent)).toEqual(['舰队科技', '养成计算', '扫描更新', '我的舰船'])
     const panel = screen.getByRole('tabpanel')
     expect(panel.textContent).toBe(`${tab} content`)
     const selected = screen.getByRole('tab', {selected: true})
@@ -44,5 +45,25 @@ describe('ship data navigation', () => {
     vi.mocked(api.request).mockRejectedValueOnce(new Error('dock unavailable'))
     page('data')
     await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('dock unavailable'))
+  })
+
+  it('restores the last page but still honors an explicit tab link', () => {
+    const first = page('mind')
+    first.unmount()
+    const second = page('')
+    expect(screen.getByRole('tabpanel').textContent).toBe('mind content')
+    second.unmount()
+    page('data')
+    expect(screen.getByRole('tabpanel').textContent).toBe('data content')
+  })
+
+  it('only reloads the snapshot on request instead of polling', async () => {
+    vi.useFakeTimers()
+    vi.mocked(api.request).mockResolvedValue({} as never)
+    page('data')
+    await act(async () => {vi.advanceTimersByTime(15000)})
+    expect(api.request).toHaveBeenCalledExactlyOnceWith('dock.report', {instance: 'test'})
+    await act(async () => fireEvent.click(screen.getByRole('button', {name: translateUi('zh-CN', 'mind.reload')})))
+    expect(api.request).toHaveBeenCalledTimes(2)
   })
 })

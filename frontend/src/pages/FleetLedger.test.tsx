@@ -18,6 +18,7 @@ function ledger(value: DockReport | undefined, entry = '?tab=data') {
 }
 beforeEach(() => {
   sessionStorage.clear()
+  localStorage.clear()
   vi.mocked(api.request).mockReset().mockReturnValue(new Promise(() => {}))
 })
 afterEach(cleanup)
@@ -85,5 +86,81 @@ describe('current ships and scan separation', () => {
     expect(onBusy.mock.calls).toEqual([[true], [false]])
     expect(screen.getByText(translateUi('zh-CN', 'analysis.saved'))).toBeTruthy()
     expect(sessionStorage.getItem('azurpilot.fleet-ledger.v1.test')).toBeNull()
+  })
+
+  it('shows the highest copy per identity without merging unknown or different identities', async () => {
+    vi.mocked(api.request).mockResolvedValue(catalog)
+    const ships = [
+      {...report.ships[0]!, level: 100}, {...report.ships[1]!, level: 120},
+      {...report.ships[0]!, id: 3, group_type: 200},
+      {...report.ships[0]!, id: 4, group_type: null, review: true},
+      {...report.ships[0]!, id: 5, group_type: null, review: true},
+    ]
+    ledger({...report, ships})
+    await screen.findByRole('table')
+    fireEvent.click(screen.getByRole('button', {name: '去重后舰船'}))
+    expect(screen.getAllByRole('spinbutton', {name: /等级 · 重复舰船 #/})).toHaveLength(4)
+    expect(screen.queryByRole('spinbutton', {name: '等级 · 重复舰船 #1'})).toBeNull()
+    expect(screen.getByRole('spinbutton', {name: '等级 · 重复舰船 #2'})).toBeTruthy()
+    expect(api.request).toHaveBeenCalledExactlyOnceWith('mind.catalog', {instance: 'test'})
+    fireEvent.click(screen.getByRole('button', {name: '去重后舰船'}))
+    expect(screen.getAllByRole('spinbutton', {name: /等级 · 重复舰船 #/})).toHaveLength(5)
+  })
+
+  it('lets an unresolved same-name ship choose its faction and then save the review', async () => {
+    const candidates = [{...catalog.ships[0]!, name: '约克（皇家）', raw_name: '约克', group_type: 20307, type: '重巡', nationality: 2, code: 125},
+      {...catalog.ships[0]!, name: '约克（铁血）', raw_name: '约克', group_type: 40311, type: '重巡', nationality: 4, code: 546}]
+    vi.mocked(api.request).mockResolvedValueOnce({...catalog, ships: candidates}).mockResolvedValueOnce(report)
+    ledger({...report, ships: [{...report.ships[0]!, name: '约克', group_type: null, review: true}]})
+    const checkbox = await screen.findByRole<HTMLInputElement>('checkbox', {name: '需要核对 · 约克 #1'})
+    expect(checkbox.disabled).toBe(false)
+    fireEvent.click(checkbox)
+    expect(checkbox.checked).toBe(true)
+    expect(screen.getByRole('alert').textContent).toContain('请先在舰名下选择')
+    fireEvent.change(screen.getByRole('combobox', {name: '确认舰船身份 · 约克 #1'}), {target: {value: '40311:约克（铁血）'}})
+    expect(screen.getByRole<HTMLInputElement>('checkbox', {name: '需要核对 · 约克（铁血） #1'}).checked).toBe(false)
+    expect(screen.queryByRole('alert')).toBeNull()
+    fireEvent.click(screen.getByRole('button', {name: '保存'}))
+    await waitFor(() => expect(api.request).toHaveBeenLastCalledWith('dock.patch', {instance: 'test', revision: 'r1', changes: [{
+      id: 1, name: '约克（铁血）', group_type: 40311, level: 120, rarity: 'SSR', base_rarity: 'SSR', full_star: null, form: 'base', review: false,
+    }]}))
+  })
+
+  it('can confirm a unique normalized name by clicking its review checkbox', async () => {
+    vi.mocked(api.request).mockResolvedValueOnce({...catalog, ships: [{...catalog.ships[0]!, name: '北安普敦Ⅱ', raw_name: '北安普敦Ⅱ'}]})
+    ledger({...report, ships: [{...report.ships[0]!, name: '北安普敦II', group_type: null, review: true}]})
+    const checkbox = await screen.findByRole<HTMLInputElement>('checkbox', {name: '需要核对 · 北安普敦II #1'})
+    fireEvent.click(checkbox)
+    expect(screen.getByRole<HTMLInputElement>('checkbox', {name: '需要核对 · 北安普敦Ⅱ #1'}).checked).toBe(false)
+    expect(screen.getByRole<HTMLButtonElement>('button', {name: '保存'}).disabled).toBe(false)
+    expect(api.request).toHaveBeenCalledTimes(1)
+  })
+
+  it('restores filters, search, level range and sorting when the page is reopened', async () => {
+    vi.mocked(api.request).mockResolvedValue(catalog)
+    const first = ledger(report)
+    await screen.findByRole('table')
+    fireEvent.change(screen.getByRole('searchbox'), {target: {value: '重复'}})
+    fireEvent.change(screen.getByLabelText('最低等级'), {target: {value: '100'}})
+    fireEvent.click(screen.getByRole('button', {name: '去重后舰船'}))
+    fireEvent.click(screen.getByRole('button', {name: '等级'}))
+    first.unmount()
+    ledger(report)
+    await screen.findByRole('table')
+    expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('重复')
+    expect(screen.getByLabelText<HTMLInputElement>('最低等级').value).toBe('100')
+    expect(screen.getByRole('button', {name: '去重后舰船'}).getAttribute('aria-pressed')).toBe('true')
+    expect(screen.getByRole('columnheader', {name: '等级'}).getAttribute('aria-sort')).toBe('descending')
+    expect(screen.getAllByRole('spinbutton', {name: /等级 · 重复舰船 #/})).toHaveLength(1)
+  })
+
+  it('keeps an explicit copy link visible despite remembered filters and deduplication', async () => {
+    localStorage.setItem('azurpilot.fleet-view.v1.test.ledger.query', JSON.stringify('其他舰船'))
+    localStorage.setItem('azurpilot.fleet-view.v1.test.ledger.filters', JSON.stringify({records: ['unique']}))
+    vi.mocked(api.request).mockResolvedValueOnce(catalog)
+    ledger({...report, ships: [{...report.ships[0]!, level: 125}, {...report.ships[1]!, level: 100}]}, '?tab=data&ship=2')
+    const target = await screen.findByRole('spinbutton', {name: '等级 · 重复舰船 #2'})
+    expect(target.closest('tr')?.classList.contains('ledger-highlight')).toBe(true)
+    expect(screen.getByRole<HTMLInputElement>('searchbox').value).toBe('其他舰船')
   })
 })

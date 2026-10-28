@@ -826,7 +826,7 @@ class AzurLaneAutoScript:
         command = inflection.underscore(command)
         self._storage_statistics_failed = False
         set_task(inflection.camelize(command))
-        # 智能换船只在切换任务后刷新一次；同一任务连续出击复用本次扫描。
+        # 会话按任务隔离；换船入口恢复持久扫描计时，不因任务重开而重扫。
         rotation_context = self.__dict__.setdefault('_fleet_rotation_context', {})
         if rotation_context.get('task') != inflection.camelize(command):
             rotation_context.clear()

@@ -5,6 +5,7 @@ import {api} from '../api/client'
 import {useApp, useConnection} from '../app/context'
 import {ErrorBox, Loading, PageTitle} from '../components/ui'
 import {fleetFactionOrder, translateFleetTech} from '../fleet-tech/i18n'
+import {useFleetPreference} from '../fleet-tech/preferences'
 import {catalogRows, changeMilestone, complete, matches, milestones, recordFields, shipType, type Bonuses, type Catalog, type Change, type Milestone, type RecordField, type Report, type Row, type State} from '../fleet-tech/types'
 import {technologyEfficiency} from '../mind/cultivation'
 import '../fleet-tech/style.css'
@@ -60,9 +61,9 @@ export function FleetTechnology() {
   const tr = (key: string) => key === 'Lv.120' ? key : translateFleetTech(language, key)
   const [catalog, setCatalog] = useState<Catalog>(), [report, setReport] = useState<Report>()
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
-  const [query, setQuery] = useState(''), [filters, setFilters] = useState<Record<string, string[]>>({})
-  const [sort, setSort] = useState<Sort>({column: 'code', direction: 'ascending'})
-  const [editing, setEditing] = useState(false), [bonuses, setBonuses] = useState(false), [extra, setExtra] = useState(false)
+  const [query, setQuery] = useFleetPreference<string>(instance, 'technology.query', ''), [filters, setFilters] = useFleetPreference<Record<string, string[]>>(instance, 'technology.filters', {})
+  const [sort, setSort] = useFleetPreference<Sort>(instance, 'technology.sort', {column: 'code', direction: 'ascending'})
+  const [editing, setEditing] = useFleetPreference<boolean>(instance, 'technology.editing', false), [bonuses, setBonuses] = useFleetPreference<boolean>(instance, 'technology.bonuses', false), [extra, setExtra] = useFleetPreference<boolean>(instance, 'technology.extra', false)
   const scope = useRef(0), writing = useRef(false)
   const storageKey = `azurpilot.fleet-tech.v1.${instance}`
   const [draft, setDraft] = useState<Draft | null>(() => {

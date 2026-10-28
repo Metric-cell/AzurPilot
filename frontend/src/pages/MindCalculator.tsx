@@ -5,6 +5,7 @@ import {api, ApiError} from '../api/client'
 import type {DockReport} from '../api/types'
 import {catalogRows, matches, type Catalog, type Report} from '../fleet-tech/types'
 import {fleetFactionOrder, translateFleetTech} from '../fleet-tech/i18n'
+import {useFleetPreference} from '../fleet-tech/preferences'
 import {useApp, useConnection} from '../app/context'
 import {ErrorBox, Loading} from '../components/ui'
 import {automaticCandidates, readPlan, technologyEfficiency, type CultivationPlan, type CultivationReport} from '../mind/cultivation'
@@ -21,10 +22,10 @@ export function MindCalculator({report: dock, onRefresh}: {report?: DockReport; 
   const {instance = ''} = useParams(), connection = useConnection(), {language, ui} = useApp()
   const [facts, setFacts] = useState<Facts>(), [plan, setPlan] = useState<CultivationPlan>()
   const [result, setResult] = useState<CultivationReport>(), [error, setError] = useState('')
-  const [query, setQuery] = useState(''), [includedOnly, setIncludedOnly] = useState(false)
-  const [filters, setFilters] = useState<Record<string, string[]>>({}), [extra, setExtra] = useState(false)
+  const [query, setQuery] = useFleetPreference<string>(instance, 'mind.query', ''), [includedOnly, setIncludedOnly] = useFleetPreference<boolean>(instance, 'mind.includedOnly', false)
+  const [filters, setFilters] = useFleetPreference<Record<string, string[]>>(instance, 'mind.filters', {}), [extra, setExtra] = useFleetPreference<boolean>(instance, 'mind.extra', false)
   const tr = (key: string) => translateFleetTech(language, key)
-  const [sort, setSort] = useState<Sort>({column: 'efficiency', direction: 'descending'})
+  const [sort, setSort] = useFleetPreference<Sort>(instance, 'mind.sort', {column: 'efficiency', direction: 'descending'})
   const [reload, setReload] = useState(0), [calculating, setCalculating] = useState(false)
   const [catalog, setCatalog] = useState<Catalog>(), [technology, setTechnology] = useState<Report>()
   const [catalogError, setCatalogError] = useState(''), [catalogAttempt, setCatalogAttempt] = useState(0)
@@ -53,9 +54,9 @@ export function MindCalculator({report: dock, onRefresh}: {report?: DockReport; 
       } catch (e) {if (active) setTechnologyError((e as Error).message)}
       finally {pending = false}
     }
-    void load(); const timer = setInterval(() => void load(), 5000)
-    return () => {active = false; clearInterval(timer)}
-  }, [instance, connection, dock?.revision, reload])
+    void load()
+    return () => {active = false}
+  }, [instance, connection, dock, reload])
   useEffect(() => {
     if (!dock || dock.instance !== instance || !catalog || !technology) return
     // The technology projection can arrive before or after the shared dock snapshot.

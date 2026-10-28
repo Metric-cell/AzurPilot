@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from deploy.atomic import atomic_write
 from module.api.protocol import ApiError
 from module.config.transaction import config_transaction
-from module.runtime import dock_data
+from module.runtime import dock_data, fleet_tech
 from module.runtime.fleet_database import FleetDatabase, FleetDatabaseAlreadyImported, FleetDatabaseConflict
 
 
@@ -18,6 +18,8 @@ class DockService:
         fields = data.get('DockScan', {}).get('Dock', {})
         state = FleetDatabase(self.configs.path(instance)).load(include_pending=True, include_import_status=True)
         report = dock_data.report_snapshot(state)
+        # 旧记录同样呈现当前满星默认值，浏览不改写逐船数据或累计科技。
+        report['ships'] = [dict(ship, full_star=fleet_tech.full_star_state(ship)) for ship in report['ships']]
         # 控制项显示下一次扫描的配置，快照覆盖范围另附在 scan_range 中。
         return dict(report, instance=instance, legacy_imported=state['legacy_imported'],
                     pending_revision=state.get('pending_revision'), pending_changes=state.get('pending_changes', []),

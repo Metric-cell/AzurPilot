@@ -1,7 +1,9 @@
 import re
 import unittest
+from datetime import timedelta
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from module.config.time_source import LocalTimeSource
 
@@ -14,6 +16,7 @@ REMOVED_NETWORK_MODULES = (
     "module/api/stock_exchange_recovery.py",
     "module/api/stock_exchange_history.py",
     "deploy/geo.py",
+    "deploy/api_endpoints.py",
     "deploy/git_over_cdn/client.py",
     "mcp_server_sse.py",
     "module/mcp",
@@ -28,11 +31,14 @@ REMOVED_NETWORK_MODULES = (
     "dev_tools/remote_gateway_poc",
     ".github/workflows/sync-cnb.yml",
     ".github/workflows/sync2.yml",
+    ".github/workflows/sync-dev-squash.yml",
+    ".github/scripts/sync-dev-squash-ancestry.sh",
     ".github/workflows/git-over-cdn-pages.yml",
     ".github/workflows/docker-publish.yml",
     ".github/workflows/launcher-components.yml",
     "module/runtime/updater.py",
     "module/statistics/cl1_data_submitter.py",
+    "module/statistics/cloud_upload.py",
     "module/statistics/daily_summary.py",
     "module/statistics/daily_summary_store.py",
     "module/statistics/daily_summary_text.py",
@@ -42,6 +48,8 @@ REMOVED_NETWORK_MODULES = (
 )
 
 REMOVED_IMPORTS = (
+    "deploy.api_endpoints",
+    "module.statistics.cloud_upload",
     "module.api.android_update",
     "module.api.stock_exchange_service",
     "module.api.stock_exchange_recovery",
@@ -79,6 +87,8 @@ REMOVED_CONFIG_FIELDS = (
     "CloudflareRegistry",
     "CloudflareDeviceId",
     "TelemetryReport",
+    "CloudUpload",
+    "DropRecord_CloudUpload",
 )
 
 FORBIDDEN_RUNTIME_TOKENS = (
@@ -92,6 +102,8 @@ FORBIDDEN_RUNTIME_TOKENS = (
     "microsoft-clarity-script",
     "www.clarity.ms",
     "api.yppp.net",
+    "api.azurpilot.com",
+    "X-AzurPilot-ID",
 )
 
 
@@ -103,6 +115,41 @@ def _runtime_python_files():
 
 
 class TestCleanNetworkPolicy(unittest.TestCase):
+    def test_legacy_upload_settings_keep_only_local_processing(self):
+        from module.statistics.azurstats import AzurStats
+
+        config = SimpleNamespace(DropRecord_CloudUpload=True, config_name='legacy')
+        stats = AzurStats(config)
+        for method, expected_save in (("upload", False), ("save_and_upload", True)):
+            for genre in ("research", "opsi_obscure"):
+                with self.subTest(method=method, genre=genre), \
+                        patch('module.statistics.azurstats.cleanup_drop_screenshots_if_due'), \
+                        patch('module.statistics.azurstats.pack', return_value=object()), \
+                        patch('module.statistics.azurstats.threading.Thread') as thread, \
+                        patch.object(stats, '_record_local') as local, \
+                        patch('module.statistics.research_drop.record_research_drop') as research, \
+                        patch('requests.sessions.Session.request', side_effect=AssertionError('unexpected network')) as network:
+                    with stats.new(genre, method=method) as drop:
+                        drop.add(object())
+                    self.assertEqual(expected_save, thread.called)
+                    self.assertEqual(genre == 'opsi_obscure', local.called)
+                    self.assertEqual(genre == 'research', research.called)
+                    network.assert_not_called()
+
+    def test_maintenance_query_uses_anonymous_legacy_protocol(self):
+        from module.handover.handover import HANDOVER_MAINTAIN_API, OperationHandover
+
+        payload = {'maintenance_date': '2026-10-29', 'start_time': '09:00'}
+        response = Mock()
+        response.json.return_value = {'data': {'servers': {'jp': payload}}}
+        handover = SimpleNamespace(config=SimpleNamespace(SERVER='jp'))
+        with patch('module.handover.handover.requests.get', return_value=response) as request:
+            result, timezone, error = OperationHandover.handover_maintain_query(handover)
+        self.assertEqual(payload, result)
+        self.assertEqual(timedelta(hours=9), timezone)
+        self.assertEqual('', error)
+        request.assert_called_once_with(HANDOVER_MAINTAIN_API, timeout=10)
+
     def test_android_routes_do_not_restore_updates(self):
         from module.api.android import routes
         with patch.dict('os.environ', {'AZURPILOT_ANDROID': '1', 'AZURPILOT_ANDROID_TOKEN': 'test-token'}):

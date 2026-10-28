@@ -66,6 +66,8 @@ class ServerCheckerTestCase(unittest.TestCase):
         url = kwargs.get("url", args[0] if args else None)
         self.assertEqual(url, f"{API_BASE}/{composite_id}")
         self.assertEqual(kwargs.get("timeout"), (3, 3))
+        self.assertNotIn("headers", kwargs)
+        self.assertNotIn("params", kwargs)
 
 
 class TestServerMapping(ServerCheckerTestCase):

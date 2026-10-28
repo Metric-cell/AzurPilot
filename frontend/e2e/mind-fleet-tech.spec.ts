@@ -1,9 +1,34 @@
-import {expect, test} from '@playwright/test'
+import {expect as baseExpect, test} from '@playwright/test'
 import {rpc} from './fleet-helpers'
 
+const expect = baseExpect.configure({timeout: 15000})
+test.setTimeout(60000)
 
 test.beforeEach(async ({page}) => {
   await page.addInitScript(() => {localStorage.setItem('azurpilot.theme', 'light'); localStorage.setItem('azurpilot.language', 'zh-CN')})
+})
+
+test('Tempesta sailing ships respect front and back positions', async ({page}, info) => {
+  const instance = `tech-position-${info.testId.replace(/[^a-z0-9]/gi, '').slice(-12)}-${info.retry}`
+  await page.goto('/'); await rpc(page, 'instances.create', {name: instance}); await page.goto('about:blank'); await page.goto('/')
+  await page.goto(`/#/i/${instance}/task/FleetAnalysis?tab=technology`)
+  await page.getByRole('button', {name: '飓风', exact: true}).click()
+  const type = page.locator('.ft-filter-row').first()
+  const rows = page.locator('.ft-table-wrap tbody tr[data-group]')
+  const sailingS = ['960001:皇家财富号', '960004:玛丽·西莱斯特号', '960005:维达号', '960009:和睦号', '960011:海豚号', '960016:冒险号', '960018:铁角号']
+  const sailingV = ['960003:金鹿号', '960006:加里冒险号', '960008:幻想号', '960010:朴茨茅斯冒险号', '960013:莱姆号', '960015:皇家詹姆斯号', '960017:水星号', '960020:长蛇号']
+  const sailingM = ['960002:圣马丁号', '960007:冈依沙瓦号', '960012:安妮女王复仇号', '960014:珍珠号', '960019:塞利米耶号', '960021:雷伊尔·贝号']
+  async function expectShips(expected: string[]) {
+    await expect.poll(() => rows.evaluateAll(elements => elements.map(element => `${element.getAttribute('data-group')}:${element.querySelector('.ft-name')?.textContent?.trim()}`).sort())).toEqual([...expected].sort())
+  }
+  await type.getByRole('button', {name: '前排先锋', exact: true}).click()
+  await expectShips(sailingV)
+  await type.getByRole('button', {name: '前排先锋', exact: true}).click()
+  await type.getByRole('button', {name: '后排主力', exact: true}).click()
+  await expectShips(sailingM)
+  await type.getByRole('button', {name: '后排主力', exact: true}).click()
+  await type.getByRole('button', {name: '风帆', exact: true}).click()
+  await expectShips([...sailingS, ...sailingV, ...sailingM])
 })
 
 test('inline milestones preview dependency changes and save together independently of holdings', async ({page}, info) => {
@@ -73,7 +98,7 @@ test('manual milestones survive current copies until explicit merge and remain a
   await page.reload()
   const retired = await rpc(page, 'fleetTech.report', {instance})
   expect(retired.ships.find(ship => ship.group_type === 10102)).toMatchObject({owned: true, full_star: true, lv120: true, current_count: 0, points: 15})
-  await page.getByRole('button', {name: '记录编辑模式', exact: true}).click()
+  await expect(page.getByRole('button', {name: '记录编辑模式', exact: true})).toHaveAttribute('aria-pressed', 'true')
   await milestone('Lv.120', '已完成').click()
   await expect(milestone('获得', '已完成')).toBeVisible()
   await expect(milestone('满星', '已完成')).toBeVisible()

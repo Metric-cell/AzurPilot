@@ -40,8 +40,8 @@ describe('ownerTaskOfGroup', () => {
 
 
 describe('舰队分析入口', () => {
-  it('舰队管理只提供一个数据分析页面', () => {
-    expect(taskNavItems('FleetManagement', ['FleetInfo'])).toEqual(['FleetInfo', 'FleetRotation', 'FleetTraining', 'FleetEquipment', 'FleetAnalysis'])
+  it('舰队管理提供智能换船和舰船数据两个统一入口', () => {
+    expect(taskNavItems('FleetManagement', ['FleetInfo'])).toEqual(['FleetSwitch', 'FleetAnalysis'])
   })
   it('工具菜单隐藏共享扫描任务', () => {
     expect(taskNavItems('Tool', ['Other', 'DockScan'])).toEqual(['Other'])

@@ -3801,7 +3801,8 @@
       "Target": 100
     },
     "FleetTraining": {
-      "CheckIntervalHours": 0.5,
+      "FullScanRecord": "2020-01-01 00:00:00",
+      "CheckIntervalHours": 6.0,
       "State": {}
     },
     "FleetEquipment": {

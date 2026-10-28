@@ -6,6 +6,7 @@ import {useApp, useConnection} from '../app/context'
 import {ErrorBox, Loading} from '../components/ui'
 import type {MindShip} from '../mind/types'
 import type {UiKey} from '../i18n'
+import {useFleetPreference} from '../fleet-tech/preferences'
 
 const operationLabels = {
   add: 'analysis.operationAdd', update: 'analysis.operationUpdate',
@@ -25,7 +26,7 @@ export function ScanUpdate({instance, report, locked, onReport, onBusy}: {instan
   useEffect(() => {alive.current = true; return () => {alive.current = false}}, [])
   const publish = (value: DockReport) => {if (alive.current) onReport(value)}
   const {ui, instances, notify} = useApp(), connection = useConnection()
-  const [min, setMin] = useState('1'), [max, setMax] = useState('125'), [error, setError] = useState(''), [progress, setProgress] = useState('')
+  const [min, setMin] = useFleetPreference<string>(instance, 'scan.min', '1'), [max, setMax] = useFleetPreference<string>(instance, 'scan.max', '125'), [error, setError] = useState(''), [progress, setProgress] = useState('')
   const [targets, setTargets] = useState<Record<string, string>>({}), [removal, setRemoval] = useState('')
   useEffect(() => {setTargets({}); setRemoval('')}, [report?.pending_revision])
   const current = instances.find(item => item.name === instance), scanning = current?.status === 'running' && ['DockScan', 'dock_scan'].includes(current.currentTask ?? '')

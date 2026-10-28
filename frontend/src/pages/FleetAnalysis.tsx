@@ -4,6 +4,7 @@ import {api} from '../api/client'
 import type {DockReport} from '../api/types'
 import {useApp, useConnection} from '../app/context'
 import {ErrorBox, PageTitle} from '../components/ui'
+import {useFleetPreference} from '../fleet-tech/preferences'
 import {MindCalculator} from './MindCalculator'
 import {FleetTechnology} from './FleetTechnology'
 import {FleetLedger} from './FleetLedger'
@@ -16,7 +17,9 @@ export function FleetAnalysis() {
   const {ui} = useApp(), connection = useConnection()
   const [report, setReport] = useState<DockReport>(), [error, setError] = useState(''), [busy, setBusy] = useState(false)
   const writing = useRef(false), epoch = useRef(0), refresh = useRef<(() => Promise<void>) | undefined>(undefined)
-  const value = params.get('tab'), tab = value === 'technology' || value === 'mind' || value === 'scan' ? value : 'data'
+  const [lastTab, setLastTab] = useFleetPreference<string>(instance, 'tab', 'data')
+  const value = params.get('tab') ?? lastTab, tab = value === 'technology' || value === 'mind' || value === 'scan' ? value : 'data'
+  useEffect(() => {setLastTab(tab)}, [instance, tab])
   useEffect(() => {writing.current = false; setBusy(false)}, [instance, tab])
   useEffect(() => {
     let active = true, pending = false
@@ -31,13 +34,13 @@ export function FleetAnalysis() {
       finally {pending = false}
     }
     refresh.current = load
-    void load(); const timer = setInterval(() => void load(), 5000)
-    return () => {active = false; refresh.current = undefined; clearInterval(timer)}
+    void load()
+    return () => {active = false; refresh.current = undefined}
   }, [instance, connection])
   const onBusy = (value: boolean) => {epoch.current++; writing.current = value; setBusy(value)}
   const onReport = (value: DockReport) => {epoch.current++; setReport(value)}
-  return <div className="mind-calculator fleet-analysis"><PageTitle title={ui('analysis.title')}/>{error && <ErrorBox message={error}/>}
-    <div className="ft-chips" role="tablist" aria-label={ui('analysis.title')}>{(['data', 'technology', 'mind', 'scan'] as const).map(value => <button key={value} role="tab" disabled={busy} aria-selected={tab === value} aria-controls={`analysis-${value}`} id={`tab-${value}`} onClick={() => setParams({tab: value}, {replace: true})}>{ui(value === 'scan' ? 'analysis.scanPage' : `analysis.${value}`)}</button>)}</div>
+  return <div className="mind-calculator fleet-analysis"><PageTitle title={ui('analysis.title')} actions={tab !== 'technology' && <button className="button secondary" disabled={busy || connection !== 'ready'} onClick={() => void refresh.current?.()}>{ui('mind.reload')}</button>}/>{error && <ErrorBox message={error}/>}
+    <div className="ft-chips" role="tablist" aria-label={ui('analysis.title')}>{(['technology', 'mind', 'scan', 'data'] as const).map(value => <button key={value} role="tab" disabled={busy} aria-selected={tab === value} aria-controls={`analysis-${value}`} id={`tab-${value}`} onClick={() => setParams({tab: value}, {replace: true})}>{ui(value === 'scan' ? 'analysis.scanPage' : `analysis.${value}`)}</button>)}</div>
     <section role="tabpanel" id={`analysis-${tab}`} aria-labelledby={`tab-${tab}`}>
       {tab === 'data' && <FleetLedger key={instance} instance={instance} report={report} locked={busy} onReport={onReport} onBusy={onBusy}/>}
       {tab === 'technology' && <FleetTechnology key={instance}/>}

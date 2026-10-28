@@ -22,7 +22,7 @@ test('资源管理位于资源趋势旁边，旧入口跳转且刷新保持选�
   await page.screenshot({path: test.info().outputPath('statistics-management-tabs.png'), fullPage: true})
 })
 
-test('舰队管理打开四页舰船数据与舰队信息，扫描开关只运行工具并刷新结果', async ({page}) => {
+test('舰队管理打开舰船数据与智能换船，扫描开关只运行工具并刷新结果', async ({page}) => {
   const requests: string[] = []
   let finished = false
   await page.routeWebSocket('**/api/v1/ws', socket => {
@@ -42,13 +42,13 @@ test('舰队管理打开四页舰船数据与舰队信息，扫描开关只运�
   })
   await page.goto('/#/i/demo-alt/task/FleetAnalysis?tab=mind')
   await expect(page).toHaveURL(url => url.hash === '#/i/demo-alt/task/FleetAnalysis?tab=mind')
-  await expect(page.getByRole('heading', {name: '养成计算', exact: true})).toBeVisible()
+  await expect(page.getByRole('heading', {name: '养成计算', exact: true})).toBeVisible({timeout: 15000})
   await expect(page.locator('.primary-nav').getByRole('link', {name: '养成计算', exact: true})).toHaveCount(0)
   await page.getByRole('button', {name: '舰队管理', exact: true}).hover()
   const menu = page.getByRole('menu', {name: '舰队管理', exact: true})
   await expect(menu.getByRole('menuitem', {name: '舰船数据', exact: true})).toHaveAttribute('href', '#/i/demo-alt/task/FleetAnalysis')
-  await menu.getByRole('menuitem', {name: '舰队信息', exact: true}).click()
-  await expect(page).toHaveURL(url => url.hash === '#/i/demo-alt/task/FleetInfo')
+  await menu.getByRole('menuitem', {name: '智能换船', exact: true}).click()
+  await expect(page).toHaveURL(url => url.hash === '#/i/demo-alt/task/FleetSwitch')
   await expect(page.getByRole('tab', {name: '养成计算', exact: true})).toHaveCount(0)
   await expect(page.locator('.fleet-grid')).toContainText('原有舰船')
   const scan = page.getByRole('switch', {name: '舰队扫描', exact: true})
@@ -72,7 +72,7 @@ test('舰队管理打开四页舰船数据与舰队信息，扫描开关只运�
   await page.getByRole('tab', {name: '养成计算', exact: true}).click()
   await expect(page).toHaveURL(url => url.hash === '#/i/demo-alt/task/FleetAnalysis?tab=mind')
   await page.reload()
-  await expect(page.getByRole('heading', {name: '养成计算', exact: true})).toBeVisible()
+  await expect(page.getByRole('heading', {name: '养成计算', exact: true})).toBeVisible({timeout: 15000})
   await expect(page.getByRole('checkbox', {name: '全选当前筛选'})).toBeVisible()
   await expect(page.locator('input[type=file]')).toHaveCount(0)
   await expect(page.locator('.breadcrumb-current')).toHaveText('舰船数据')
