@@ -3,10 +3,13 @@
  */
 
 import { useEffect, useState, useSyncExternalStore, type FormEvent } from 'react'
-import { BookmarkPlus, ExternalLink, FolderOpen, ListPlus, Shuffle, Upload, X } from 'lucide-react'
-import { DEFAULT_BACKGROUND_URLS, applyGalleryEntry, disableBackground, galleryUrl, getBackground, getGallery, initBackgroundGallery, openGalleryFolder, refreshGallery, removeGalleryEntry, saveDirectUrlToGallery, setBackgroundUrls, subscribeBackground, uploadBackgroundFile, type BackgroundKind, type BackgroundSource } from '../app/background'
+import { FolderOpen, ListPlus, Shuffle, Upload, X } from 'lucide-react'
+import { DEFAULT_BACKGROUND_URLS, applyGalleryEntry, disableBackground, galleryUrl, getBackground, getGallery, initBackgroundGallery, openGalleryFolder, refreshGallery, removeGalleryEntry, setBackgroundUrls, subscribeBackground, uploadBackgroundFile, type BackgroundKind, type BackgroundSource } from '../app/background'
 import { useApp } from '../app/context'
 import { Select } from './FormControls'
+import { Button } from './ui/button'
+import { Input } from './ui/input'
+import './BackgroundPreferences.css'
 
 /** 地址行的稳定 id：用数组下标当 key，删一行后 React 会复用错误的输入节点。 */
 type Row = {id: string, value: string}
@@ -14,8 +17,10 @@ let rowSeed = 0
 const newRow = (value = ''): Row => ({id: `row-${++rowSeed}`, value})
 const toRows = (urls: string[]): Row[] => [...urls.map(url => newRow(url)), newRow()]
 
-/** 图片与视频背景属于当前浏览器偏好；上传文件保存在 IndexedDB，避免进入部署配置。
-    背景记录按材质各存一档，所以切换材质后表单要跟着换成那一档的值。 */
+/**
+ * 图片与视频背景属于当前浏览器偏好；上传文件保存在 IndexedDB，避免进入部署配置。
+ * 背景记录按材质各存一档，所以切换材质后表单要跟着换成那一档的值。
+ */
 export function BackgroundPreferences() {
   const {ui, notify, material} = useApp()
   const background = useSyncExternalStore(subscribeBackground, getBackground, getBackground)
@@ -49,12 +54,13 @@ export function BackgroundPreferences() {
   function changeRow(index: number, value: string) {
     setRows(current => {
       const next = [...current]
-      next[index] = {...next[index], value}
+      const currentRow = next[index] ?? newRow()
+      next[index] = {...currentRow, value}
       if (index === next.length - 1 && value.trim()) next.push(newRow())
       return next
     })
   }
-  /** 删掉某一行；删光了留一个空行，交回给「全清空自动回填内置 API」那条规则。 */
+  /** 删掉某一行；删光了留一个空行，交回给「全清空自动回填内置图片」那条规则。 */
   function removeRow(index: number) {
     setRows(current => {
       const next = current.filter((_, position) => position !== index)
@@ -62,7 +68,7 @@ export function BackgroundPreferences() {
     })
   }
 
-  /** 一行一条 API；全清空时会回填内置随机图 API，所以应用后要把回填结果同步回输入框。 */
+  /** 一行一条地址；全清空时会回填内置图片，所以应用后要把回填结果同步回输入框。 */
   function applyRows() {
     setBackgroundUrls(rows.map(row => row.value), kind)
     setSource('url')
@@ -77,7 +83,7 @@ export function BackgroundPreferences() {
     } catch (error) { setError((error as Error).message) }
   }
 
-  /** 一次可传多张：逐张存进图库，最后随机铺一张 —— 这就是"一个文件夹里随机播放"。 */
+  /** 一次可传多张：逐张存进图库，最后随机铺一张 —— 这就是「一个文件夹里随机播放」。 */
   async function upload(files: FileList | null) {
     if (!files?.length) return
     setBusy(true); setError('')
@@ -85,13 +91,6 @@ export function BackgroundPreferences() {
       for (const file of Array.from(files)) await uploadBackgroundFile(file)
       setSource('upload')
       notify(ui('settings.backgroundApplied'))
-    } catch (error) { setError((error as Error).message) } finally { setBusy(false) }
-  }
-  async function saveDirect() {
-    setBusy(true); setError('')
-    try {
-      await saveDirectUrlToGallery()
-      notify(ui('settings.backgroundSaved'))
     } catch (error) { setError((error as Error).message) } finally { setBusy(false) }
   }
   async function openFolder() {
@@ -120,15 +119,16 @@ export function BackgroundPreferences() {
       {source === 'url' && <form className="background-url-form" onSubmit={applyUrls}>
         <div className="background-url-rows">
           {rows.map((row, index) => <div className="background-url-row" key={row.id}>
-            <input
-              type="url"
+            <Input
+              type="text"
+              inputMode="url"
               aria-label={ui('settings.backgroundUrl')}
               maxLength={2048}
               value={row.value}
               placeholder={index === 0 ? DEFAULT_BACKGROUND_URLS[0] : ''}
               onChange={event => changeRow(index, event.target.value)}
             />
-            <button type="button" className="background-url-remove" aria-label={ui('settings.backgroundRemove')} title={ui('settings.backgroundRemove')} onClick={() => removeRow(index)}><X size={14} aria-hidden="true"/></button>
+            <Button type="button" variant="ghost" size="icon-xs" aria-label={ui('settings.backgroundRemove')} title={ui('settings.backgroundRemove')} onClick={() => removeRow(index)}><X size={14} aria-hidden="true"/></Button>
           </div>)}
         </div>
         <div className="background-url-actions">
@@ -136,30 +136,12 @@ export function BackgroundPreferences() {
             <option value="image">{ui('settings.backgroundImage')}</option>
             <option value="video">{ui('settings.backgroundVideo')}</option>
           </Select>
-          <button type="button" className="button subtle" onClick={() => { setRows(toRows(DEFAULT_BACKGROUND_URLS)); setError('') }}>
+          <Button type="button" variant="outline" size="sm" onClick={() => { setRows(toRows(DEFAULT_BACKGROUND_URLS)); setError('') }}>
             <ListPlus size={14} aria-hidden="true"/>{ui('settings.backgroundUseBuiltIn')}
-          </button>
+          </Button>
         </div>
-        <button className="button primary background-apply" type="submit">{ui('settings.backgroundApply')}</button>
+        <Button className="background-apply" type="submit">{ui('settings.backgroundApply')}</Button>
       </form>}
-      {/* 直链行：显示解析到的真实地址，可打开、可存进图库 —— 存的与看到的是同一张图。 */}
-      {source === 'url' && <div className="background-direct">
-        <label htmlFor="ui-background-direct">{ui('settings.backgroundDirect')}</label>
-        <input
-          id="ui-background-direct"
-          readOnly
-          value={background.directUrl || (background.resolving ? ui('settings.backgroundResolving') : ui('settings.backgroundUnresolved'))}
-        />
-        <div className="background-direct-actions">
-          <a className="button subtle" href={background.directUrl || undefined} target="_blank" rel="noreferrer" aria-disabled={!background.directUrl} onClick={event => { if (!background.directUrl) event.preventDefault() }}>
-            <ExternalLink size={14} aria-hidden="true"/>{ui('settings.backgroundOpen')}
-          </a>
-          <button type="button" className="button subtle" disabled={!background.directUrl || busy} onClick={() => void saveDirect()}>
-            <BookmarkPlus size={14} aria-hidden="true"/>{ui('settings.backgroundSaveToGallery')}
-          </button>
-        </div>
-        {background.resolveError && <p className="background-error" role="status">{ui('settings.backgroundResolveFailed')}：{background.resolveError}</p>}
-      </div>}
       {source === 'upload' && <div className="background-gallery">
         <label className="background-upload">
           <input className="background-upload-input" type="file" accept="image/*,video/*" multiple disabled={busy} onChange={event => {
@@ -173,18 +155,18 @@ export function BackgroundPreferences() {
           </span>
         </label>
         <div className="background-gallery-head">
-          <button type="button" className="button subtle" disabled={busy} onClick={() => void openFolder()}>
+          <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => void openFolder()}>
             <FolderOpen size={14} aria-hidden="true"/>{ui('settings.backgroundGallery')}（{gallery.length}）
-          </button>
-          <button type="button" className="button subtle" disabled={gallery.length < 2} onClick={() => applyGalleryEntry()}>
+          </Button>
+          <Button type="button" variant="outline" size="sm" disabled={gallery.length < 2} onClick={() => applyGalleryEntry()}>
             <Shuffle size={14} aria-hidden="true"/>{ui('settings.backgroundShuffle')}
-          </button>
+          </Button>
         </div>
         {gallery.length ? <ul className="background-gallery-list">
           {gallery.map(entry => <li key={entry.id} className={entry.id === background.entry ? 'active' : undefined}>
             {entry.kind === 'video' ? <span className="background-gallery-icon">{ui('settings.backgroundVideo')}</span> : <img src={galleryUrl(entry.id)} alt=""/>}
             <span className="background-gallery-name" title={entry.name}>{entry.name}</span>
-            <button type="button" className="background-url-remove" aria-label={ui('settings.backgroundDelete')} title={ui('settings.backgroundDelete')} disabled={busy} onClick={() => void dropEntry(entry.id)}><X size={14} aria-hidden="true"/></button>
+            <Button type="button" variant="ghost" size="icon-xs" aria-label={ui('settings.backgroundDelete')} title={ui('settings.backgroundDelete')} disabled={busy} onClick={() => void dropEntry(entry.id)}><X size={14} aria-hidden="true"/></Button>
           </li>)}
         </ul> : <p className="background-url-hint">{ui('settings.backgroundGalleryEmpty')}</p>}
       </div>}

@@ -15,7 +15,7 @@ from starlette.routing import Mount, Route, WebSocketRoute
 from starlette.staticfiles import StaticFiles
 
 from module.api import launcher_api, notify_api
-from module.api.background_service import LIBRARY_DIR, gallery_add_bytes, proxy_fetch
+from module.api.background_service import LIBRARY_DIR, MEDIA_TYPES, gallery_add_bytes
 from module.api.config_service import ConfigService, ROOT
 from module.api.router import Router
 from module.api.runtime_service import RuntimeService
@@ -23,6 +23,18 @@ from module.api.socket import Gateway
 from module.api.static import FrontendFiles, ItemTemplateFiles
 from module.runtime.password_utils import ensure_password_for_host, is_demo_mode
 from module.runtime.setting import State
+
+
+class BackgroundFiles(StaticFiles):
+    async def get_response(self, path, scope):
+        media_type = MEDIA_TYPES.get(Path(path).suffix.lower())
+        if not media_type or '/' in path or '\\' in path:
+            return Response(status_code=404)
+        response = await super().get_response(path, scope)
+        response.headers['Content-Type'] = media_type
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['Content-Security-Policy'] = "sandbox; default-src 'none'"
+        return response
 
 
 def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
@@ -90,7 +102,6 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
         return PlainTextResponse('前端尚未构建，请在 frontend 目录运行 npm ci 和 npm run build。', status_code=503)
 
     async def health(request):
-        """健康检查接口，返回协议版本及正常状态。"""
         return JSONResponse({'status': 'ok', 'protocolVersion': 1})
 
     ROBOTS_TXT_CONTENT = (
@@ -113,11 +124,9 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
 
     from module.api.android import routes as android_routes
 
-    def background_authorized(request, *, allow_query=False):
+    def background_authorized(request):
         """背景 HTTP 能力令牌只通过已授权的 WebSocket 下发，不复用访问密码。"""
         supplied = request.headers.get('x-azurpilot-background-token', '')
-        if not supplied and allow_query:
-            supplied = request.query_params.get('token', '')
         return bool(supplied) and secrets.compare_digest(
             supplied.encode('utf-8'), gateway.router.background_token.encode('ascii'))
 
@@ -125,6 +134,8 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
         """接收浏览器上传的本地背景图，存进 cache/background/library（本地图片的唯一落点）。"""
         if not background_authorized(request):
             return JSONResponse({'error': '请先登录'}, status_code=401)
+        if is_demo_mode():
+            return JSONResponse({'error': '演示模式下禁止上传背景'}, status_code=403)
         async with request.form() as form:
             upload = form.get('file')
             if upload is None or not hasattr(upload, 'read'):
@@ -136,23 +147,8 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
                 return JSONResponse({'error': str(error)}, status_code=400)
             return JSONResponse({'entry': entry})
 
-    async def background_media(request):
-        """同源代理一张网图：解析出的直链由这里回给浏览器，避免防盗链或跨域让显示的图与直链分叉。"""
-        if not background_authorized(request, allow_query=True):
-            return JSONResponse({'error': '请先登录'}, status_code=401)
-        target = request.query_params.get('url', '')
-        if not target:
-            return JSONResponse({'error': '缺少 url 参数。'}, status_code=400)
-        try:
-            # 代抓走线程池：同步 requests 会占住事件循环，一次下载最长 20 秒。
-            data, content_type = await asyncio.to_thread(proxy_fetch, target)
-        except Exception as error:
-            return JSONResponse({'error': str(error)}, status_code=400)
-        return Response(data, media_type=content_type, headers={'Cache-Control': 'no-cache'})
-
     routes = [Route('/healthz', health),
               Route('/robots.txt', robots_txt),
-              Route('/api/v1/background/media', background_media),
               Route('/reports/meowfficer_score', meowfficer_score_report),
               WebSocketRoute('/api/v1/ws', gateway.endpoint)]
     routes.extend(android_routes(configs, runtime))
@@ -162,7 +158,7 @@ def create_app(*, root: Path = ROOT, password=None, manage_runtime=True):
     # 上传走下面那个 POST；目录不存在时先建出来，免得挂载失败。
     LIBRARY_DIR.mkdir(parents=True, exist_ok=True)
     routes.append(Route('/api/v1/background/gallery', background_upload, methods=['POST']))
-    routes.append(Mount('/background-library', StaticFiles(directory=LIBRARY_DIR)))
+    routes.append(Mount('/background-library', BackgroundFiles(directory=LIBRARY_DIR)))
     if (dist / 'assets').is_dir():
         routes.append(Mount('/assets', StaticFiles(directory=dist / 'assets')))
     # 科研掉落的物品图标直接用仓库里的模板图，不走前端构建，

@@ -2,6 +2,7 @@
 import json
 import shutil
 import tempfile
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
@@ -15,20 +16,13 @@ from module.runtime.account_local import LocalProtector
 
 
 def main():
-    # E2E 只验证背景偏好与同源代理行为，不应依赖公网随机图 API。
-    # 否则多个页面同时触发 10 秒级服务端解析会占满 WebSocket worker，
-    # 让无关的 schema/config 请求排队并产生级联超时。
-    background_svg = b'<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="1280" height="720" fill="#9acbff"/></svg>'
     with tempfile.TemporaryDirectory(prefix='azurpilot-ui-') as directory, \
             tempfile.TemporaryDirectory(prefix='azurpilot-ui-keys-') as keys, \
             patch.object(LocalProtector, 'key_directory', return_value=Path(keys) / 'private'), \
             patch('module.api.app.LIBRARY_DIR', Path(directory) / 'background-library'), \
             patch('module.api.background_service.LIBRARY_DIR', Path(directory) / 'background-library'), \
             patch('module.api.background_service.INDEX_FILE', Path(directory) / 'background-library/index.json'), \
-            patch('module.runtime.account_tpm.TpmProtector.available', return_value=False), \
-            patch('module.api.background_service.resolve',
-                  side_effect=lambda url: {'final_url': url, 'content_type': 'image/svg+xml'}), \
-            patch('module.api.app.proxy_fetch', return_value=(background_svg, 'image/svg+xml')):
+            patch('module.runtime.account_tpm.TpmProtector.available', return_value=False):
         root = fixture(directory)
         shutil.copytree(ROOT / 'frontend/dist', root / 'frontend/dist')
         path = root / 'config/testpilot.json'
@@ -63,9 +57,8 @@ def main():
         runtime.statistics = lambda instance, days, resource: {
             'instance': instance, 'resource': resource, 'points': [], 'truncated': False,
         }
-        from module.api.router import Method
-        from module.api.protocol import StatisticsReportParams
-        app.state.gateway.router.methods['statistics.report'] = Method(StatisticsReportParams, lambda params: {
+        methods = app.state.gateway.router.methods
+        methods['statistics.report'] = replace(methods['statistics.report'], handler=lambda params: {
             'instance': params.instance, 'category': params.category, 'month': params.month,
             'metrics': [], 'series': [{'key': 'oil', 'label': '石油', 'points': []}], 'tables': [], 'notes': [],
         })

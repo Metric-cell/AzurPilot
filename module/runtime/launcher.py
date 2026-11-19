@@ -15,10 +15,14 @@ from module.runtime.password_utils import REMOTE_ACCESS_HEADER, is_local_client
 
 def is_local_request(request):
     """直连回环与来源校验；经隧道或代理转发的请求不授予本机权限。"""
+    if any(request.headers.get(key) for key in (
+        'forwarded', 'x-forwarded-for', 'x-forwarded-host', 'x-forwarded-proto', 'x-real-ip',
+    )):
+        return False
     return is_local_client(
         request.client.host if request.client else '', request.headers.get('host'),
         request.headers.get('origin'), request.headers.get(REMOTE_ACCESS_HEADER),
-    ) and not any(request.headers.get(key) for key in ('forwarded', 'x-forwarded-for', 'x-forwarded-host'))
+    )
 
 
 @dataclass

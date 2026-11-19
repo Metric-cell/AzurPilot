@@ -185,15 +185,14 @@ INTERNAL_ERROR 不向浏览器返回堆栈；参数校验详情不回显输入�
 
 ### 背景 HTTP 认证
 
-背景上传 `POST /api/v1/background/gallery` 与图片代抓 `GET /api/v1/background/media` 均需携带 `background.access` 返回的能力令牌；缺失或错误返回 401。令牌由 WebSocket 的既有认证保护，本机免密与无密码模式也通过该接口领取。
+背景上传 `POST /api/v1/background/gallery` 需携带 `background.access` 返回的能力令牌；缺失或错误返回 401。令牌由 WebSocket 的既有认证保护，本机免密与无密码模式也通过该接口领取。
 
-上传仅接受 `x-azurpilot-background-token` 请求头；图片/视频标签不能设置请求头，代抓也接受 `token` 查询参数。该令牌仅授权背景接口，不能登录或调用其他 WebUI 方法；不得把访问密码放入图片 URL。令牌只在内存中使用，每次应用创建重新生成，不写入浏览器持久化设置；部署的访问日志也应避免记录含令牌的完整 URL。
+上传仅接受 `x-azurpilot-background-token` 请求头。该令牌仅授权背景接口，不能登录或调用其他 WebUI 方法；令牌只在内存中使用，每次应用创建重新生成，不写入浏览器持久化设置。自定义图片和视频地址由浏览器直接加载。
 
 ## clean 部署边界
 
 本分支删除交易所页面、代理 API、后台行动力/历史上传和 Android 热更新，旧客户端调用这些方法返回 `METHOD_NOT_FOUND`。完整裁剪范围见 [CLEAN_POLICY.md](../CLEAN_POLICY.md)。
 
-图形调度和资源统计继续在本地记录行动力历史。相关身份、加密密钥和检查点仍位于 `config/stock-exchange/` 与 `cache/stock-exchange/`，这些目录名不表示存在交易所上传服务。迁移时与配置、数据库一起保留，见[本地历史持久化](../docs/modules/infra/deploy.md#本地历史持久化)。
 
 
 ## 舰队数据分析与共享船坞

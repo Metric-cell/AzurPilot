@@ -12,6 +12,13 @@ from module.api import search_service as search
 from module.runtime.process_manager import ProcessManager
 
 
+LOCAL_FILE_SETTINGS = frozenset({
+    'Alas.DropRecord.SaveFolder',
+    'MeowfficerScore.MeowfficerScore.Folder',
+    'MeowfficerScore.MeowfficerScore.ReportPath',
+})
+
+
 @dataclass(frozen=True)
 class Method:
     """路由方法注册项。
@@ -21,11 +28,13 @@ class Method:
         handler: 请求处理函数或方法。
         mutates: 是否会修改系统状态或运行任务。
         local_only: 是否要求本机直连来源上下文。
+        data_channel: 是否在双连接模式下由数据通道处理。
     """
     params: type[p.Params]
     handler: Callable
     mutates: bool = False
     local_only: bool = False
+    data_channel: bool = False
 
 
 class Router:
@@ -58,66 +67,64 @@ class Router:
             'launcher.command.get': Method(p.LauncherCommandParams,
                                           lambda x: self.launcher.command(x.commandId), local_only=True),
             'system.ping': Method(p.Params, lambda _: {'pong': True}),
-            'schema.get': Method(p.SchemaParams, lambda x: configs.schema(x.language)),
+            'schema.get': Method(p.SchemaParams, lambda x: configs.schema(x.language), data_channel=True),
             'search.content': Method(p.SearchContentParams, lambda x: search.search_content(x.query)),
             'instances.list': Method(p.Params, lambda _: runtime.instances()),
-            'instances.create': Method(p.CreateParams, lambda x: configs.create(x.name, x.source, x.import_file), True),
+            'instances.create': Method(p.CreateParams, lambda x: configs.create(
+                x.name, x.source, x.import_file, emulator=x.emulator), True),
             'instances.importable': Method(p.Params, lambda _: configs.importable()),
-            'instances.importConfig': Method(p.ImportParams, lambda x: configs.save_import(x.name, x.content), True),
+            'instances.importConfig': Method(p.ImportParams, lambda x: configs.save_import(x.name, x.content), True, True),
             'instances.delete': Method(p.RevisionParams, self.delete, True),
-            'config.get': Method(p.InstanceParams, lambda x: configs.get(x.instance)),
-            'config.export': Method(p.InstanceParams, lambda x: configs.export(x.instance)),
+            'config.get': Method(p.InstanceParams, lambda x: configs.get(x.instance), data_channel=True),
+            'config.export': Method(p.InstanceParams, lambda x: configs.export(x.instance), data_channel=True),
             'config.patch': Method(p.PatchParams, lambda x: configs.patch(x.instance, x.revision, x.changes), True),
             'fleetTraining.reset': Method(p.RevisionParams, self.reset_fleet_training, True),
             'overview.get': Method(p.InstanceParams, lambda x: runtime.overview(x.instance)),
-            'dock.report': Method(p.InstanceParams, lambda x: self.dock.report(x.instance)),
+            'dock.report': Method(p.InstanceParams, lambda x: self.dock.report(x.instance), data_channel=True),
             'dock.importLegacy': Method(p.RevisionParams, lambda x: self.dock.import_legacy(x.instance, x.revision), True),
             'dock.configure': Method(p.DockConfigureParams, lambda x: self.dock.configure(x.instance, x.min_level, x.max_level), True),
             'dock.patch': Method(p.DockPatchParams, lambda x: self.dock.patch(x.instance, x.revision, [change.model_dump(exclude_unset=True) for change in x.changes]), True),
             'dock.stageImport': Method(p.DockStageImportParams, lambda x: self.dock.stage_import(x.instance, x.revision, [ship.model_dump(exclude_unset=True) for ship in x.ships]), True),
             'dock.review': Method(p.DockReviewParams, lambda x: self.dock.review(x.instance, x.revision, x.pending_revision, [decision.model_dump(exclude_unset=True) for decision in x.decisions]), True),
-            'mind.catalog': Method(p.InstanceParams, lambda x: self.mind.catalog(x.instance)),
-            'fleetTech.catalog': Method(p.InstanceParams, lambda x: self.fleet_tech.catalog(x.instance)),
-            'fleetTech.report': Method(p.InstanceParams, lambda x: self.fleet_tech.report(x.instance)),
+            'mind.catalog': Method(p.InstanceParams, lambda x: self.mind.catalog(x.instance), data_channel=True),
+            'fleetTech.catalog': Method(p.InstanceParams, lambda x: self.fleet_tech.catalog(x.instance), data_channel=True),
+            'fleetTech.report': Method(p.InstanceParams, lambda x: self.fleet_tech.report(x.instance), data_channel=True),
             'fleetTech.mergeShips': Method(p.RevisionParams, lambda x: self.fleet_tech.merge_ships(x.instance, x.revision), True),
             'fleetTech.patch': Method(p.FleetTechPatchParams, lambda x: self.fleet_tech.patch(x.instance, x.revision, x.changes, x.nations), True),
-            'mind.plan': Method(p.CultivationParams, lambda x: self.mind.plan(x.instance, x.revision, x.ship_ids, x.target_level)),
-            'mind.import': Method(p.MindFileParams, lambda x: self.mind.import_file(x.instance, x.filename, x.content)),
-            'mind.recognize': Method(p.MindFileParams, lambda x: self.mind.recognize(x.instance, x.filename, x.content)),
+            'mind.plan': Method(p.CultivationParams, lambda x: self.mind.plan(x.instance, x.revision, x.ship_ids, x.target_level), data_channel=True),
+            'mind.import': Method(p.MindFileParams, lambda x: self.mind.import_file(x.instance, x.filename, x.content), data_channel=True),
+            'mind.recognize': Method(p.MindFileParams, lambda x: self.mind.recognize(x.instance, x.filename, x.content), data_channel=True),
             'scheduler.start': Method(p.InstanceParams, lambda x: runtime.start(x.instance), True),
             'scheduler.stop': Method(p.InstanceParams, lambda x: runtime.stop(x.instance), True),
-            'scheduler.program.catalog': Method(p.InstanceParams, lambda x: self.programs.catalog(x.instance)),
-            'scheduler.program.get': Method(p.InstanceParams, lambda x: self.programs.get(x.instance)),
+            'scheduler.program.catalog': Method(p.InstanceParams, lambda x: self.programs.catalog(x.instance), data_channel=True),
+            'scheduler.program.get': Method(p.InstanceParams, lambda x: self.programs.get(x.instance), data_channel=True),
             'scheduler.program.save': Method(p.ProgramSaveParams, lambda x: self.programs.save(x.instance, x.revision, x.document), True),
-            'scheduler.program.validate': Method(p.ProgramValidateParams, lambda x: self.programs.validation(x.instance, x.document, x.mode)),
-            'scheduler.program.simulate': Method(p.ProgramSimulateParams, lambda x: self.programs.simulate(x.instance, x.document, x.context, x.outcomes, x.steps, x.mode)),
+            'scheduler.program.validate': Method(p.ProgramValidateParams, lambda x: self.programs.validation(x.instance, x.document, x.mode), data_channel=True),
+            'scheduler.program.simulate': Method(p.ProgramSimulateParams, lambda x: self.programs.simulate(x.instance, x.document, x.context, x.outcomes, x.steps, x.mode), data_channel=True),
             'scheduler.program.apply': Method(p.ProgramApplyParams, lambda x: self.programs.apply(x.instance, x.revision, x.mode), True),
             'scheduler.program.state': Method(p.InstanceParams, lambda x: self.programs.state(x.instance)),
             'tasks.run': Method(p.TaskParams, lambda x: runtime.start(x.instance, x.task), True),
-            'logs.get': Method(p.LogsParams, lambda x: runtime.logs(x.instance, x.after)),
-            'opsi.simulator.status': Method(p.LogsParams, lambda x: self.opsi_simulator.status(x.instance, x.after)),
+            'logs.get': Method(p.LogsParams, lambda x: runtime.logs(x.instance, x.after), data_channel=True),
+            'opsi.simulator.status': Method(p.LogsParams, lambda x: self.opsi_simulator.status(x.instance, x.after), data_channel=True),
             'opsi.simulator.start': Method(p.InstanceParams, lambda x: self.opsi_simulator.start(x.instance), True),
             'opsi.simulator.stop': Method(p.InstanceParams, lambda x: self.opsi_simulator.stop(x.instance), True),
-            'opsi.simulator.figure': Method(p.InstanceParams, lambda x: self.opsi_simulator.figure(x.instance)),
-            'preview.capture': Method(p.InstanceParams, lambda x: runtime.capture(x.instance)),
+            'opsi.simulator.figure': Method(p.InstanceParams, lambda x: self.opsi_simulator.figure(x.instance), data_channel=True),
+            'preview.capture': Method(p.InstanceParams, lambda x: runtime.capture(x.instance), data_channel=True),
             'statistics.refreshLoot': Method(p.InstanceParams, self.refresh_loot, True),
-            'statistics.report': Method(p.StatisticsReportParams, self.statistics_report),
-            'statistics.resourceFlows': Method(p.ResourceFlowsParams, self.resource_flows),
-            'meowfficer.scoreReport': Method(p.MeowfficerScoreReportParams, self.meowfficer_score_report),
+            'statistics.report': Method(p.StatisticsReportParams, self.statistics_report, data_channel=True),
+            'statistics.resourceFlows': Method(p.ResourceFlowsParams, self.resource_flows, data_channel=True),
+            'meowfficer.scoreReport': Method(p.MeowfficerScoreReportParams, self.meowfficer_score_report, data_channel=True),
             'meowfficer.clearReport': Method(p.MeowfficerClearReportParams,
                                              self.meowfficer_clear_report, True),
-            'statistics.resources': Method(p.StatisticsParams, lambda x: runtime.statistics(x.instance, x.days, x.resource)),
+            'statistics.resources': Method(p.StatisticsParams, lambda x: runtime.statistics(x.instance, x.days, x.resource), data_channel=True),
             'settings.get': Method(p.Params, self.settings),
-            'settings.patch': Method(p.DeployParams, self.save_settings, True),
+            'settings.patch': Method(p.DeployParams, self.save_settings, True, True),
             'startup.get': Method(p.InstanceParams, self.get_startup),
             'startup.set': Method(p.StartupParams, self.set_startup, True),
             'accounts.status': Method(p.InstanceParams, lambda x: self.accounts.status(x)),
             'accounts.manage': Method(p.AccountParams, lambda x: self.accounts.manage(x, self.access_password), True),
             'background.access': Method(p.Params, lambda _: {'token': self.background_token}),
-            'background.resolve': Method(p.BackgroundUrlParams, lambda x: background.resolve(x.url)),
             'background.gallery.list': Method(p.Params, lambda _: background.gallery_list()),
-            'background.gallery.add': Method(p.BackgroundGalleryAddParams,
-                                                 lambda x: background.gallery_add(x.url, x.name), True),
             'background.gallery.remove': Method(p.BackgroundGalleryRemoveParams,
                                                     lambda x: {'removed': background.gallery_remove(x.id)}, True),
             'background.gallery.open': Method(p.Params, lambda _: background.gallery_open(), True),
@@ -251,8 +258,16 @@ class Router:
         if entry is None:
             raise p.ApiError('METHOD_NOT_FOUND', '未知 API 方法')
         if entry.local_only and not local:
-            raise p.ApiError('LOCAL_ONLY', '启动器控制只允许本机直连')
+            raise p.ApiError('LOCAL_ONLY', '此操作只允许本机直连')
         validated = entry.params.model_validate(params)
+        # Import files can contain emulator executable paths.  A LAN client may
+        # still create a fresh instance or copy an existing trusted instance.
+        if not local and method == 'instances.create' and validated.import_file:
+            raise p.ApiError('LOCAL_ONLY', '导入配置只允许本机直连')
+        if not local and method == 'config.patch' and any(
+                change.path.startswith('Alas.EmulatorInfo.') or change.path in LOCAL_FILE_SETTINGS
+                for change in validated.changes):
+            raise p.ApiError('LOCAL_ONLY', '主机程序和文件路径设置只允许本机直连')
         if entry.mutates and os.environ.get('DEMO') == '1':
             raise p.ApiError('READ_ONLY', '演示模式下禁止修改配置或运行任务')
         return entry.handler(validated)

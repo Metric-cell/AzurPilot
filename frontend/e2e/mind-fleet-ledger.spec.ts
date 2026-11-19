@@ -1,4 +1,10 @@
+/**
+ * @fileoverview 舰船数据页用例：扫描导出、逐副本编辑、安全批量与未决副本人工确认，经外部 socket 造数。
+ */
+
+import {routeRpc} from './rpc-route'
 import {expect, test} from '@playwright/test'
+import {readFile} from 'node:fs/promises'
 import {rpc} from './fleet-helpers'
 import type {Parameters} from '../src/api/generated'
 import type {DockReport} from '../src/api/types'
@@ -9,6 +15,50 @@ test.beforeEach(async ({page}) => {
     localStorage.setItem('azurpilot.material', 'plain')
     localStorage.setItem('azurpilot.language', 'zh-CN')
   })
+})
+
+test('scan page exports the latest ship JSON without accepting pending changes', async ({page}, info) => {
+  const instance = `export-${info.testId.replace(/[^a-z0-9]/gi, '').slice(-12)}-${info.retry}`
+  await page.goto('/'); await rpc(page, 'instances.create', {name: instance}); await page.goto('about:blank')
+  const latest: DockReport = {instance, revision: 'latest', updated_at: '2026-11-03T12:00:00',
+    min_level: 1, max_level: 125, complete: false, review_count: 1, source: 'ledger', scan_range: {min_level: 1, max_level: 125},
+    ships: [
+      {id: 11, name: '杜威', group_type: 10102, level: 110, rarity: 'R', base_rarity: 'R', extra_exp: null, full_star: false, form: 'base', review: true, source: '扫描待核对'},
+      {id: 12, name: '杜威', group_type: 10102, level: 100, rarity: 'R', base_rarity: 'R', extra_exp: 0, full_star: true, form: null, review: false, source: 'manual'},
+    ], pending_revision: 'pending', pending_changes: [
+      {id: 'ship:1', kind: 'ship', operation: 'add', ship_id: null, group_type: 10103, name: '卡辛', before: null,
+        after: {name: '卡辛', level: 90, extra_exp: null, review: true}, fields: ['name', 'level'], candidates: []},
+    ], pending_read: {source: 'scan', updated_at: '2026-11-03T12:00:00', observed_count: 3, review_count: 2, complete: false}}
+  const initial = {...latest, revision: 'old', ships: [{...latest.ships[0]!, level: 100}]}
+  const methods: string[] = []
+  let reads = 0
+  await routeRpc(page, socket => {
+    const server = socket.connectToServer()
+    socket.onMessage(message => {
+      const request = JSON.parse(String(message))
+      if (request.type === 'request') methods.push(request.method)
+      if (request.method !== 'dock.report') {server.send(message); return}
+      socket.send(JSON.stringify({v: 1, type: 'response', id: request.id, ok: true, result: ++reads === 1 ? initial : latest}))
+    })
+    server.onMessage(message => socket.send(message))
+  })
+  await page.goto(`/#/i/${instance}/task/FleetAnalysis?tab=scan`)
+  const button = page.getByRole('button', {name: '导出舰船 JSON', exact: true})
+  await expect(button).toBeEnabled()
+  const start = methods.length
+  const downloadPromise = page.waitForEvent('download')
+  await button.click()
+  const download = await downloadPromise
+  expect(download.suggestedFilename()).toMatch(new RegExp(`^${instance}-ships-.*\\.json$`))
+  const payload = JSON.parse(await readFile((await download.path())!, 'utf8'))
+  expect(payload).toEqual({version: 1, exported_at: expect.any(String), ...latest})
+  expect(Number.isNaN(Date.parse(payload.exported_at))).toBe(false)
+  expect(payload.ships).toHaveLength(2)
+  expect(payload.pending_changes).toHaveLength(1)
+  expect(methods.slice(start)).toEqual(['dock.report'])
+  await expect(page.getByText('已确认舰船: 2 · 待确认差异: 1', {exact: true})).toBeVisible()
+  await expect(page.getByRole('button', {name: '接受 ship:1', exact: true})).toBeVisible()
+  await page.screenshot({path: info.outputPath('ship-json-export.png'), fullPage: true})
 })
 
 test('four flat pages preserve per-copy edits and never start a scan on navigation', async ({page}, info) => {
@@ -23,7 +73,7 @@ test('four flat pages preserve per-copy edits and never start a scan on navigati
     {name: '杜威', group_type: 10102, level: 100, rarity: 'R', base_rarity: 'R', extra_exp: 0},
   ]})
   const [first, second] = saved.ships
-  // Fixtures are seeded through an external socket; reload the app's instance list.
+  // 测试数据经由外部 socket 写入，重载页面让应用重新拉取实例列表。
   await page.goto('about:blank')
   await page.goto(`/#/i/${instance}/task/FleetAnalysis?tab=data&ship=${second.id}`)
   await expect(page.getByRole('tab')).toHaveCount(4)
@@ -63,7 +113,7 @@ test('safe batch excludes removals and unresolved duplicates', async ({page}, in
     {id: 'remove', kind: 'ship', operation: 'remove', ship_id: 11, name: '杜威', before: card(11, 100), after: null, candidates: [], group_type: 10102, fields: []},
     {id: 'resolve', kind: 'ship', operation: 'resolve', ship_id: null, name: '杜威', before: null, after: card(0, 120), candidates: [card(10, 100), card(11, 100)], group_type: 10102, fields: ['level']},
   ]}
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
     socket.onMessage(message => {
       const request = JSON.parse(String(message))

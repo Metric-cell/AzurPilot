@@ -185,45 +185,34 @@ def release_resources(next_task=''):
         next_task (str): 下一个任务名称。空字符串表示空闲状态。
     """
     released_ocr_models = 0
-    from module.runtime.setting import State
-    if State.deploy_config.UseOcrServer:
-        if not next_task:
-            # 空闲时断开 OCR 服务器连接
-            from module.ocr.ocr import OCR_MODEL
-            try:
-                OCR_MODEL.close()
-            except AttributeError:
-                pass
+    from module.ocr.al_ocr import release_ocr_models
+    from module.ocr.ocr import OCR_MODEL
+    if 'Opsi' in next_task or 'commission' in next_task:
+        # OCR 模型即将被使用，不释放
+        models = []
+    elif next_task:
+        # 释放除 'azur_lane' 以外的 OCR 模型
+        models = ['cnocr', 'jp', 'tw']
     else:
-        # 仅在使用实例内 OCR 时释放
-        from module.ocr.al_ocr import release_ocr_models
-        from module.ocr.ocr import OCR_MODEL
-        if 'Opsi' in next_task or 'commission' in next_task:
-            # OCR 模型即将被使用，不释放
-            models = []
-        elif next_task:
-            # 释放除 'azur_lane' 以外的 OCR 模型
-            models = ['cnocr', 'jp', 'tw']
-        else:
-            models = ['azur_lane', 'cnocr', 'jp', 'tw']
-        for model in models:
-            del_cached_property(OCR_MODEL, model)
+        models = ['azur_lane', 'cnocr', 'jp', 'tw']
+    for model in models:
+        del_cached_property(OCR_MODEL, model)
 
-        if models:
-            cache_model_names = {
-                'azur_lane': 'azur_lane',
-                'cnocr': 'cn',
-                'jp': 'jp',
-                'tw': 'tw',
-            }
-            cache_names = [cache_model_names[model] for model in models]
-            # 默认 OCR 实例会在连续任务间保留，可能仍持有检测模型；只有空闲时
-            # 所有语言模型均已释放，才能安全清理独立的 ``det`` 缓存。
-            if not next_task:
-                cache_names.append('det')
-            released_ocr_models = release_ocr_models(
-                names=cache_names
-            )
+    if models:
+        cache_model_names = {
+            'azur_lane': 'azur_lane',
+            'cnocr': 'cn',
+            'jp': 'jp',
+            'tw': 'tw',
+        }
+        cache_names = [cache_model_names[model] for model in models]
+        # 默认 OCR 实例会在连续任务间保留，可能仍持有检测模型；只有空闲时
+        # 所有语言模型均已释放，才能安全清理独立的 ``det`` 缓存。
+        if not next_task:
+            cache_names.append('det')
+        released_ocr_models = release_ocr_models(
+            names=cache_names
+        )
 
     # 释放资源缓存
     # module.ui 约有 80 个资源，占约 3MB

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="doc/logo.webp" alt="AzurPilot Logo" width="400">
+  <img src="docs/images/logo.webp" alt="AzurPilot Logo" width="400">
 </p>
 
 <p align="center">
@@ -62,7 +62,7 @@ AzurPilot は [AzurLaneAutoScript](https://github.com/LmeSzinc/AzurLaneAutoScrip
 ## GUI プレビュー
 
 <div align="center">
-  <img src="doc/GUI.png" alt="GUI Preview" width="800">
+  <img src="docs/images/GUI.png" alt="GUI Preview" width="800">
 </div>
 
 ## クイックスタート
@@ -140,91 +140,22 @@ uv run python gui.py
 
 これらは画像認識結果に影響を与え、自動化処理に異常を引き起こす可能性があります。
 
-## MCP サービス
-
-AzurPilot は MCP サービスを提供しており、MCP 対応のクライアントやツールから呼び出すことで、Agent で AzurPilot を簡単に管理できます。
-
-> MCP サービスはデフォルトで WebUI と一緒に起動し、`/mcp` パス（WebUI のデフォルトポート 25548）にマウントされます。また、`uv run python mcp_server_sse.py` で単独実行も可能です（単独ポート 22268）。
-
-MCP は WebUI のパスワード（`--key` または `config/deploy.yaml` の `Password`）を流用します。パスワード未設定で WebUI が公開アドレスをリッスンしている場合、WebUI が自動生成し、リポジトリ直下の `password.txt` で確認できます。このパスワードを付けないリクエストは 401 で拒否されます。
-
-### ローカル接続設定
-
-```json
-{
-  "mcpServers": {
-    "alas": {
-      "url": "http://127.0.0.1:25548/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer <WebUI のパスワード>"
-      }
-    }
-  }
-}
-```
-
-### クラウドサーバーまたはイントラネット接続設定
-
-```json
-{
-  "mcpServers": {
-    "alas": {
-      "url": "http://[IP_ADDRESS]:25548/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer <WebUI のパスワード>"
-      }
-    }
-  }
-}
-```
-
-`[IP_ADDRESS]` を実際のサーバーアドレスまたはイントラネットアドレスに置き換えてください。WebUI のポートを変更した場合は、URL 内のポートも同様に置き換えてください。
-
-URL しか指定できずリクエストヘッダーを設定できないクライアントは、パスワードをクエリパラメータに含められます：`http://[IP_ADDRESS]:25548/mcp/sse?key=<WebUI のパスワード>`。この場合 URL 自体が資格情報になるため、スクリーンショットや共有は避け、可能な限りヘッダーを使用してください。`Authorization` の代わりに `X-API-Key: <WebUI のパスワード>` も使用できます。
-
-パスワードを変更した場合は、MCP に反映させるため WebUI を再起動してください。
-
-### MCP ツール一覧
-
-現在利用可能な MCP ツールは全部で 18 個です。
-
-| カテゴリ | ツール名 | 機能 |
-| --- | --- | --- |
-| インスタンス管理 | `list_instances` | すべてのインスタンスを一覧表示 |
-| | `get_status` | インスタンスの状態を取得 |
-| | `start_instance` | インスタンスを起動 |
-| | `stop_instance` | インスタンスを停止 |
-| タスク管理 | `list_tasks` | すべてのタスクを一覧表示 |
-| | `get_task_help` | タスクのヘルプを取得 |
-| | `trigger_task` | タスクをトリガー |
-| | `get_scheduler_queue` | スケジューラキューの取得 |
-| | `clear_scheduler_queue` | スケジューラキューをクリア |
-| 監視と情報 | `get_current_running_task` | 現在実行中のタスクを取得 |
-| | `get_resources` | リソース状態を取得 |
-| | `get_config` | インスタンス設定を取得 |
-| | `get_recent_logs` | 最近のログを取得 |
-| | `get_screenshot` | スクリーンショットを取得 |
-| 設定管理 | `update_config` | 設定を更新 |
-| メンテナンスツール | `restart_emulator` | エミュレータを再起動 |
-| | `restart_adb` | ADB を再起動 |
-| | `update_alas` | AzurPilot を更新 |
-
 ## マルチプラットフォームランチャー
 
 > 📥 [AzurPilot 公式サイト](https://azurpilot.com/download.html) から Windows / macOS / Linux ランチャーをダウンロード
 
 <div align="center">
-  <img src="doc/loading.png" alt="loading" width="500" />
+  <img src="docs/images/loading.png" alt="loading" width="500" />
   <p>起動読み込み画面</p>
   <table align="center">
     <tr>
-      <td align="center"><img src="doc/GUI.png" alt="新版" width="260"><br>新版</td>
-      <td align="center"><img src="doc/GUI-legacy.webp" alt="旧版" width="260"><br>旧版</td>
-      <td align="center"><img src="doc/GUI-minimal.png" alt="シンプル" width="260"><br>シンプル</td>
+      <td align="center"><img src="docs/images/GUI.png" alt="新版" width="260"><br>新版</td>
+      <td align="center"><img src="docs/images/GUI-legacy.webp" alt="旧版" width="260"><br>旧版</td>
+      <td align="center"><img src="docs/images/GUI-minimal.png" alt="シンプル" width="260"><br>シンプル</td>
     </tr>
   </table>
   <p>Windows クライアント画面</p>
-  <img src="doc/macGUI.png" alt="macGUI" width="500" />
+  <img src="docs/images/macGUI.png" alt="macGUI" width="500" />
   <p>Mac クライアント画面</p>
 </div>
 
@@ -326,7 +257,7 @@ uv run -m module.config.config_updater
 
 <p align="center">
   <a href="https://afdian.com/a/miaonaa">
-    <img src="doc/afdian.jfif" alt="爱发电" width="200">
+    <img src="docs/images/afdian.jfif" alt="爱发电" width="200">
   </a>
   <br>
   <b>本プロジェクトを支援（サーバー費用や新モデルのトレーニングなどに使用）</b>

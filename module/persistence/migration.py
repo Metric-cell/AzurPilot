@@ -85,7 +85,23 @@ def _startup_process_ids():
         command = current.cmdline()
         executable = os.path.normcase(str(Path(current.exe()).resolve()))
         interpreter = os.path.normcase(str(Path(sys.executable).resolve()))
-        for parent in current.parents():
+        try:
+            ancestors = current.parents()
+        except psutil.NoSuchProcess:
+            # A vanished distant ancestor can abort psutil.parents() before it
+            # returns the still-live uv / venv forwarding processes.
+            ancestors, seen = [], {current.pid}
+            parent = current
+            while True:
+                try:
+                    parent = parent.parent()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    break
+                if parent is None or parent.pid in seen:
+                    break
+                seen.add(parent.pid)
+                ancestors.append(parent)
+        for parent in ancestors:
             parent_path = Path(parent.exe()).resolve()
             parent_executable = os.path.normcase(str(parent_path))
             parent_command = parent.cmdline()
@@ -130,7 +146,8 @@ def assert_no_workers(root):
         if process.pid in startup_ids:
             continue
         command = process.info.get('cmdline') or []
-        if not any(Path(part).name.lower() in ('alas.py', 'gui.py', 'tui.py') for part in command):
+        # tui.py 已并入 gui.py --tui，仍保留用于识别升级前遗留的旧进程。
+        if not any(Path(part).name.lower() in ('alas.py', 'gui.py', 'tui.py', 'mcp_server_sse.py') for part in command):
             continue
         try:
             if os.path.normcase(str(Path(process.cwd()).resolve())) == root_key:
@@ -706,6 +723,9 @@ def migrate(database):
                 phase('保存 %s 条未迁移记录的清单', len(decoder.unmigrated))
                 (backup / 'unmigrated.json').write_text(json.dumps(decoder.unmigrated, ensure_ascii=False, indent=2), encoding='utf-8')
             phase('切换正式总库：%s', database.path)
+            # 长连接会持有文件句柄，Windows 上必须先释放才能替换库文件。
+            from module.persistence.database import close_all
+            close_all(database.directory)
             os.replace(temporary, database.path)
             phase('保存迁移完成标记')
             database._write_marker(digest)

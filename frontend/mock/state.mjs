@@ -1,9 +1,9 @@
-import {resourceFlows} from './resource-flows.mjs'
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import Ajv from 'ajv'
 import {spawnSync} from 'node:child_process'
 import {fileURLToPath} from 'node:url'
+import {resourceFlows} from './resource-flows.mjs'
 
 // 只读取公开的模板、元数据和翻译，绝不读取用户实例或部署文件。
 const read = path => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8'))
@@ -25,6 +25,51 @@ const region = packageName => !packageName || packageName === 'auto' ? null : ({
 const timestamp = date => date.toISOString().slice(0, 19).replace('T', ' ')
 const translate = key => key.split('.').reduce((value, part) => value?.[part], locales['zh-CN']) ?? key
 export const fail = (code, message, details = null) => { throw Object.assign(new Error(message), { code, details }) }
+
+// 侧栏内容检索：与 module/api/search_service.py 保持同源的索引。
+// 只索引 zh-CN 与 en-US 两套文案（中文界面下用英文词也能搜到）；顶层键是任务或共享分组，
+// 第二层 dict 是配置项，配置项里除 name/help 外的字符串值是该控件的下拉标签，一并入索引。
+const SEARCH_LANGUAGES = ['zh-CN', 'en-US']
+const SEARCH_META_KEYS = new Set(['name', 'help'])
+const searchIndex = SEARCH_LANGUAGES.flatMap(language => {
+  const data = locales[language] ?? {}
+  const entries = []
+  for (const [key, meta] of Object.entries(data.Task ?? {})) {
+    if (!meta || typeof meta !== 'object' || Array.isArray(meta)) continue
+    entries.push({kind: 'task', task: key, key, label: meta.name ?? '', help: meta.help ?? '', values: '', haystack: `${key} ${meta.name ?? ''} ${meta.help ?? ''}`})
+  }
+  for (const [task, node] of Object.entries(data)) {
+    if (task === 'Task' || !node || typeof node !== 'object' || Array.isArray(node)) continue
+    const groupLabel = node._info?.name ?? ''
+    if (groupLabel) entries.push({kind: 'group', task, key: '', label: groupLabel, help: '', values: '', haystack: `${task} ${groupLabel}`})
+    for (const [option, meta] of Object.entries(node)) {
+      if (option === '_info' || !meta || typeof meta !== 'object' || Array.isArray(meta)) continue
+      const values = Object.entries(meta)
+        .filter(([name, value]) => !SEARCH_META_KEYS.has(name) && typeof value === 'string')
+        .map(([, value]) => value).join(' ')
+      entries.push({kind: 'option', task, key: option, label: meta.name ?? '', help: meta.help ?? '', values, haystack: `${task} ${option} ${meta.name ?? ''} ${meta.help ?? ''} ${values}`})
+    }
+  }
+  return entries
+})
+
+function searchContent(query) {
+  const needle = String(query).trim().toLowerCase()
+  if (!needle) return {tasks: [], groups: [], options: []}
+  const seen = new Set()
+  const tasks = [], groups = [], options = []
+  for (const entry of searchIndex) {
+    if (!entry.haystack.toLowerCase().includes(needle)) continue
+    const identity = `${entry.kind}|${entry.task}|${entry.key}`
+    if (seen.has(identity)) continue
+    seen.add(identity)
+    const item = {task: entry.task, key: entry.key, label: entry.label, help: entry.help, values: entry.values}
+    if (entry.kind === 'task') tasks.push(item)
+    else if (entry.kind === 'group') groups.push(item)
+    else options.push(item)
+  }
+  return {tasks, groups, options}
+}
 
 function validateField(path, value) {
   const parts = path.split('.')
@@ -49,6 +94,7 @@ function validateField(path, value) {
 
 export function createMockState({ empty = false } = {}) {
   const instances = new Map()
+  const importedConfigs = new Map()
   const fleetStates = new Map()
   function fleetStatePython(action, params) {
     const output = mindPython(action, {...params, state: fleetStates.get(params.instance),
@@ -109,16 +155,22 @@ export function createMockState({ empty = false } = {}) {
   }
   const startup = new Set()
   const remember = new Set()
-  const settings = {groups: [
-    {key: 'Webui', label: 'WebUI 设置', fields: [
-      {key: 'WebuiHost', type: 'string', label: '监听地址', help: '模拟部署设置，仅在当前 mock 会话中保留。', value: '0.0.0.0', options: []},
-      {key: 'WebuiPort', type: 'int', label: '监听端口', help: '用于验证数值输入与保存。', value: 22267, options: []},
-      {key: 'Password', type: 'password', label: '访问密码', help: '留空保留原密码。', value: '', options: []},
-    ]},
-    {key: 'Git', label: 'Git', fields: [
-      {key: 'Branch', type: 'string', label: '分支', help: '模拟系统级分组，用于验证系统设置页。', value: 'dev', options: []},
-    ]},
-  ], notice: '前端测试数据', demo: false}
+  const settings = {
+    groups: [
+      {
+        key: 'Webui', label: 'WebUI 设置', fields: [
+          { key: 'WebuiHost', type: 'string', label: '监听地址', help: '模拟部署设置，仅在当前 mock 会话中保留。', value: '0.0.0.0', options: [] },
+          { key: 'WebuiPort', type: 'int', label: '监听端口', help: '用于验证数值输入与保存。', value: 22267, options: [] },
+          { key: 'Password', type: 'password', label: '访问密码', help: '留空保留原密码。', value: '', options: [] },
+        ]
+      },
+      {
+        key: 'Git', label: 'Git', fields: [
+          { key: 'Branch', type: 'string', label: '分支', help: '模拟系统级分组，用于验证系统设置页。', value: 'dev', options: [] },
+        ]
+      },
+    ], notice: '前端测试数据', demo: false
+  }
   const get = name => instances.get(name) ?? fail('NOT_FOUND', '实例不存在')
   const campaignOptions = values => {
     const server = region(values.Alas.Emulator.PackageName) ?? 'cn'
@@ -447,14 +499,33 @@ export function createMockState({ empty = false } = {}) {
     const name = params.instance
     if (name != null) get(name)
     switch (method) {
-      case 'background.access': return {token: 'mock-background-token'}
       case 'system.ping': return { pong: true }
       case 'schema.get': return { args, menu, translations: locales[params.language] }
+      case 'search.content': return searchContent(params.query)
       case 'instances.list': return [...instances].map(([name, item]) => ({ name, status: item.status, currentTask: item.status === 'running' ? item.currentTask ?? 'Commission' : null, serial: item.values.Alas.Emulator.Serial, server: item.values.Alas.Emulator.ServerName, region: region(item.values.Alas.Emulator.PackageName) }))
+      case 'instances.importable': return [...importedConfigs].map(([name, {modified}]) => ({name, modified}))
+      case 'instances.importConfig': {
+        let config
+        try { config = JSON.parse(params.content) } catch { fail('INVALID_PARAMS', '不是合法的 JSON 配置文件') }
+        if (!config?.Alas || typeof config.Alas !== 'object' || Array.isArray(config.Alas)) fail('INVALID_PARAMS', '配置文件缺少 Alas 段')
+        const values = structuredClone(template)
+        for (const [task, groups] of Object.entries(values)) {
+          for (const [group, fields] of Object.entries(groups)) Object.assign(fields, config[task]?.[group])
+        }
+        importedConfigs.set(params.name, {values, modified: Date.now() / 1000})
+        return {name: params.name}
+      }
       case 'instances.create': {
         if (!/^[A-Za-z0-9\u3041-\u3096\u30a1-\u30fa\u30fc\u31f0-\u31ff\uff66-\uff9f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff][A-Za-z0-9_. \u3041-\u3096\u30a1-\u30fa\u30fc\u31f0-\u31ff\uff66-\uff9f\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\-]{0,63}$/.test(params.name) || /^(template|deploy|backup|con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)/i.test(params.name)) fail('INVALID_PARAMS', '实例名称无效')
         if ([...instances.keys()].some(name => name.toLowerCase() === params.name.toLowerCase())) fail('ALREADY_EXISTS', '同名实例已存在')
-        add(params.name, params.source ? get(params.source).values : template)
+        const imported = params.import_file ? importedConfigs.get(params.import_file) : undefined
+        if (params.import_file && !imported) fail('NOT_FOUND', '导入文件不存在')
+        if (params.emulator && (params.source || params.import_file)) fail('INVALID_PARAMS', '复制或导入实例时不能同时指定模拟器初始设置')
+        add(params.name, imported?.values ?? (params.source ? get(params.source).values : template))
+        if (params.emulator) {
+          const {serial, package_name, server_name} = params.emulator
+          Object.assign(get(params.name).values.Alas.Emulator, {Serial: serial, PackageName: package_name, ServerName: server_name})
+        }
         if (params.source && programs.has(params.source)) {const {mode,draft,active} = program(params.source); programs.set(params.name,{mode,draft,active,generation:0})}
         return snapshot(params.name)
       }
@@ -470,12 +541,7 @@ export function createMockState({ empty = false } = {}) {
         const current = snapshot(name)
         if (params.revision !== current.revision) fail('CONFLICT', '配置已变化，请重新载入后刷新状态')
         const fleet = current.values.FleetInfo
-        const training = fleet.FleetTraining.State ?? {}, rotation = fleet.FleetRotation.State ?? {}
-        if (Object.keys(training.pending ?? {}).length || training.reading
-          || Object.keys(fleet.FleetEquipment.State ?? {}).length
-          || Object.values(rotation).some(item => item && (item.source || item.pending)))
-          fail('PENDING_OPERATION', '存在未完成的换船、读取或换装，请先完成恢复再刷新状态')
-        fleet.FleetTraining.State = {}; fleet.FleetRotation.State = {}
+        fleet.FleetTraining.State = {}; fleet.FleetRotation.State = {}; fleet.FleetEquipment.State = {}
         fleet.FleetInfo.Result = {}; fleet.FleetInfo.Record = '2020-01-01 00:00:00'
         fleet.FleetTraining.FullScanRecord = '2020-01-01 00:00:00'
         get(name).values = current.values
@@ -924,13 +990,13 @@ export function createMockState({ empty = false } = {}) {
         if (params.enabled !== undefined) { if (params.enabled) startup.add(name); else startup.delete(name) }
         if (params.remember !== undefined) { if (params.remember) remember.add(name); else remember.delete(name) }
         return { enabled: startup.has(name), remember: remember.has(name) }
+      case 'background.access': return {token: 'mock-background-token'}
       case 'events.subscribe':
-        if (params.topics.some(topic => topic !== 'instances' && topic !== 'notifications') && !name) fail('INVALID_PARAMS', '订阅此主题需要指定实例')
+        if (params.topics.some(topic => !['instances', 'notifications', 'launcher'].includes(topic)) && !name) fail('INVALID_PARAMS', '订阅此主题需要指定实例')
         return { topics: params.topics, instance: name ?? null }
       case 'background.gallery.list': return []
       case 'background.gallery.open': return { path: 'cache/background/library' }
       case 'background.gallery.remove': return { removed: true }
-      case 'background.gallery.add': return { entry: { id: 'mock_bg', name: params.name || 'mock', kind: 'image', size: 1024, added: Date.now() } }
       default: fail('METHOD_NOT_FOUND', '此方法由连接层处理')
     }
   }
@@ -958,5 +1024,5 @@ export function createMockState({ empty = false } = {}) {
       log(name, '模拟任务正在运行，等待下一轮调度。')
     }
   }
-  return { dispatch, tick }
+  return { dispatch, tick, close() {} }
 }

@@ -70,14 +70,24 @@ def record(config, changes, operation, *, evidence='confirmed', event_key=None, 
         return False
     try:
         with connect() as connection:
-            register_instance(connection, instance)
-            connection.executemany('''INSERT OR IGNORE INTO resource_flows
-                (instance, ts, resource, amount, task, operation, evidence, run_id, event_key)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', rows)
+            _apply_flows(connection, rows)
         return True
     except (sqlite3.Error, OSError) as error:
         logger.warning(f'[资源管理] 收支记录失败：{type(error).__name__}')
         return False
+
+
+def record_async(config, changes, operation, *, evidence='confirmed', event_key=None, task=None):
+    """同步提交已确认的收支，确保返回前已持久化。"""
+    return record(config, changes, operation, evidence=evidence, event_key=event_key, task=task)
+
+
+def _apply_flows(connection, rows):
+    """在给定事务内批量写入收支流水。"""
+    register_instance(connection, rows[0][0])
+    connection.executemany('''INSERT OR IGNORE INTO resource_flows
+        (instance, ts, resource, amount, task, operation, evidence, run_id, event_key)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''', rows)
 
 
 def observe(config, resource, value, source=None, *, observed_at=None):
@@ -91,36 +101,47 @@ def observe(config, resource, value, source=None, *, observed_at=None):
     stamp = (observed_at or now()).isoformat(sep=' ')
     try:
         with connect() as connection:
-            register_instance(connection, instance)
-            baseline = connection.execute('SELECT * FROM resource_balances WHERE instance=? AND resource=?',
-                                          (instance, resource)).fetchone()
-            if baseline and baseline['ts'] > stamp:
-                return
-            if baseline:
-                known = connection.execute('''SELECT COALESCE(SUM(amount), 0) FROM resource_flows
-                    WHERE instance=? AND resource=? AND (ts>? OR (ts=? AND id>?)) AND ts<=?''',
-                    (instance, resource, baseline['ts'], baseline['ts'], baseline['cursor'], stamp)).fetchone()[0]
-                residual = value - baseline['value'] - known
-                same_run = run_id is not None and baseline['run_id'] == run_id
-                # PT 跨活动归零不属于消费；读取任务也不能认领离线恢复和跨任务变化。
-                reset = (resource == 'Pt' and value < baseline['value'] and not known
-                         and not (same_run and state['task'] == 'EventShop'))
-                if residual:
-                    task = state['task'] if same_run and not reset else 'Unattributed'
-                    operation = '活动切换或库存校正' if reset else '任务内库存变化' if same_run else '跨任务或离线变化'
-                    connection.execute('''INSERT INTO resource_flows
-                        (instance, ts, resource, amount, task, operation, evidence, run_id, event_key)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-                        (instance, stamp, resource, residual, task, operation,
-                         'observed' if same_run and not reset else 'adjustment', run_id, uuid4().hex))
-            cursor = connection.execute('SELECT COALESCE(MAX(id), 0) FROM resource_flows WHERE instance=? AND ts<=?',
-                                        (instance, stamp)).fetchone()[0]
-            connection.execute('''INSERT INTO resource_balances VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(instance, resource) DO UPDATE SET
-                    value=excluded.value, ts=excluded.ts, run_id=excluded.run_id, cursor=excluded.cursor''',
-                (instance, resource, value, stamp, run_id, cursor))
+            _apply_observe(connection, instance, resource, value, stamp, run_id,
+                           state['task'] if state else None)
     except (sqlite3.Error, OSError) as error:
         logger.warning(f'[资源管理] 库存复核失败：{type(error).__name__}')
+
+
+def observe_async(config, resource, value, source=None, *, observed_at=None):
+    """同步持久化库存复核。"""
+    return observe(config, resource, value, source, observed_at=observed_at)
+
+
+def _apply_observe(connection, instance, resource, value, stamp, run_id, task):
+    """在给定事务内复核库存并把差额写入账本。"""
+    register_instance(connection, instance)
+    baseline = connection.execute('SELECT * FROM resource_balances WHERE instance=? AND resource=?',
+                                  (instance, resource)).fetchone()
+    if baseline and baseline['ts'] > stamp:
+        return
+    if baseline:
+        known = connection.execute("""SELECT COALESCE(SUM(amount), 0) FROM resource_flows
+            WHERE instance=? AND resource=? AND (ts>? OR (ts=? AND id>?)) AND ts<=?""",
+            (instance, resource, baseline['ts'], baseline['ts'], baseline['cursor'], stamp)).fetchone()[0]
+        residual = value - baseline['value'] - known
+        same_run = run_id is not None and baseline['run_id'] == run_id
+        # PT 跨活动归零不属于消费；读取任务也不能认领离线恢复和跨任务变化。
+        reset = (resource == 'Pt' and value < baseline['value'] and not known
+                 and not (same_run and task == 'EventShop'))
+        if residual:
+            owner = task if same_run and not reset else 'Unattributed'
+            operation = '活动切换或库存校正' if reset else '任务内库存变化' if same_run else '跨任务或离线变化'
+            connection.execute('''INSERT INTO resource_flows
+                (instance, ts, resource, amount, task, operation, evidence, run_id, event_key)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+                (instance, stamp, resource, residual, owner, operation,
+                 'observed' if same_run and not reset else 'adjustment', run_id, uuid4().hex))
+    cursor = connection.execute('SELECT COALESCE(MAX(id), 0) FROM resource_flows WHERE instance=? AND ts<=?',
+                                (instance, stamp)).fetchone()[0]
+    connection.execute('''INSERT INTO resource_balances VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT(instance, resource) DO UPDATE SET
+            value=excluded.value, ts=excluded.ts, run_id=excluded.run_id, cursor=excluded.cursor''',
+        (instance, resource, value, stamp, run_id, cursor))
 
 
 def catalog():

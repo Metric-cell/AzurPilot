@@ -64,9 +64,6 @@ FleetManagement:
 MenuDevelop:
   HomePage:
   Translate:
-  Announcement:
-  Update:
-  Remote:
   Setting:
   Utils:
 
@@ -249,7 +246,6 @@ DeploySetting:
   GroupGit:
   GroupPython:
   GroupAdb:
-  GroupOcr:
   GroupUpdate:
   GroupMisc:
   GroupWebui:
@@ -277,14 +273,6 @@ DeploySetting:
   AutoConnectHelp:
   InstallUiautomator2:
   InstallUiautomator2Help:
-  UseOcrServer:
-  UseOcrServerHelp:
-  StartOcrServer:
-  StartOcrServerHelp:
-  OcrServerPort:
-  OcrServerPortHelp:
-  OcrClientAddress:
-  OcrClientAddressHelp:
   EnableReload:
   EnableReloadHelp:
   WebuiHost:

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="doc/logo.webp" alt="AzurPilot Logo" width="400">
+  <img src="docs/images/logo.webp" alt="AzurPilot Logo" width="400">
 </p>
 
 <p align="center">
@@ -63,7 +63,7 @@ AzurPilot 是基于 AzurLaneAutoScript 修改而来的碧蓝航线自动化辅�
 ## GUI 预览
 
 <div align="center">
-  <img src="doc/GUI.png" alt="GUI Preview" width="800">
+  <img src="docs/images/GUI.png" alt="GUI Preview" width="800">
 </div>
 
 ## 快速开始
@@ -86,6 +86,8 @@ uv run python gui.py
 ```
 
 启动后浏览器访问 `http://127.0.0.1:25548` 进入 WebUI。
+
+开发调试可用 `uv run python gui.py -r`：监听项目内 `.py` 变更，稳定后自动重建 WebUI（会中断当前运行的实例，请勿在挂机时使用）。详见 [WebUI 启动器文档](docs/modules/entry/gui.md)。
 
 ## 重要说明
 
@@ -141,93 +143,22 @@ uv run python gui.py
 
 这些内容可能影响图像识别结果，导致自动化流程出现异常。
 
-## MCP 服务
-
-AzurPilot 提供 MCP 服务，可供支持 MCP 的客户端或工具调用，方便使用 Agent 管理 AzurPilot。
-
-> MCP 服务默认随 WebUI 启动并挂载于 `/mcp` 路径下（WebUI 默认端口 25548），也可通过 `uv run python mcp_server_sse.py` 独立运行（独立端口 22268）。
->
-> 注意：22268 并非 MCP 专用端口，OCR 服务（`OcrServerPort`）默认也使用该端口。与 WebUI 同机运行独立 MCP 时请留意端口占用冲突。
-
-MCP 复用 WebUI 的密码（`--key` / `config/deploy.yaml` 的 `Password`），未设置密码且监听公网时 WebUI 会自动生成密码，可在根目录 `password.txt` 查看。调用 MCP 时必须携带该密码，否则返回 401。
-
-### 本地连接配置
-
-```json
-{
-  "mcpServers": {
-    "alas": {
-      "url": "http://127.0.0.1:25548/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer <WebUI 密码>"
-      }
-    }
-  }
-}
-```
-
-### 云服务器或内网连接配置
-
-```json
-{
-  "mcpServers": {
-    "alas": {
-      "url": "http://[IP_ADDRESS]:25548/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer <WebUI 密码>"
-      }
-    }
-  }
-}
-```
-
-请将 `[IP_ADDRESS]` 替换为实际服务器地址或内网地址；若 WebUI 端口被修改，请同步替换 URL 中的端口。
-
-只能填写 URL、无法自定义请求头的客户端，可以把密码放在查询参数里：`http://[IP_ADDRESS]:25548/mcp/sse?key=<WebUI 密码>`。此时 URL 本身就是凭据，请勿截图外贴或分享；有条件时优先使用请求头。也可用 `X-API-Key: <WebUI 密码>` 请求头代替 `Authorization`。
-
-修改密码后需要重启 WebUI，MCP 才会使用新密码。
-
-### MCP 工具列表
-
-当前可用 MCP 工具共 18 个。
-
-| 类别 | 工具名称 | 功能 |
-| --- | --- | --- |
-| 实例管理 | `list_instances` | 列出所有实例 |
-| | `get_status` | 获取实例状态 |
-| | `start_instance` | 启动实例 |
-| | `stop_instance` | 停止实例 |
-| 任务管理 | `list_tasks` | 列出所有任务 |
-| | `get_task_help` | 获取任务帮助 |
-| | `trigger_task` | 触发任务 |
-| | `get_scheduler_queue` | 获取调度队列 |
-| | `clear_scheduler_queue` | 清空调度队列 |
-| 监控与信息 | `get_current_running_task` | 获取当前运行任务 |
-| | `get_resources` | 获取资源状态 |
-| | `get_config` | 获取实例配置 |
-| | `get_recent_logs` | 获取最近日志 |
-| | `get_screenshot` | 获取截图 |
-| 配置管理 | `update_config` | 更新配置 |
-| 维护工具 | `restart_emulator` | 重启模拟器 |
-| | `restart_adb` | 重启 ADB |
-| | `update_alas` | 更新 AzurPilot |
-
 ## 多平台启动器
 
 > 📥 从 [AzurPilot 官网](https://azurpilot.com/download.html) 下载 Windows / macOS / Linux 启动器
 
 <div align="center">
-  <img src="doc/loading.png" alt="loading" width="500" />
+  <img src="docs/images/loading.png" alt="loading" width="500" />
   <p>启动加载界面</p>
   <table align="center">
     <tr>
-      <td align="center"><img src="doc/GUI.png" alt="新版" width="260"><br>新版</td>
-      <td align="center"><img src="doc/GUI-legacy.webp" alt="旧版" width="260"><br>旧版</td>
-      <td align="center"><img src="doc/GUI-minimal.png" alt="简约" width="260"><br>简约</td>
+      <td align="center"><img src="docs/images/GUI.png" alt="新版" width="260"><br>新版</td>
+      <td align="center"><img src="docs/images/GUI-legacy.webp" alt="旧版" width="260"><br>旧版</td>
+      <td align="center"><img src="docs/images/GUI-minimal.png" alt="简约" width="260"><br>简约</td>
     </tr>
   </table>
   <p>Windows 客户端界面</p>
-  <img src="doc/macGUI.png" alt="macGUI" width="500" />
+  <img src="docs/images/macGUI.png" alt="macGUI" width="500" />
   <p>Mac 客户端界面</p>
 </div>
 
@@ -329,7 +260,7 @@ uv run -m module.config.config_updater
 
 <p align="center">
   <a href="https://afdian.com/a/miaonaa">
-    <img src="doc/afdian.jfif" alt="爱发电" width="200">
+    <img src="docs/images/afdian.jfif" alt="爱发电" width="200">
   </a>
   <br>
   <b>支持本项目（用于支付服务器费用或训练新模型等？）</b>

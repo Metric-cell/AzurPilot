@@ -291,7 +291,7 @@ stateDiagram-v2
 | `Alas.Backup.KeepDays` | int | `7` | 备份保留天数，校验范围 [1, 3650]，小于 1 按 1 处理 |
 | `BUTTON_OFFSET`（ManualConfig 常量） | int | `30` | `appear(offset=True)` 时模板匹配的默认搜索偏移，定义在 `module/config/config_manual.py`，非用户配置 |
 
-备份可在 WebUI 中关闭。`useOcrServer` 来自部署配置（`deploy.yaml`），决定 `release_resources()` 释放本地 OCR 模型还是仅断开远程 OCR 连接。
+备份可在 WebUI 中关闭。`release_resources()` 按任务状态释放本地 OCR 模型。
 
 ## 11. 异常与错误处理
 

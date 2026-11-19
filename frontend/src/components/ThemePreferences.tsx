@@ -1,34 +1,38 @@
 /**
- * @fileoverview 主题模式与配色方案配置面板组件。
+ * @fileoverview 外观偏好区块：简约主题的配色模式选择，直接读写主题存储。
  */
 
+import { useSyncExternalStore } from 'react'
 import { useApp } from '../app/context'
-import { fixedColorModes } from '../app/palettes'
-import { PaletteSwatches } from './PaletteSwatches'
-import { Select } from './FormControls'
+import { colorModes, type ColorMode } from '../app/palettes'
+import { applyTheme, getThemePreference, subscribeTheme } from '../app/theme'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../pages/settings-ui/select'
+import { Field, FieldDescription, FieldLabel } from '../pages/settings-ui/field'
 
-/** 简约与紧凑的主题模式、预设与自定义方案共用一份配色数据，保证预览跟随系统明暗变化。 */
+const modeLabels = {
+  auto: 'settings.modeAuto',
+  light: 'settings.themeLight',
+  dark: 'settings.themeDark',
+  terminal: 'settings.modeTerminal',
+  'retro-gray': 'settings.modeRetroGray',
+  'retro-blue': 'settings.modeRetroBlue',
+  'retro-red': 'settings.modeRetroRed',
+} as const
+
+/** 外观偏好设置块：配色模式下拉，改动经 applyTheme 立即生效，不走表单暂存。 */
 export function ThemePreferences() {
-  const {ui, colorMode, setColorMode, palette, setPalette} = useApp()
-  return <>
-    <div className="field-row">
-      <div className="field-label"><label htmlFor="ui-color-mode">{ui('settings.colorMode')}</label><p>{ui('settings.colorModeHelp')}</p></div>
-      <div className="field-control"><Select id="ui-color-mode" value={colorMode} onChange={event => setColorMode(event.target.value as typeof colorMode)}>
-        <option value="auto">{ui('settings.modeAuto')}</option>
-        <option value="light">{ui('settings.themeLight')}</option>
-        <option value="dark">{ui('settings.themeDark')}</option>
-        <option value="terminal">{ui('settings.modeTerminal')}</option>
-        <option value="retro-gray">{ui('settings.modeRetroGray')}</option>
-        <option value="retro-blue">{ui('settings.modeRetroBlue')}</option>
-        <option value="retro-red">{ui('settings.modeRetroRed')}</option>
-      </Select></div>
-    </div>
-    {/* 自带整套色值的模式（程序员 / 复古灰 / 复古蓝 / 复古红）会忽略配色方案，先收起来免得选了却看不出变化。 */}
-    {!fixedColorModes[colorMode] && <div className="field-row palette-field">
-      <div className="field-label"><label>{ui('settings.palette')}</label><p>{ui('settings.paletteHelp')}</p></div>
-      <div className="field-control palette-control">
-        <PaletteSwatches value={palette} onChange={next => { if (next) setPalette(next) }} legend={ui('settings.palette')}/>
-      </div>
-    </div>}
-  </>
+  const {ui} = useApp()
+  const {colorMode} = useSyncExternalStore(subscribeTheme, getThemePreference, getThemePreference)
+  return <Field orientation="vertical">
+    <FieldLabel htmlFor="ui-color-mode">{ui('settings.colorMode')}</FieldLabel>
+    <Select value={colorMode} onValueChange={next => applyTheme({...getThemePreference(), colorMode: next as ColorMode})}>
+      <SelectTrigger id="ui-color-mode" aria-label={ui('settings.colorMode')} className="w-full max-w-64">
+        <SelectValue/>
+      </SelectTrigger>
+      <SelectContent>
+        {colorModes.map(mode => <SelectItem key={mode} value={mode}>{ui(modeLabels[mode])}</SelectItem>)}
+      </SelectContent>
+    </Select>
+    <FieldDescription>{ui('settings.colorModeHelp')}</FieldDescription>
+  </Field>
 }

@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="doc/logo.webp" alt="AzurPilot Logo" width="400">
+  <img src="docs/images/logo.webp" alt="AzurPilot Logo" width="400">
 </p>
 
 <p align="center">
@@ -62,7 +62,7 @@ AzurPilot 是基於 [AzurLaneAutoScript](https://github.com/LmeSzinc/AzurLaneAut
 ## GUI 預覽
 
 <div align="center">
-  <img src="doc/GUI.png" alt="GUI Preview" width="800">
+  <img src="docs/images/GUI.png" alt="GUI Preview" width="800">
 </div>
 
 ## 快速開始
@@ -140,91 +140,22 @@ uv run python gui.py
 
 這些內容可能影響影像識別結果，導致自動化流程出現異常。
 
-## MCP 服務
-
-AzurPilot 提供 MCP 服務，可供支援 MCP 的用戶端或工具呼叫，方便使用 Agent 管理 AzurPilot。
-
-> MCP 服務預設隨 WebUI 啟動並掛載於 `/mcp` 路徑下（WebUI 預設連接埠 25548），也可透過 `uv run python mcp_server_sse.py` 獨立執行（獨立連接埠 22268）。
-
-MCP 沿用 WebUI 的密碼（`--key` / `config/deploy.yaml` 的 `Password`），未設定密碼且監聽公網時 WebUI 會自動產生密碼，可在根目錄 `password.txt` 查看。呼叫 MCP 時必須攜帶該密碼，否則回傳 401。
-
-### 本機連線設定
-
-```json
-{
-  "mcpServers": {
-    "alas": {
-      "url": "http://127.0.0.1:25548/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer <WebUI 密碼>"
-      }
-    }
-  }
-}
-```
-
-### 雲端伺服器或內網連線設定
-
-```json
-{
-  "mcpServers": {
-    "alas": {
-      "url": "http://[IP_ADDRESS]:25548/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer <WebUI 密碼>"
-      }
-    }
-  }
-}
-```
-
-請將 `[IP_ADDRESS]` 替換為實際伺服器位址或內網位址；若 WebUI 連接埠已修改，請同步替換 URL 中的連接埠。
-
-只能填寫 URL、無法自訂請求標頭的用戶端，可以把密碼放在查詢參數裡：`http://[IP_ADDRESS]:25548/mcp/sse?key=<WebUI 密碼>`。此時 URL 本身就是憑證，請勿截圖外貼或分享；有條件時優先使用請求標頭。也可用 `X-API-Key: <WebUI 密碼>` 請求標頭代替 `Authorization`。
-
-修改密碼後需要重新啟動 WebUI，MCP 才會使用新密碼。
-
-### MCP 工具清單
-
-目前可用的 MCP 工具共 18 個。
-
-| 類別 | 工具名稱 | 功能 |
-| --- | --- | --- |
-| 實例管理 | `list_instances` | 列出所有實例 |
-| | `get_status` | 取得實例狀態 |
-| | `start_instance` | 啟動實例 |
-| | `stop_instance` | 停止實例 |
-| 任務管理 | `list_tasks` | 列出所有任務 |
-| | `get_task_help` | 取得任務說明 |
-| | `trigger_task` | 觸發任務 |
-| | `get_scheduler_queue` | 取得排程佇列 |
-| | `clear_scheduler_queue` | 清空排程佇列 |
-| 監控與資訊 | `get_current_running_task` | 取得目前執行的任務 |
-| | `get_resources` | 取得資源狀態 |
-| | `get_config` | 取得實例設定 |
-| | `get_recent_logs` | 取得最近的日誌 |
-| | `get_screenshot` | 取得截圖 |
-| 設定管理 | `update_config` | 更新設定 |
-| 維護工具 | `restart_emulator` | 重新啟動模擬器 |
-| | `restart_adb` | 重新啟動 ADB |
-| | `update_alas` | 更新 AzurPilot |
-
 ## 多平台啟動器
 
 > 📥 從 [AzurPilot 官網](https://azurpilot.com/download.html) 下載 Windows / macOS / Linux 啟動器
 
 <div align="center">
-  <img src="doc/loading.png" alt="loading" width="500" />
+  <img src="docs/images/loading.png" alt="loading" width="500" />
   <p>啟動載入畫面</p>
   <table align="center">
     <tr>
-      <td align="center"><img src="doc/GUI.png" alt="新版" width="260"><br>新版</td>
-      <td align="center"><img src="doc/GUI-legacy.webp" alt="舊版" width="260"><br>舊版</td>
-      <td align="center"><img src="doc/GUI-minimal.png" alt="簡約" width="260"><br>簡約</td>
+      <td align="center"><img src="docs/images/GUI.png" alt="新版" width="260"><br>新版</td>
+      <td align="center"><img src="docs/images/GUI-legacy.webp" alt="舊版" width="260"><br>舊版</td>
+      <td align="center"><img src="docs/images/GUI-minimal.png" alt="簡約" width="260"><br>簡約</td>
     </tr>
   </table>
   <p>Windows 用戶端介面</p>
-  <img src="doc/macGUI.png" alt="macGUI" width="500" />
+  <img src="docs/images/macGUI.png" alt="macGUI" width="500" />
   <p>Mac 用戶端介面</p>
 </div>
 
@@ -326,7 +257,7 @@ uv run -m module.config.config_updater
 
 <p align="center">
   <a href="https://afdian.com/a/miaonaa">
-    <img src="doc/afdian.jfif" alt="愛發電" width="200">
+    <img src="docs/images/afdian.jfif" alt="愛發電" width="200">
   </a>
   <br>
   <b>支持本專案（用於支付伺服器費用或訓練新模型等？）</b>

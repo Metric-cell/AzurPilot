@@ -73,15 +73,6 @@ DEPLOY_GROUPS: tuple[tuple[str, tuple[DeployField, ...]], ...] = (
         ),
     ),
     (
-        "Ocr",
-        (
-            DeployField("UseOcrServer", "bool"),
-            DeployField("StartOcrServer", "bool"),
-            DeployField("OcrServerPort", "int"),
-            DeployField("OcrClientAddress"),
-        ),
-    ),
-    (
         "Update",
         (
             DeployField("EnableReload", "bool"),

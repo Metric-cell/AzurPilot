@@ -110,7 +110,7 @@ class StartupMemoryLifecycleTests(unittest.TestCase):
             while True:
                 yield
 
-        settings = SimpleNamespace(Run=run, StartOcrServer=False, EnableRemoteAccess=False,
+        settings = SimpleNamespace(Run=run, EnableRemoteAccess=False,
                                    DiscordRichPresence=False, file=root / 'config' / 'deploy.yaml')
         running = [SimpleNamespace(config_name='demo', stop=lambda: True)]
         with ExitStack() as stack:

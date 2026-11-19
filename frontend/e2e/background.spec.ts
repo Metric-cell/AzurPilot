@@ -1,21 +1,19 @@
+/**
+ * @fileoverview 背景壁纸用例：本地图片与上传接口的授权令牌校验，以及各背景来源切换后的铺图行为。
+ */
+
 import { expect, test } from '@playwright/test'
 
-test('背景代抓和上传携带授权令牌，未授权 HTTP 请求被拒绝', async ({page, request}) => {
+test('背景上传携带授权令牌，未授权 HTTP 请求被拒绝', async ({page, request}) => {
   await page.addInitScript(() => {
     localStorage.setItem('azurpilot.theme', 'light')
     localStorage.setItem('azurpilot.material', 'glass')
     localStorage.setItem('azurpilot.background', JSON.stringify({
-      source: 'url', kind: 'image', urls: ['https://example.com/background'], active: 0, name: '',
+      source: 'url', kind: 'image', urls: ['/wallpaper.jpg'], active: 0, name: '',
     }))
   })
-  const denied = await request.get('/api/v1/background/media?url=https://example.com/background')
-  expect(denied.status()).toBe(401)
   expect((await request.post('/api/v1/background/gallery')).status()).toBe(401)
-  const mediaResponse = page.waitForResponse(response => new URL(response.url()).pathname === '/api/v1/background/media')
   await page.goto('/#/interface')
-  const media = await mediaResponse
-  expect(media.status()).toBe(200)
-  expect(new URL(media.url()).searchParams.get('token')).toBeTruthy()
   await expect(page.locator('img.wallpaper-media')).toBeVisible()
   await page.locator('#ui-background-source').click()
   await page.getByRole('option', {name: '上传文件', exact: true}).click()

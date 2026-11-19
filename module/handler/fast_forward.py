@@ -9,6 +9,7 @@ from module.base.utils import color_bar_percentage
 from module.handler.assets import *
 from module.handler.auto_search import AutoSearchHandler
 from module.logger import logger
+from module.map.assets import MULTIPLE_SORTIES_RESULT_CHECK, MULTIPLE_SORTIES_RESULT_EXIT
 from module.ui.switch import Switch
 
 
@@ -126,7 +127,7 @@ def to_map_input_name(name: str) -> str:
     # 移除空白字符
     name = re.sub('[ \t\n]', '', name).lower()
     # B-1 -> B1
-    res = re.match(r'([a-zA-Z])+[- ]+(\d+)', name)
+    res = re.match(r'([a-zA-Z]+)[- ]+(\d+)', name)
     if res:
         name = f'{res.group(1)}{res.group(2)}'
     # 转为大写以便移除 campaign 前缀
@@ -151,7 +152,7 @@ def to_map_file_name(name: str) -> str:
     # 移除空白字符
     name = re.sub('[ \t\n]', '', name).lower()
     # B-1 -> B1
-    res = re.match(r'([a-zA-Z])+[- ]+(\d+)', name)
+    res = re.match(r'([a-zA-Z]+)[- ]+(\d+)', name)
     if res:
         name = f'{res.group(1)}{res.group(2)}'
     # 7-2 -> campaign_7_2
@@ -523,6 +524,8 @@ class FastForwardHandler(AutoSearchHandler):
         Returns:
             bool: 是否执行了继续操作。
         """
+        if self.appear(MULTIPLE_SORTIES_RESULT_CHECK, offset=(20, 20)):
+            return self.appear_then_click(MULTIPLE_SORTIES_RESULT_EXIT, offset=(20, 20), interval=2)
         if self.appear(AUTO_SEARCH_MENU_CONTINUE, offset=self._auto_search_menu_offset, interval=2):
             self.map_is_2x_book = self.config.Campaign_Use2xBook
             self.handle_2x_book_setting(mode='auto')
@@ -756,7 +759,7 @@ class FastForwardHandler(AutoSearchHandler):
                 logger.attr('行走加速', '开启')
                 return True
             if timeout.reached():
-                logger.warning(f'等待时间已过，无法设置地图移动加速')
+                logger.warning(f'等待时间已过，无法设置地图行走加速')
                 return False
 
             if interval.reached():

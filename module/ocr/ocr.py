@@ -1,5 +1,5 @@
 """OCR 文字识别模块。提供 Ocr、Digit、DigitCounter、Duration 等识别器类，
-支持多种 OCR 后端（ONNX/NCNN/远程服务器），用于识别游戏中的文字和数字。"""
+支持多种本地 OCR 后端（ONNX/NCNN），用于识别游戏中的文字和数字。"""
 
 import time
 from datetime import timedelta
@@ -10,16 +10,11 @@ from module.base.button import Button
 from module.base.decorator import cached_property
 from module.base.utils import *
 from module.logger import logger
-from module.ocr.rpc import ModelProxyFactory
-from module.runtime.setting import State
+from module.ocr.models import OCR_MODEL
 
 if TYPE_CHECKING:
     from module.ocr.al_ocr import AlOcr
 
-if not State.deploy_config.UseOcrServer:
-    from module.ocr.models import OCR_MODEL
-else:
-    OCR_MODEL = ModelProxyFactory()
 
 
 class Ocr:

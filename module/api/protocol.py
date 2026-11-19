@@ -52,7 +52,7 @@ class LauncherTicketParams(Params):
 
 
 class MindShip(Params):
-    """导入的舰船字段与核对状态。"""
+    """导入的舰船字段与核对状态；导出文件可原样导回，底账内部序号除外。"""
     name: StrictStr = Field(min_length=1, max_length=100)
     level: StrictInt = Field(ge=0, le=125)
     rarity: Literal['', 'N', 'R', 'SR', 'SSR', 'UR'] = ''
@@ -60,6 +60,9 @@ class MindShip(Params):
     extra_exp: StrictInt | None = Field(default=None, ge=0)
     review: StrictBool = False
     source: StrictStr = Field(default='', max_length=200)
+    group_type: StrictInt | None = Field(default=None, ge=1)
+    full_star: StrictBool | None = None
+    form: Literal['base', 'retrofit'] | None = None
 
 
 class Request(Params):
@@ -76,11 +79,6 @@ class AuthParams(Params):
     password: StrictStr = Field(default='', max_length=256)
 
 
-class AnnouncementParams(Params):
-    """公告查询参数模型。"""
-    force: StrictBool = False
-
-
 class SchemaParams(Params):
     """配置界面架构查询参数模型。"""
     language: Literal['zh-CN', 'en-US', 'ja-JP', 'zh-TW'] = 'zh-CN'
@@ -89,14 +87,6 @@ class SchemaParams(Params):
 class SearchContentParams(Params):
     """侧栏内容检索请求参数模型。"""
     query: StrictStr = Field(min_length=1, max_length=64)
-
-
-class BackgroundUrlParams(Params):
-    url: StrictStr = Field(min_length=8, max_length=2048)
-
-
-class BackgroundGalleryAddParams(BackgroundUrlParams):
-    name: StrictStr = Field(default='', max_length=120)
 
 
 class BackgroundGalleryRemoveParams(Params):
@@ -187,11 +177,20 @@ class MindFileParams(InstanceParams):
     content: StrictStr = Field(min_length=1, max_length=8_000_000)
 
 
+class CreateEmulatorParams(Params):
+    """首次设置随实例一起保存的模拟器参数。"""
+
+    serial: StrictStr = Field(min_length=1, max_length=256)
+    package_name: StrictStr = Field(min_length=1, max_length=128)
+    server_name: StrictStr = Field(min_length=1, max_length=64)
+
+
 class CreateParams(Params):
     """新建实例请求参数模型。"""
     name: StrictStr = Field(min_length=1, max_length=64)
     source: StrictStr | None = None
     import_file: StrictStr | None = None
+    emulator: CreateEmulatorParams | None = None
 
 
 class ImportParams(Params):

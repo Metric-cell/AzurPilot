@@ -54,12 +54,6 @@ class ConfigModel:
     AutoConnect: bool = True
     InstallUiautomator2: bool = True
 
-    # OCR 配置
-    UseOcrServer: bool = False
-    StartOcrServer: bool = False
-    OcrServerPort: int = 22268
-    OcrClientAddress: str = "127.0.0.1:22268"
-
     # 更新配置
     EnableReload: bool = True
 
@@ -137,8 +131,12 @@ class DeployConfig(DeployConfigTransaction, ConfigModel):
         Returns:
             str: 绝对文件路径。
         """
+        path = self.config[key]
+        # 启动器可写入带双引号的 YAML 路径，引号不是文件名的一部分。
+        if len(path) >= 2 and path[0] == path[-1] == '"':
+            path = path[1:-1]
         return (
-            os.path.abspath(os.path.join(self.root_filepath, self.config[key]))
+            os.path.abspath(os.path.join(self.root_filepath, path))
             .replace(r"\\", "/")
             .replace("\\", "/")
             .replace('"', '"')
@@ -173,7 +171,9 @@ class DeployConfig(DeployConfigTransaction, ConfigModel):
         if not output:
             command = command + ' >nul 2>nul'
         logger.info(command)
-        error_code = os.system(command)
+        # Windows cmd /c 会剥掉首尾引号；额外包一层，保留程序路径和参数的引号。
+        shell_command = f'"{command}"' if os.name == 'nt' and command.startswith('"') else command
+        error_code = os.system(shell_command)
         if error_code:
             if allow_failure:
                 logger.info(f"[ allowed failure ], error_code: {error_code}")

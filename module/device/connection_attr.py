@@ -1,7 +1,7 @@
 """设备连接属性与 ADB 路径解析模块。
 
 提供 ConnectionAttr 类，负责：
-- 查找和下载适配平台的 ADB 可执行文件
+- 查找本地安装的 ADB 可执行文件
 - 规范化和校验设备序列号
 - 识别模拟器类型（MuMu、LDPlayer、BlueStacks、Nox、WSA 等）
 - 初始化并缓存 ADB 和 uiautomator2 客户端
@@ -10,11 +10,7 @@
 import os
 import re
 import shutil
-import stat
 import sys
-import urllib.request
-import zipfile
-from pathlib import Path
 
 import adbutils
 import uiautomator2 as u2
@@ -27,21 +23,6 @@ from module.config.deep import deep_iter
 from module.device.method.utils import get_serial_pair
 from module.exception import RequestHumanTakeover
 from module.logger import logger
-
-
-def platform_tools_url():
-    """返回当前平台对应的 Android platform-tools 下载地址。
-
-    Returns:
-        str | None: 对应的 zip 下载链接，不支持的平台返回 None。
-    """
-    if sys.platform == 'win32':
-        return 'https://dl.google.com/android/repository/platform-tools-latest-windows.zip'
-    if sys.platform == 'darwin':
-        return 'https://dl.google.com/android/repository/platform-tools-latest-darwin.zip'
-    if sys.platform.startswith('linux'):
-        return 'https://dl.google.com/android/repository/platform-tools-latest-linux.zip'
-    return None
 
 
 class ConnectionAttr:
@@ -58,71 +39,6 @@ class ConnectionAttr:
         './bin/adb/adb.exe',
         '/usr/bin/adb'
     ]
-
-    def download_adb_binary(self, target):
-        """下载官方 Android platform-tools，并把 adb 放到目标路径。
-
-        Args:
-            target (str): 期望的 adb 可执行文件路径，通常是 .venv/bin/adb。
-
-        Returns:
-            str | None: 安装成功后的 adb 绝对路径。
-        """
-        url = platform_tools_url()
-        if url is None:
-            logger.warning(f'[设备] 当前平台不支持自动下载 ADB: {sys.platform}')
-            return None
-
-        if not target:
-            logger.warning('[设备] ADB 下载失败，目标路径为空')
-            return None
-
-        target = Path(target).resolve()
-        download_dir = target.parent
-        if target.parent.name in ['Scripts', 'bin'] and target.parent.parent.name == '.venv':
-            download_dir = target.parent.parent
-        tools_dir = download_dir / 'platform-tools'
-        archive = download_dir / 'platform-tools.zip'
-        executable = 'adb.exe' if os.name == 'nt' else 'adb'
-        source = tools_dir / executable
-
-        logger.hr('下载ADB', level=2)
-        logger.warning(f'[设备] 未找到 ADB，正在下载 Android platform-tools: {url}')
-        tools_dir.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            urllib.request.urlretrieve(url, archive)
-        except Exception as e:
-            archive.unlink(missing_ok=True)
-            logger.warning(f'[设备] ADB 下载失败: {e}')
-            return None
-
-        if tools_dir.exists():
-            shutil.rmtree(tools_dir)
-        try:
-            with zipfile.ZipFile(archive, 'r') as z:
-                z.extractall(tools_dir.parent)
-        finally:
-            archive.unlink(missing_ok=True)
-
-        if not source.exists():
-            logger.warning(f'[设备] ADB 下载失败，未找到 {source}')
-            return None
-
-        if os.name != 'nt':
-            source.chmod(source.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-        target.parent.mkdir(parents=True, exist_ok=True)
-        if target.exists() or target.is_symlink():
-            target.unlink()
-        shutil.copy2(source, target)
-        if os.name == 'nt':
-            for dll in tools_dir.glob('*.dll'):
-                shutil.copy2(dll, target.parent / dll.name)
-        else:
-            target.chmod(target.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-
-        logger.info(f'[设备] ADB 已安装: {target}')
-        return str(target).replace('\\\\', '/').replace('\\', '/')
 
     def __init__(self, config):
         """初始化设备连接属性。
@@ -406,7 +322,6 @@ class ConnectionAttr:
         2. 预定义的候选路径列表
         3. Python 环境中的 adb
         4. 系统 PATH 中的 adb
-        5. 自动下载到配置路径
 
         Returns:
             str: ADB 可执行文件的绝对路径。
@@ -427,7 +342,6 @@ class ConnectionAttr:
                 return os.path.abspath(candidate).replace('\\', '/')
 
         # Try adb in python environment
-        import sys
         if os.name == 'nt':
             file = os.path.join(sys.executable, '../adb.exe')
         else:
@@ -441,13 +355,9 @@ class ConnectionAttr:
         if path_adb:
             return os.path.abspath(path_adb).replace('\\', '/')
 
-        # Download adb only when all local candidates are missing
-        # 使用绝对路径下载，确保后续实例能找到文件
-        downloaded = self.download_adb_binary(deploy_adb_file)
-        if downloaded:
-            return downloaded
-
-        return 'adb'
+        raise FileNotFoundError(
+            'ADB was not found. Install Android platform-tools locally or configure AdbExecutable in deploy.yaml.'
+        )
 
     @cached_property
     def adb_client(self) -> AdbClient:

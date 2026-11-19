@@ -434,7 +434,7 @@ class ResourceFlowTests(unittest.TestCase):
     def test_real_websocket_ledger_query_and_oil_config_patch(self):
         with flow.task_session('testpilot', 'Commission'):
             flow.record(self.config, {'Oil': 1000, 'Cube': 2}, '奖励领取')
-        app = create_app(root=self.root, password='', manage_runtime=False)
+        app = create_app(root=self.root, password='test-secret', manage_runtime=False)
         with TestClient(app) as client, client.websocket_connect('/api/v1/ws') as socket:
             socket.receive_json()
             sequence = 0
@@ -448,6 +448,7 @@ class ResourceFlowTests(unittest.TestCase):
                     if response.get('id') == request_id:
                         self.assertTrue(response['ok'], response)
                         return response['result']
+            call('auth.login', {'password': 'test-secret'})
             result = call('statistics.resourceFlows', {'instance': 'testpilot', 'start': '2026-10-07', 'end': '2026-10-08'})
             self.assertEqual(2, result['total'])
             self.assertEqual(24000, result['oilControl']['target'])

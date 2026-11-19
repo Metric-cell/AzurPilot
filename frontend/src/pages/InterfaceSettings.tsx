@@ -1,95 +1,123 @@
 /**
  * @fileoverview 界面外观偏好设置页面（主题、配色、背景与多语言）。
+ *
+ * 版式与任务设置页一致：每组一张 `.panel.config-group` 玻璃卡，卡内是
+ * `.field-row`（标签在左、控件在右侧固定列）与 `.panel-heading` 分组标题。
  */
 
+import { useSyncExternalStore } from 'react'
 import { Select } from '../components/FormControls'
-import { languages, useApp, useConnection } from '../app/context'
-import { familyOf, hasMaterialAxis, supportsBackground, usesPaletteOptions, type Theme } from '../app/theme'
-import { PageTitle } from '../components/ui'
-import { SegmentedControl } from '../components/SegmentedControl'
-import { ThemeCustomPreference } from '../components/ThemeCustomPreference'
+import { Switch } from '../components/Switch'
+import { useApp, useConnection, languages } from '../app/context'
 import { ThemePreferences } from '../components/ThemePreferences'
-import { CompactLayoutPreference } from '../components/CompactLayoutPreference'
 import { BackgroundPreferences } from '../components/BackgroundPreferences'
+import { readSchedulerPosition, setSchedulerPosition, subscribeSchedulerPosition } from '../app/schedulerPositionPrefs'
+import { readRailVisible, setRailVisible, subscribeRailVisible } from '../app/railPrefs'
 
-/** 一级主题大类各自的明暗成员；新版与旧版各有两个，简洁与紧凑各一个。 */
-const familyThemes: Record<ReturnType<typeof familyOf>, Theme[]> = {
-  new: ['light', 'dark'], legacy: ['legacy-light', 'legacy-dark'], minimal: ['minimal'], extreme: ['extreme'],
+/** 设置分组卡：标题占面板首行，正文由调用方给出的 `.field-row` 组成。 */
+function SettingsGroup({title, children}: {title: string; children: React.ReactNode}) {
+  return <section className="panel config-group">
+    <div className="panel-heading">
+      <div>
+        <span className="group-indicator"/>
+        <h2 role="heading" aria-level={2}>{title}</h2>
+      </div>
+    </div>
+    {children}
+  </section>
 }
 
-/** 界面设置：主题、材质、明暗、配色、背景与语言，只影响当前浏览器，不写进实例配置。 */
+/** 界面设置：主题、调度器位置、材质、明暗、配色、背景与语言，只影响当前浏览器，不写进实例配置。 */
 export function InterfaceSettings() {
-  const {theme, setTheme, material, setMaterial, language, setLanguage, ui} = useApp()
+  const {theme, setTheme, material, setMaterial, resolvedMode, language, setLanguage, ui} = useApp()
+  const schedulerPosition = useSyncExternalStore(subscribeSchedulerPosition, readSchedulerPosition, readSchedulerPosition)
+  const railVisibility = useSyncExternalStore(subscribeRailVisible, readRailVisible, readRailVisible)
   const connection = useConnection()
-  const family = familyOf(theme)
-  const dark = theme === 'dark' || theme === 'legacy-dark'
-  const switchFamily = (next: ReturnType<typeof familyOf>) => {
-    const themes = familyThemes[next]
-    setTheme(themes.length === 1 ? themes[0] : themes[dark ? 1 : 0])
-  }
+  const minimal = theme === 'minimal'
 
-  return (
-    <>
-      <PageTitle title={ui('nav.interface')} />
-      <section className="panel config-group">
+  return <>
+    <h1 className="modern-sr-title">{ui('nav.interface')}</h1>
+    <div className="settings-page">
+      <SettingsGroup title={ui('settings.theme')}>
         <div className="field-row">
           <div className="field-label">
             <label htmlFor="ui-theme">{ui('settings.theme')}</label>
           </div>
           <div className="field-control">
-            <Select id="ui-theme" value={family} onChange={event => switchFamily(event.target.value as ReturnType<typeof familyOf>)}>
-              <option value="new">{ui('settings.familyNew')}</option>
-              <option value="legacy">{ui('settings.familyLegacy')}</option>
+            <Select id="ui-theme" value={minimal ? 'minimal' : 'modern'} onChange={event => {
+              setTheme(event.target.value === 'minimal' ? 'minimal' : resolvedMode === 'dark' ? 'modern-dark' : 'modern-light')
+            }}>
+              <option value="modern">{ui('settings.familyModern')}</option>
               <option value="minimal">{ui('settings.themeMinimal')}</option>
-              <option value="extreme">{ui('settings.themeExtreme')}</option>
             </Select>
           </div>
         </div>
-        {/* 材质与明暗只对有材质轴的家族（新版、旧版）显示；切走时取值仍留在偏好里。 */}
-        {hasMaterialAxis(theme) && <div className="field-row">
+        {minimal ? <ThemePreferences/> : <>
+          <div className="field-row">
+            <div className="field-label">
+              <label htmlFor="ui-material">{ui('settings.material')}</label>
+            </div>
+            <div className="field-control">
+              <Select id="ui-material" value={material} onChange={event => setMaterial(event.target.value as typeof material)}>
+                <option value="glass">{ui('settings.materialGlass')}</option>
+                <option value="plain">{ui('settings.materialPlain')}</option>
+              </Select>
+            </div>
+          </div>
+          <div className="field-row">
+            <div className="field-label">
+              <label htmlFor="ui-mode">{ui('settings.mode')}</label>
+            </div>
+            <div className="field-control">
+              <Select id="ui-mode" value={resolvedMode} onChange={event => setTheme(event.target.value === 'dark' ? 'modern-dark' : 'modern-light')}>
+                <option value="light">{ui('settings.themeLight')}</option>
+                <option value="dark">{ui('settings.themeDark')}</option>
+              </Select>
+            </div>
+          </div>
+        </>}
+      </SettingsGroup>
+
+      <SettingsGroup title={ui('settings.schedulerPosition')}>
+        <div className="field-row">
           <div className="field-label">
-            <label>{ui('settings.material')}</label>
+            <label>{ui('settings.schedulerPosition')}</label>
+            <p>{ui('settings.schedulerPositionHelp')}</p>
           </div>
           <div className="field-control">
-            <SegmentedControl className="settings-segmented" label={ui('settings.material')} value={material} onChange={setMaterial} options={[
-              {value: 'glass', label: ui('settings.materialGlass')},
-              {value: 'plain', label: ui('settings.materialPlain')},
-            ]}/>
+            <Select id="ui-scheduler-position" value={schedulerPosition} onChange={event => setSchedulerPosition(event.target.value as typeof schedulerPosition)}>
+              <option value="left">{ui('settings.schedulerPositionLeft')}</option>
+              <option value="right">{ui('settings.schedulerPositionRight')}</option>
+            </Select>
           </div>
-        </div>}
-        {hasMaterialAxis(theme) && <div className="field-row">
+        </div>
+        <div className="field-row">
           <div className="field-label">
-            <label>{ui('settings.mode')}</label>
+            <label htmlFor="ui-rail-visible">{ui('settings.showSchedulerRail')}</label>
+            <p>{ui('settings.showSchedulerRailHelp')}</p>
           </div>
           <div className="field-control">
-            <SegmentedControl className="settings-segmented" label={ui('settings.mode')} value={dark ? 'dark' : 'light'} onChange={mode => {
-              const themes = familyThemes[familyOf(theme)]
-              setTheme(themes[mode === 'dark' ? 1 : 0])
-            }} options={[
-              {value: 'light', label: ui('settings.themeLight')},
-              {value: 'dark', label: ui('settings.themeDark')},
-            ]}/>
+            <Switch id="ui-rail-visible" label={ui('settings.showSchedulerRail')} checked={railVisibility === 'shown'} onChange={checked => setRailVisible(checked ? 'shown' : 'hidden')}/>
           </div>
-        </div>}
-        {/* 有材质轴的家族各自一套自定义外观；没有旋钮的家族不渲染。 */}
-        <ThemeCustomPreference/>
-        {/* 紧凑主题的列布局选项紧跟主题选择，切到其它主题即隐藏，偏好仍保存在当前浏览器。 */}
-        {theme === 'extreme' && <CompactLayoutPreference/>}
-        {usesPaletteOptions(theme) && <ThemePreferences/>}
-        {supportsBackground(theme) && <BackgroundPreferences/>}
+        </div>
+      </SettingsGroup>
+
+      {!minimal && <SettingsGroup title={ui('settings.background')}>
+        <BackgroundPreferences/>
+      </SettingsGroup>}
+
+      <SettingsGroup title={ui('settings.language')}>
         <div className="field-row">
           <div className="field-label">
             <label htmlFor="ui-language">{ui('settings.language')}</label>
           </div>
           <div className="field-control">
             <Select id="ui-language" value={language} disabled={connection !== 'ready'} onChange={event => setLanguage(event.target.value as typeof language)}>
-              {Object.entries(languages).map(([key, label]) => (
-                <option key={key} value={key}>{label}</option>
-              ))}
+              {Object.entries(languages).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
             </Select>
           </div>
         </div>
-      </section>
-    </>
-  )
+      </SettingsGroup>
+    </div>
+  </>
 }

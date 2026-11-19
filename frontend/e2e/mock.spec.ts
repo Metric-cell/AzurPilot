@@ -1,5 +1,107 @@
+/**
+ * @fileoverview 基于 mock 后端的全站回归集：换船调度、统计仓库、系统设置、更新与背景等界面行为的端到端验收。
+ */
+
+import {routeRpc} from './rpc-route'
 import { expect, test } from '@playwright/test'
 import { readFileSync } from 'node:fs'
+
+test('换船常用候补可保存，保留舰队来源且手机布局不溢出', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('azurpilot.language', 'zh-CN'))
+  await page.goto('/#/i/demo-main/task/FleetSwitch?tab=rotation')
+  const fleet = page.getByRole('region', {name: '第 1 舰队', exact: true})
+  const common = fleet.getByRole('checkbox', {name: '常用', exact: true})
+  await expect(common).not.toBeChecked()
+  const original = await Promise.all([3, 4, 5].map(number => fleet.getByRole('checkbox', {name: `候补舰队 ${number}`, exact: true}).isChecked()))
+  await common.check()
+  await fleet.getByRole('checkbox', {name: '候补舰队 3', exact: true}).check()
+  await fleet.getByRole('checkbox', {name: '候补舰队 4', exact: true}).check()
+  await fleet.getByRole('checkbox', {name: '候补舰队 5', exact: true}).check()
+  await page.getByRole('button', {name: '保存规则', exact: true}).click()
+  await expect(page.getByRole('button', {name: '保存规则', exact: true})).toBeDisabled()
+  await page.reload()
+  await expect(common).toBeChecked()
+  for (const number of [3, 4, 5])
+    await expect(fleet.getByRole('checkbox', {name: `候补舰队 ${number}`, exact: true})).toBeChecked()
+  await page.setViewportSize({width: 390, height: 844})
+  await common.scrollIntoViewIfNeeded()
+  await expect(common).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await fleet.screenshot({path: 'test-results/fleet-favourite-mobile.png', animations: 'disabled'})
+  await common.uncheck()
+  for (const [index, number] of [3, 4, 5].entries())
+    await fleet.getByRole('checkbox', {name: `候补舰队 ${number}`, exact: true}).setChecked(original[index]!)
+  await page.getByRole('button', {name: '保存规则', exact: true}).click()
+  await expect(page.getByRole('button', {name: '保存规则', exact: true})).toBeDisabled()
+})
+
+test('全部达标停止和培养推送默认关闭并可独立保存', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('azurpilot.language', 'zh-CN'))
+  await page.goto('/#/i/demo-main/task/FleetSwitch?tab=training')
+  const stop = page.getByRole('checkbox', {name: '本轮全部达标后停止练级任务', exact: true})
+  const push = page.getByRole('checkbox', {name: '启用培养与换船推送', exact: true})
+  await expect(stop).not.toBeChecked()
+  await expect(push).not.toBeChecked()
+  await stop.check()
+  await push.check()
+  await page.getByRole('button', {name: '保存调度设置', exact: true}).click()
+  await expect(page.getByRole('button', {name: '保存调度设置', exact: true})).toBeDisabled()
+  await page.reload()
+  await expect(stop).toBeChecked()
+  await expect(push).toBeChecked()
+  for (const name of ['心情调度', '等级调度', '好感调度'])
+    await expect(page.getByRole('switch', {name: `启用${name}`, exact: true})).toHaveAttribute('aria-checked', 'false')
+  await page.setViewportSize({width: 390, height: 844})
+  await stop.scrollIntoViewIfNeeded()
+  await expect(stop).toBeVisible()
+  await expect(push).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+  await stop.locator('..').locator('..').screenshot({path: 'test-results/fleet-training-options-mobile.png', animations: 'disabled'})
+  await stop.uncheck()
+  await push.uncheck()
+  await page.getByRole('button', {name: '保存调度设置', exact: true}).click()
+  await expect(page.getByRole('button', {name: '保存调度设置', exact: true})).toBeDisabled()
+})
+
+test('换船休息默认关闭，楼层可保存且不改变其他调度开关', async ({page}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('azurpilot.language', 'zh-CN')
+    localStorage.setItem('azurpilot.material', 'plain')
+  })
+  await page.goto('/#/i/demo-main/task/FleetSwitch?tab=training')
+  const dorm = page.getByRole('region', {name: '换船休息', exact: true})
+  const toggle = dorm.getByRole('switch', {name: '启用换船休息', exact: true})
+  const floor = dorm.getByRole('combobox', {name: '后宅楼层', exact: true})
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await expect(floor).toHaveText('一楼（训练）')
+  await floor.click()
+  await page.getByRole('option', {name: '二楼（休息）', exact: true}).click()
+  await page.getByRole('button', {name: '保存调度设置', exact: true}).click()
+  await expect(page.getByRole('button', {name: '保存调度设置', exact: true})).toBeDisabled()
+  await page.reload()
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await expect(floor).toHaveText('二楼（休息）')
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  await page.reload()
+  await expect(toggle).toHaveAttribute('aria-checked', 'true')
+  await expect(floor).toHaveText('二楼（休息）')
+  for (const name of ['心情调度', '等级调度', '好感调度'])
+    await expect(page.getByRole('switch', {name: `启用${name}`, exact: true})).toHaveAttribute('aria-checked', 'false')
+  await expect(dorm).toContainText('全队出击、道中队、Boss队优先')
+  await dorm.screenshot({path: 'test-results/fleet-dorm-desktop.png', animations: 'disabled'})
+  await page.setViewportSize({width: 390, height: 844})
+  await dorm.scrollIntoViewIfNeeded()
+  await expect(toggle).toBeVisible()
+  await expect(floor).toBeVisible()
+  await dorm.screenshot({path: 'test-results/fleet-dorm-mobile.png', animations: 'disabled'})
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-checked', 'false')
+  await floor.click()
+  await page.getByRole('option', {name: '一楼（训练）', exact: true}).click()
+  await page.getByRole('button', {name: '保存调度设置', exact: true}).click()
+  await expect(page.getByRole('button', {name: '保存调度设置', exact: true})).toBeDisabled()
+})
 
 test('智能换船整合四个页签，旧入口兼容且刷新与手机布局正常', async ({page}) => {
   const methods: string[] = []
@@ -9,7 +111,7 @@ test('智能换船整合四个页签，旧入口兼容且刷新与手机布局�
     localStorage.setItem('azurpilot.material', 'plain')
     localStorage.setItem('azurpilot.background.plain', JSON.stringify({source: 'off'}))
   })
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
     socket.onMessage(message => {methods.push(JSON.parse(String(message)).method); server.send(message)})
     server.onMessage(message => socket.send(message))
@@ -19,7 +121,7 @@ test('智能换船整合四个页签，旧入口兼容且刷新与手机布局�
   const tabs = page.getByRole('tablist', {name: '智能换船'})
   await expect(tabs.getByRole('tab')).toHaveText(['舰队信息', '换船配置', '换船调度', '换船装备'])
   await expect(page.getByRole('tabpanel')).toHaveAccessibleName('舰队信息')
-  await expect(page.getByRole('tabpanel').locator('.loading')).toHaveCount(0)
+  await expect(page.getByRole('tabpanel').locator('[data-slot=loading]')).toHaveCount(0)
   await page.getByRole('button', {name: '舰队管理', exact: true}).hover()
   const menu = page.getByRole('menu', {name: '舰队管理', exact: true})
   await expect(menu.getByRole('menuitem')).toHaveText(['智能换船', '舰船数据'])
@@ -30,7 +132,7 @@ test('智能换船整合四个页签，旧入口兼容且刷新与手机布局�
     await expect(page.getByRole('tabpanel')).toHaveAccessibleName(name)
     await expect(page.getByRole('heading', {name, exact: true})).toBeVisible()
     await expect(tabs.getByRole('tab', {name, exact: true})).toHaveAttribute('aria-selected', 'true')
-    await expect(page.getByRole('tabpanel').locator('.loading')).toHaveCount(0)
+    await expect(page.getByRole('tabpanel').locator('[data-slot=loading]')).toHaveCount(0)
     await expect(page.getByRole('tabpanel').getByRole('alert')).toHaveCount(0)
   }
   await page.reload()
@@ -44,7 +146,7 @@ test('智能换船整合四个页签，旧入口兼容且刷新与手机布局�
   for (const name of ['舰队信息', '换船配置', '换船调度', '换船装备']) {
     await tabs.getByRole('tab', {name, exact: true}).click()
     await expect(page.getByRole('heading', {name, exact: true})).toBeVisible()
-    await expect(page.getByRole('tabpanel').locator('.loading')).toHaveCount(0)
+    await expect(page.getByRole('tabpanel').locator('[data-slot=loading]')).toHaveCount(0)
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
   }
   await page.screenshot({path: 'test-results/fleet-switch-mobile.png', animations: 'disabled'})
@@ -65,7 +167,7 @@ test('换船调度区分心情触发和毕业检查，移除全舰扫描间隔',
     localStorage.setItem('azurpilot.material', 'plain')
     localStorage.setItem('azurpilot.background.plain', JSON.stringify({source: 'off'}))
   })
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
     socket.onMessage(message => {requests.push(JSON.parse(String(message))); server.send(message)})
     server.onMessage(message => socket.send(message))
@@ -157,7 +259,7 @@ test('换船调度区分心情触发和毕业检查，移除全舰扫描间隔',
     .some(item => item.path === 'FleetInfo.FleetTraining.FullScanIntervalDays')).toBe(false)
 })
 
-test('刷新换船状态清空三类记录并保留调度设置', async ({page}) => {
+test('异常实例无需恢复未完成操作即可刷新换船状态并保留设置', async ({page}) => {
   let cleared = false
   const methods: string[] = []
   await page.addInitScript(() => {
@@ -166,7 +268,7 @@ test('刷新换船状态清空三类记录并保留调度设置', async ({page})
     localStorage.setItem('azurpilot.material', 'plain')
     localStorage.setItem('azurpilot.background.plain', JSON.stringify({source: 'off'}))
   })
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
     socket.onMessage(message => {
       const request = JSON.parse(String(message))
@@ -184,17 +286,22 @@ test('刷新换船状态清空三类记录并保留调度设置', async ({page})
           '热心.改': {fleet: 1, slot: 4, level: 117, exp: 1288961, checked_at: '2026-10-27T19:34:32'},
           '花月': {fleet: 3, slot: 5, level: 120, completed_for: {level: 120}},
           '拉菲': {fleet: 4, slot: 4, level: 80},
-        }, checks: {Main: {checked_at: '2026-10-27T19:34:32'}}, pending: {}}
+        }, checks: {Main: {checked_at: '2026-10-27T19:34:32'}},
+        pending: {'1:4': {fleet: 1}}, reading: {fleet: 1}}
+        fleet.FleetRotation.State = {'1': {source: 3, pending: {slot: 4}}}
+        fleet.FleetEquipment.State = {'1:4': {fleet: 1, slot: 4}}
       }
       socket.send(JSON.stringify(response))
     })
   })
-  await page.goto('/#/i/demo-main/task/FleetTraining')
+  await page.goto('/#/i/demo-error/task/FleetTraining')
   const groups = ['培养舰船', '完成舰船', '旧记录舰船'].map(name => page.getByRole('region', {name, exact: true}))
   for (const group of groups) await expect(group.locator('tbody tr')).toHaveCount(1)
   const interval = page.getByRole('spinbutton', {name: '等级/好感检查间隔（小时，0为每次结算，无上限）', exact: true})
   const hours = await interval.inputValue()
   const enabled = await page.getByRole('switch', {name: '启用等级调度', exact: true}).getAttribute('aria-checked')
+  await expect(page.getByText(/卡住的状态可直接清空，无需先恢复/)).toBeVisible()
+  await expect(page.getByRole('button', {name: '刷新状态', exact: true})).toBeEnabled()
   await groups[0].locator('..').screenshot({path: 'test-results/fleet-training-reset-before.png', animations: 'disabled'})
   await page.getByRole('button', {name: '刷新状态', exact: true}).click()
   await expect(page.getByText('换船记录和检查状态已清空', {exact: true})).toBeVisible()
@@ -205,12 +312,14 @@ test('刷新换船状态清空三类记录并保留调度设置', async ({page})
   await expect(interval).toHaveValue(hours)
   await expect(page.getByRole('switch', {name: '启用等级调度', exact: true})).toHaveAttribute('aria-checked', enabled!)
   await groups[0].locator('..').screenshot({path: 'test-results/fleet-training-reset-after.png', animations: 'disabled'})
+  await page.screenshot({path: 'test-results/fleet-training-reset-recovery.png', fullPage: true, animations: 'disabled'})
   await page.reload()
   for (const group of groups) await expect(group.locator('tbody tr')).toHaveCount(0)
   expect(methods).toContain('fleetTraining.reset')
   expect(methods).not.toContain('config.patch')
   expect(methods).not.toContain('tasks.run')
   expect(methods).not.toContain('scheduler.start')
+  expect(methods).not.toContain('scheduler.stop')
 })
 
 test('换船调度记录按舰位展示真实舰名心情，三框区分且历史各不超过六条', async ({page}) => {
@@ -222,7 +331,7 @@ test('换船调度记录按舰位展示真实舰名心情，三框区分且历�
     localStorage.setItem('azurpilot.material', 'plain')
     localStorage.setItem('azurpilot.background.plain', JSON.stringify({source: 'off'}))
   })
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
     socket.onMessage(message => {methods.push(JSON.parse(String(message)).method); server.send(message)})
     server.onMessage(message => {
@@ -305,7 +414,7 @@ test('同名舰船实读按舰位展示60好感，不串用另一艘布里的记
     localStorage.setItem('azurpilot.material', 'plain')
     localStorage.setItem('azurpilot.background.plain', JSON.stringify({source: 'off'}))
   })
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
     socket.onMessage(message => {methods.push(JSON.parse(String(message)).method); server.send(message)})
     server.onMessage(message => {
@@ -350,7 +459,7 @@ test('仅等级调度展示未突破舰船的实际120级与存储经验', async
     localStorage.setItem('azurpilot.material', 'plain')
     localStorage.setItem('azurpilot.background.plain', JSON.stringify({source: 'off'}))
   })
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
     socket.onMessage(message => {methods.push(JSON.parse(String(message)).method); server.send(message)})
     server.onMessage(message => {
@@ -516,7 +625,7 @@ test('侵蚀一资源检查配置位于献祭流下方且通用页不再显示',
 test('舰队科技完整图鉴区分累计里程碑与当前持有', async ({page}) => {
   await page.addInitScript(() => localStorage.setItem('azurpilot.language', 'zh-CN'))
   let catalogCount = 0
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer(), methods = new Map<string, string>()
     socket.onMessage(message => {const request = JSON.parse(String(message)); methods.set(request.id, request.method); server.send(message)})
     server.onMessage(message => {
@@ -538,16 +647,20 @@ test('舰队科技完整图鉴区分累计里程碑与当前持有', async ({pag
   })
   await page.goto('/#/i/demo-main/task/FleetAnalysis?tab=technology')
   const table = page.locator('.ft-table-wrap')
-  await expect.poll(() => catalogCount).toBeGreaterThan(50)
-  await expect(table.locator('tbody tr')).toHaveCount(catalogCount)
+  await expect.poll(() => catalogCount, {timeout: 15_000}).toBeGreaterThan(50)
+  await expect(table.locator('tbody tr')).toHaveCount(catalogCount, {timeout: 20_000})
   await expect(page.locator('.ft-summary')).toContainText('里程碑独立保存')
   await expect(page.getByRole('button', {name: '舰船底账', exact: true})).toHaveCount(0)
   await expect(page.getByRole('button', {name: '合并记录', exact: true})).toHaveCount(0)
+  const unowned = page.getByRole('button', {name: '未获得', exact: true})
+  await expect(unowned).toHaveAttribute('data-slot', 'button')
+  await expect(unowned).toHaveAttribute('aria-pressed', 'false')
   await page.getByLabel('搜索舰名', {exact: true}).fill('杜威')
   await expect(table.locator('tr[data-group="10102"]')).toHaveCount(1)
   await expect(table.getByRole('link', {name: '杜威', exact: true})).toHaveAttribute('title', /当前持有: 0/)
   await expect(table.getByRole('button', {name: '杜威 · 满星 · 已完成', exact: true})).toHaveAttribute('aria-pressed', 'true')
-  await page.getByRole('button', {name: '未获得', exact: true}).click()
+  await unowned.click()
+  await expect(unowned).toHaveAttribute('aria-pressed', 'true')
   // 搜索是包含匹配：普通杜威已完成，杜威·META 仍未获得。
   await expect(table.locator('tr[data-group="10102"]')).toHaveCount(0)
   await expect(table.locator('tbody tr')).toHaveCount(1)
@@ -557,7 +670,141 @@ test('舰队科技完整图鉴区分累计里程碑与当前持有', async ({pag
   await expect(table.locator('tr[data-group="10102"]')).toHaveCount(1)
   await page.setViewportSize({width: 412, height: 950})
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
-  expect(await table.evaluate(element => element.scrollWidth > element.clientWidth)).toBe(true)
+  expect(await table.locator('[data-slot=table-container]').evaluate(
+    element => element.scrollWidth > element.clientWidth,
+  )).toBe(true)
+})
+
+for (const theme of ['modern-light', 'modern-dark']) {
+  test(`舰船表格 ${theme} 输入框保留组件默认样式`, async ({page}) => {
+    await page.addInitScript(theme => {
+      localStorage.setItem('azurpilot.language', 'zh-CN')
+      localStorage.setItem('azurpilot.theme', theme)
+    }, theme)
+    await page.emulateMedia({reducedMotion: 'reduce'})
+    await page.goto('/#/i/demo-main/task/FleetAnalysis?tab=data')
+    await page.getByRole('button', {name: '添加舰船', exact: true}).click()
+    const reference = page.locator('.ledger-level-range input[type="number"]').first()
+    const field = page.locator('.ledger-table-wrap tbody tr').first().locator('input[type="number"]')
+    await expect(field).toHaveAttribute('data-slot', 'input')
+    const styles = (element: Element) => {
+      const css = getComputedStyle(element)
+      return {border: css.borderColor, background: css.backgroundColor, shadow: css.boxShadow, padding: css.padding, fontSize: css.fontSize}
+    }
+    expect(await field.evaluate(styles)).toEqual(await reference.evaluate(styles))
+    await page.setViewportSize({width: 390, height: 844})
+    expect(await field.evaluate(styles)).toEqual(await reference.evaluate(styles))
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
+  })
+}
+
+test('舰船导入按钮打开对应的多文件选择器', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('azurpilot.language', 'zh-CN'))
+  await page.goto('/#/i/demo-main/task/FleetAnalysis?tab=scan')
+  for (const [name, accept] of [['导入舰船清单', '.json,.csv,.xlsx'], ['导入船坞截图', 'image/*']]) {
+    const button = page.getByRole('button', {name, exact: true})
+    await expect(button).toBeEnabled()
+    await expect(button).toHaveAttribute('data-slot', 'button')
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), button.click()])
+    expect(chooser.isMultiple()).toBe(true)
+    expect(await chooser.element().getAttribute('accept')).toBe(accept)
+  }
+})
+
+test('暗色资源统计与舰队科技使用可操作的官方控件', async ({page}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem('azurpilot.language', 'zh-CN')
+    localStorage.setItem('azurpilot.theme', 'modern-dark')
+  })
+  await page.goto('/#/i/demo-main/task/FleetAnalysis?tab=technology')
+  const filter = page.getByRole('button', {name: '未获得', exact: true})
+  await expect(filter).toHaveAttribute('data-slot', 'button', {timeout: 20000})
+  await expect(filter).toHaveAttribute('aria-pressed', 'false')
+  await filter.click()
+  await expect(filter).toHaveAttribute('aria-pressed', 'true')
+  await expect(filter).toHaveAttribute('data-variant', 'default')
+  await page.screenshot({path: 'test-results/fleet-controls-dark.png', animations: 'disabled'})
+  await page.goto('/#/i/demo-main/statistics')
+  const metric = page.getByRole('group', {name: '指标'}).getByRole('button', {name: '物资', exact: true})
+  await expect(metric).toHaveAttribute('data-slot', 'button')
+  await metric.click()
+  await expect(metric).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('tablist', {name: '统计分类'})).toHaveAttribute('data-slot', 'tabs-list')
+  await page.screenshot({path: 'test-results/statistics-controls-dark.png', animations: 'disabled'})
+})
+
+test('统计页面组合可以选择、取消及移除页面', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('azurpilot.language', 'zh-CN'))
+  await page.goto('/#/i/demo-main/statistics')
+  await page.getByRole('button', {name: '样式编辑', exact: true}).click()
+  const slots = page.locator('.statistics-chain-slots')
+  const firstPicker = slots.getByRole('combobox', {name: '加入页面组合'})
+  await expect(firstPicker).toHaveAttribute('data-slot', 'select-trigger')
+  await firstPicker.click()
+  await page.getByRole('option', {name: '资源趋势', exact: true}).click()
+  const row = slots.locator('.statistics-chain-row').first()
+  await expect(row).toContainText('资源趋势')
+  const rowPicker = row.getByRole('combobox', {name: '加入页面组合'})
+  await rowPicker.click()
+  await page.keyboard.press('Escape')
+  await expect(rowPicker).toHaveAttribute('aria-expanded', 'false')
+  await expect(rowPicker).toBeFocused()
+  await rowPicker.click()
+  await page.getByRole('option', {name: '舰船经验', exact: true}).click()
+  await expect(row).toContainText('舰船经验')
+  await row.getByRole('button', {name: '移出组合'}).last().click()
+  await expect(row).not.toContainText('舰船经验')
+  await expect(row).toContainText('资源趋势')
+  await page.setViewportSize({width: 390, height: 844})
+  await expect(rowPicker).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true)
+})
+
+test('统计样式编辑的页面开关保留选中和恢复行为', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('azurpilot.language', 'zh-CN'))
+  await page.goto('/#/i/demo-main/statistics')
+  const chart = page.locator('[data-card-key="resources:chart"]')
+  const expand = chart.getByRole('button', {name: '放大查看', exact: true})
+  await expect(expand).toHaveAttribute('data-slot', 'button')
+  await expand.click()
+  const collapse = page.getByRole('button', {name: '收起图表', exact: true}).filter({hasText: '收起图表'})
+  await expect(collapse).toBeVisible()
+  await collapse.click()
+  await page.getByRole('button', {name: '样式编辑', exact: true}).click()
+  const pickerToggle = chart.getByRole('button', {name: '隐藏选取器', exact: true})
+  await expect(pickerToggle).toHaveAttribute('data-slot', 'button')
+  await pickerToggle.click()
+  await expect(chart.getByRole('button', {name: '显示选取器', exact: true})).toHaveAttribute('aria-pressed', 'true')
+  await chart.getByRole('button', {name: '显示选取器', exact: true}).click()
+  const moveDown = chart.getByRole('button', {name: '下移', exact: true})
+  await expect(moveDown).toHaveAttribute('data-slot', 'button')
+  await moveDown.click()
+  const raw = page.locator('[data-card-key="resources:raw"]')
+  await expect.poll(() => raw.evaluate(element => Boolean(element.compareDocumentPosition(document.querySelector('[data-card-key="resources:chart"]')!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true)
+  await chart.getByRole('button', {name: '上移', exact: true}).click()
+  await expect.poll(() => chart.evaluate(element => Boolean(element.compareDocumentPosition(document.querySelector('[data-card-key="resources:raw"]')!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true)
+  const hide = chart.getByRole('button', {name: '隐藏卡片', exact: true})
+  await expect(hide).toHaveAttribute('data-slot', 'button')
+  await hide.click()
+  await expect(chart).toHaveCount(0)
+  const restore = page.getByRole('button', {name: '显示卡片', exact: true}).first()
+  await expect(restore).toHaveAttribute('data-slot', 'button')
+  await restore.click()
+  await expect(chart).toBeVisible()
+  const merge = page.getByRole('button', {name: '合并单页', exact: true})
+  await expect(merge).toHaveAttribute('data-slot', 'button')
+  await merge.click()
+  await expect(merge).toHaveAttribute('aria-pressed', 'true')
+  await merge.click()
+  await expect(merge).toHaveAttribute('aria-pressed', 'false')
+  const console = page.getByRole('region', {name: '样式编辑控制台'})
+  const toggle = console.getByRole('button', {name: '科研掉落', exact: true})
+  await expect(toggle).toHaveAttribute('data-slot', 'button')
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+  await toggle.click()
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('统计慢请求合并更新且概览事件不重复取数', async ({page}) => {
@@ -566,14 +813,14 @@ test('统计慢请求合并更新且概览事件不重复取数', async ({page})
   let overview = ''
   let emit: (topic: string, instance?: string) => void = () => {}
   let release: () => void = () => {}
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
-    emit = (topic, instance = 'demo-main') => {
+    if (socket.channel === 'control') emit = (topic, instance = 'demo-main') => {
       /* 概览事件回放服务端的真实载荷：右栏直接按 Overview 形状消费事件数据，占位载荷会把它渲染崩。 */
       if (topic === 'overview' && overview) socket.send(overview)
       else socket.send(JSON.stringify({v: 1, type: 'event', topic, seq: 100, data: {instance}}))
     }
-    release = () => socket.send(held.shift()!)
+    if (socket.channel === 'data') release = () => socket.send(held.shift()!)
     socket.onMessage(message => {
       const request = JSON.parse(String(message))
       if (request.method === 'statistics.report') ids.add(request.id)
@@ -611,9 +858,9 @@ test('统计切换分类后丢弃旧响应和旧刷新回调', async ({page}) =>
   let held = ''
   let oldId = ''
   let release: () => void = () => {}
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
-    release = () => socket.send(held)
+    if (socket.channel === 'data') release = () => socket.send(held)
     socket.onMessage(message => {
       const request = JSON.parse(String(message))
       if (request.method === 'statistics.report' && request.params.category === 'opsi') oldId = request.id
@@ -743,29 +990,25 @@ test('任务分组目录重复点击保持在同一栏目', async ({page}) => {
   await expect.poll(() => page.evaluate(() => document.scrollingElement!.scrollTop)).toBeCloseTo(firstPosition, 0)
 })
 
-test('玻璃装饰不阻挡导航，背景失败降级并尊重减少动态效果', async ({page}) => {
+test('背景失败时降级，键盘仍可跳转到内容', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('azurpilot.material', 'glass'))
   let backgrounds = 0
-  await page.route('**/wallpaper.jpg', async route => {
+  await page.route('https://api.yppp.net/api.php', async route => {
     backgrounds += 1
     await route.fulfill({contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="1280" height="720" fill="#9acbff"/></svg>'})
   })
   await page.goto('/')
   await expect(page.locator('.wallpaper img')).toBeVisible()
-  await expect(page.locator('.glass-material-lens')).toHaveCount(1)
   await page.keyboard.press('Tab')
   await expect(page.getByRole('link', {name: '跳转到内容'})).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(page.locator('main')).toBeFocused()
-  await page.locator('.instance-card').first().click()
-  await page.getByRole('button', {name: '切换实例'}).click()
-  await expect(page.getByRole('menuitemradio').first()).toBeVisible()
-  await page.keyboard.press('Escape')
+  await expect(page.getByRole('tab', {name: 'demo-main', exact: true})).toBeVisible()
   expect(backgrounds).toBe(1)
   await page.emulateMedia({reducedMotion: 'reduce'})
-  await expect(page.locator('.glass-material-lens')).toHaveCount(0)
-  await expect(page.getByRole('button', {name: '切换实例'})).toBeVisible()
-  await page.unroute('**/wallpaper.jpg')
-  await page.route('**/wallpaper.jpg', route => route.abort())
+  await expect(page.getByRole('tab', {name: 'demo-main', exact: true})).toBeVisible()
+  await page.unroute('https://api.yppp.net/api.php')
+  await page.route('https://api.yppp.net/api.php', route => route.abort())
   await page.reload()
   await expect(page.locator('.wallpaper img')).toHaveCount(0)
   await expect(page.getByRole('heading', {name: 'demo-main', exact: true})).toBeVisible()
@@ -777,11 +1020,14 @@ test('总览三态、资源搭配记忆、日志与被动截图切换', async ({
   await page.goto('/#/i/demo-main/overview')
   await expect(page.getByLabel('搜索日志')).toHaveCount(0)
   await expect(page.locator('.primary-nav').getByRole('link', {name: '运行日志'})).toHaveCount(0)
+  const cards = page.locator('.resource-card')
+  await expect(cards.first()).toBeVisible()
+  const cardCount = await cards.count()
   await page.getByRole('button', {name: '仪表盘设置', exact: true}).click()
   const settings = page.getByRole('dialog')
   await settings.getByRole('button', {name: '添加卡片', exact: true}).click()
   await settings.getByRole('button', {name: '行动力', exact: true}).click()
-  const editorCards = settings.locator('.resource-editor-card:not(.resource-editor-add)')
+  const editorCards = settings.locator('.resource-card-editor > [data-resource-key]')
   const source = await editorCards.last().boundingBox()
   const target = await editorCards.first().boundingBox()
   expect(source).not.toBeNull()
@@ -791,20 +1037,20 @@ test('总览三态、资源搭配记忆、日志与被动截图切换', async ({
   await page.mouse.move(target!.x + target!.width / 2, target!.y + target!.height / 2, {steps: 5})
   await page.mouse.up()
   await expect(editorCards.first()).toContainText('行动力')
-  await settings.getByRole('button', {name: '关闭', exact: true}).click()
-  await expect(page.locator('.resource-card')).toHaveCount(5)
-  await expect(page.locator('.resource-card').first()).toContainText('行动力')
-  const actionPoint = page.locator('.resource-card').filter({hasText: '行动力'})
+  await page.keyboard.press('Escape')
+  await expect(cards).toHaveCount(cardCount + 1)
+  await expect(cards.first()).toContainText('行动力')
+  const actionPoint = cards.filter({has: page.getByText('行动力', {exact: true})})
   await expect(actionPoint.locator('.resource-heading')).toHaveText('行动力')
-  await expect(actionPoint.locator('.resource-value')).toHaveText('101/ 5,301')
-  await expect(actionPoint.locator('.resource-value small')).toHaveText('/ 5,301')
-  await expect(actionPoint.locator('.resource-icon-image')).toHaveAttribute('src', /guild_coin\.webp/)
+  await expect(actionPoint.locator('.resource-value')).toHaveText('101/ 6,001')
+  await expect(actionPoint.locator('.resource-value small')).toHaveText('/ 6,001')
+  await expect(actionPoint.locator('.resource-icon-image')).toHaveAttribute('src', /dog_small\.webp/)
   await page.reload()
-  await expect(page.locator('.resource-card')).toHaveCount(5)
+  await expect(cards).toHaveCount(cardCount + 1)
   await page.getByRole('button', {name: '启动调度器', exact: true}).click()
-  await expect(page.locator('.task-state.running')).toHaveCount(1)
-  await expect(page.locator('.task-state.pending').first()).toBeVisible()
-  await expect(page.locator('.task-state.waiting').first()).toBeVisible()
+  await expect(page.getByRole('link', {name: /运行中$/})).toHaveCount(1)
+  await expect(page.getByRole('link', {name: /待运行$/}).first()).toBeVisible()
+  await expect(page.getByRole('link', {name: /等待中$/}).first()).toBeVisible()
   await page.getByRole('tab', {name: '截图', exact: true}).click()
   await expect(page.getByAltText('任务最近一次截图')).toBeVisible({timeout: 10000})
   expect(methods).not.toContain('preview.capture')
@@ -831,7 +1077,7 @@ test('资源数值按可用宽度缩放并保持当前值与上限在同一行',
   page.on('pageerror', error => errors.push(error.message))
   await page.addInitScript(() => {
     localStorage.setItem('azurpilot.resources.demo-main', JSON.stringify(['Oil', 'Coin', 'Gem', 'Cube', 'Pt', 'ActionPoint', 'YellowCoin', 'PurpleCoin', 'Core', 'Medal', 'Merit', 'GuildCoin']))
-    if (!localStorage.getItem('azurpilot.theme')) localStorage.setItem('azurpilot.theme', 'legacy-light')
+    if (!localStorage.getItem('azurpilot.theme')) localStorage.setItem('azurpilot.theme', 'modern-light')
   })
   await page.setViewportSize({width: 1996, height: 900})
   await page.goto('/#/i/demo-main/overview')
@@ -840,16 +1086,18 @@ test('资源数值按可用宽度缩放并保持当前值与上限在同一行',
   const coin = page.locator('.resource-card').filter({hasText: '物资'}).locator('.resource-value-content')
   await expect(coin).toHaveText('186,420/ 600,000')
   const assertFits = async () => {
-    await expect.poll(() => values.evaluateAll(elements => elements.every(element => {
+    await expect.poll(() => values.evaluateAll(elements => elements.flatMap(element => {
       const content = element.querySelector('.resource-value-content')!
       const primary = content.querySelector('span')!
       const suffix = content.querySelector('small')
       const box = content.getBoundingClientRect()
-      return box.width <= element.clientWidth + .5
+      const fits = box.width <= element.clientWidth + .5
         && (!suffix || (suffix.getClientRects().length === 1
           && suffix.getBoundingClientRect().top < primary.getBoundingClientRect().bottom
           && parseFloat(getComputedStyle(suffix).fontSize) < parseFloat(getComputedStyle(primary).fontSize)))
-    }))).toBe(true)
+      return fits ? [] : [{text: content.textContent, width: box.width, available: element.clientWidth,
+        primarySize: getComputedStyle(primary).fontSize, suffixSize: suffix && getComputedStyle(suffix).fontSize}]
+    }))).toEqual([])
   }
   await assertFits()
   await expect.poll(() => coin.evaluate(element => parseFloat(getComputedStyle(element).fontSize) < parseFloat(getComputedStyle(element.parentElement!).fontSize))).toBe(true)
@@ -867,19 +1115,16 @@ test('资源数值按可用宽度缩放并保持当前值与上限在同一行',
   expect(errors).toEqual([])
 })
 
-for (const theme of ['minimal', 'legacy-light', 'legacy-dark', 'extreme'] as const) {
+for (const theme of ['modern-light', 'modern-dark'] as const) {
   test(`${theme} 窄屏总览与统计内容完整可访问`, async ({page}) => {
     test.setTimeout(60000)
     await page.addInitScript(value => localStorage.setItem('azurpilot.theme', value), theme)
     await page.setViewportSize({width: 550, height: 1000})
     await page.goto('/#/i/demo-main/overview')
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-    const legacy = theme.startsWith('legacy-')
     await expect(page.locator('.resource-card')).toHaveCount(4)
     await expect.poll(() => page.locator('main').evaluate(element => element.clientHeight)).toBeGreaterThan(500)
-    if (!legacy) await page.getByRole('button', {name: '打开调度与任务', exact: true}).click()
     await page.getByRole('button', {name: '启动调度器', exact: true}).click()
-    if (!legacy) await page.locator('.right-rail').getByRole('button', {name: '关闭调度与任务', exact: true}).click()
     try {
       await page.getByRole('tab', {name: '截图', exact: true}).click()
       const preview = page.getByAltText('任务最近一次截图')
@@ -893,9 +1138,7 @@ for (const theme of ['minimal', 'legacy-light', 'legacy-dark', 'extreme'] as con
       }
       await page.screenshot({path: `test-results/narrow-${theme}-overview.png`, fullPage: true})
     } finally {
-      if (!legacy) await page.getByRole('button', {name: '打开调度与任务', exact: true}).click()
       await page.getByRole('button', {name: '停止运行', exact: true}).click()
-      if (!legacy) await page.locator('.right-rail').getByRole('button', {name: '关闭调度与任务', exact: true}).click()
     }
 
     await page.goto('/#/i/demo-main/statistics')
@@ -904,11 +1147,6 @@ for (const theme of ['minimal', 'legacy-light', 'legacy-dark', 'extreme'] as con
       await page.getByRole('button', {name: '打开导航', exact: true}).click()
       await expect(page.locator('.sidebar')).toBeInViewport({ratio: .95})
       await page.getByRole('button', {name: '关闭导航', exact: true}).click()
-      if (!legacy) {
-        await page.getByRole('button', {name: '打开调度与任务', exact: true}).click()
-        await expect(page.locator('.right-rail')).toBeInViewport({ratio: .95})
-        await page.locator('.right-rail').getByRole('button', {name: '关闭调度与任务', exact: true}).click()
-      }
       for (const category of ['资源趋势', '大世界趋势', '短猫掉落']) {
         const picker = page.getByRole('combobox', {name: '统计分类', exact: true})
         if (await picker.isVisible()) {
@@ -929,33 +1167,17 @@ for (const theme of ['minimal', 'legacy-light', 'legacy-dark', 'extreme'] as con
   })
 }
 
-test('任务二级菜单通过顶层浮层覆盖资源卡片', async ({page}) => {
-  await page.setViewportSize({width: 1134, height: 669})
-  await page.addInitScript(() => localStorage.setItem('azurpilot.resources.demo-main', JSON.stringify(['Oil', 'ActionPoint'])))
+test('任务组在侧栏内展开并可跳转到配置页', async ({page}) => {
   await page.goto('/#/i/demo-main/overview')
-  await page.locator('.task-group-button').filter({hasText: '系统'}).click()
-  const flyout = page.locator('.task-submenu-flyout')
-  await expect(flyout).toBeVisible()
-  await expect(flyout).toHaveCSS('position', 'fixed')
-  await expect(flyout).toHaveCSS('z-index', '100')
-  await expect(flyout).toHaveCSS('background-color', 'rgb(255, 255, 255)')
-  await expect(flyout).toHaveCSS('backdrop-filter', 'none')
-  expect(await flyout.evaluate(element => element.parentElement === document.body)).toBe(true)
-
-  const overlap = await flyout.evaluate(element => {
-    const flyoutRect = element.getBoundingClientRect()
-    const card = [...document.querySelectorAll<HTMLElement>('.resource-card')].find(candidate => {
-      const rect = candidate.getBoundingClientRect()
-      return Math.max(flyoutRect.left, rect.left) < Math.min(flyoutRect.right, rect.right) && Math.max(flyoutRect.top, rect.top) < Math.min(flyoutRect.bottom, rect.bottom)
-    })
-    if (!card) return {found: false, onTop: false}
-    const cardRect = card.getBoundingClientRect()
-    const x = (Math.max(flyoutRect.left, cardRect.left) + Math.min(flyoutRect.right, cardRect.right)) / 2
-    const y = (Math.max(flyoutRect.top, cardRect.top) + Math.min(flyoutRect.bottom, cardRect.bottom)) / 2
-    return {found: true, onTop: !!document.elementFromPoint(x, y) && element.contains(document.elementFromPoint(x, y))}
-  })
-  expect(overlap).toEqual({found: true, onTop: true})
-  await page.screenshot({path: 'test-results/task-submenu-resource-overlay.png', fullPage: true, animations: 'disabled'})
+  const sidebar = page.locator('.sidebar')
+  const group = sidebar.getByRole('button', {name: '系统', exact: true})
+  const task = sidebar.locator('#task-group-Alas a[href$="/task/Alas"]')
+  await expect(group).toHaveAttribute('aria-expanded', 'false')
+  await group.click()
+  await expect(group).toHaveAttribute('aria-expanded', 'true')
+  await expect(task).toBeVisible()
+  await task.click()
+  await expect(page).toHaveURL(/\/task\/Alas$/)
 })
 
 test('舰队扫描和半自动工具在当前页面显示运行日志', async ({page}) => {
@@ -994,45 +1216,11 @@ test('舰队扫描和半自动工具在当前页面显示运行日志', async ({
   }
 })
 
-test('分段滑块首屏静止，交互后平移并尊重减少动态效果', async ({page}) => {
-  await page.addInitScript(() => {
-    document.addEventListener('transitionrun', event => {
-      if (event.target instanceof Element && event.target.matches('.segmented-indicator')) {
-        const root = document.documentElement
-        root.dataset.segmentTransitions = String(Number(root.dataset.segmentTransitions ?? 0) + 1)
-      }
-    })
-  })
-  await page.goto('/#/i/demo-main/statistics')
-  await expect(page.getByRole('img', {name: '石油交互趋势图'})).toBeVisible()
-  const tabs = page.getByRole('tablist', {name: '统计分类'})
-  const transitions = () => page.evaluate(() => Number(document.documentElement.dataset.segmentTransitions ?? 0))
-  expect(await transitions()).toBe(0)
-  await tabs.screenshot({path: 'test-results/segmented-statistics-light.png'})
-  await tabs.getByRole('tab', {name: '委托收益', exact: true}).click()
-  await expect.poll(transitions).toBeGreaterThan(0)
-  await expect(page.locator('.period-controls strong')).toHaveText('委托收益')
-  await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'dark'))
-  await expect(tabs).toHaveCSS('background-color', 'rgba(37, 37, 41, 0.78)')
-  await expect(tabs.getByRole('tab', {name: '委托收益', exact: true})).toHaveCSS('color', 'rgb(245, 245, 247)')
-  await tabs.screenshot({path: 'test-results/segmented-statistics-dark.png'})
-  await page.emulateMedia({reducedMotion: 'reduce'})
-  const before = await transitions()
-  await tabs.getByRole('tab', {name: '大世界总结', exact: true}).click()
-  await expect(page.locator('.period-controls strong')).toHaveText('大世界总结')
-  expect(await transitions()).toBe(before)
-  await expect(tabs.locator('.segmented-indicator')).toHaveCSS('transition-duration', '0s')
-})
-
-test('统计与监控复用分段控件的样式及键盘切换', async ({page}) => {
+test('统计与监控分类支持键盘切换', async ({page}) => {
   await page.goto('/#/i/demo-main/overview')
   const monitor = page.getByRole('tablist', {name: '监控视图'})
   await expect(monitor).toBeVisible()
   await monitor.screenshot({path: 'test-results/segmented-monitor-light.png'})
-  const appearance = await monitor.evaluate(control => {
-    const style = getComputedStyle(control)
-    return [style.backgroundColor, style.borderColor, style.borderRadius, control.querySelector('button')!.getBoundingClientRect().height]
-  })
   await monitor.getByRole('tab', {name: '日志', exact: true}).focus()
   await page.keyboard.press('ArrowRight')
   await expect(monitor.getByRole('tab', {name: '截图', exact: true})).toHaveAttribute('aria-selected', 'true')
@@ -1043,11 +1231,10 @@ test('统计与监控复用分段控件的样式及键盘切换', async ({page})
   await page.goto('/#/i/demo-main/statistics')
   const statistics = page.getByRole('tablist', {name: '统计分类'})
   await expect(statistics).toBeVisible()
-  expect(await statistics.evaluate(control => {
-    // 分类栏的控件面绘制在伪元素上，元素本体为透明背景。
-    const style = getComputedStyle(control, '::after')
-    return [style.backgroundColor, style.borderColor, style.borderRadius, control.querySelector('button')!.getBoundingClientRect().height]
-  })).toEqual(appearance)
+  await expect(statistics).toHaveAttribute('data-slot', 'tabs-list')
+  await statistics.getByRole('tab', {name: '资源趋势', exact: true}).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(statistics.getByRole('tab', {name: '资源管理', exact: true})).toHaveAttribute('aria-selected', 'true')
 })
 
 test('大世界掉落展示新增研发材料、实验计划与突破部件', async ({page}) => {
@@ -1091,6 +1278,8 @@ test('统计分类、K 线、时间过滤、表格导出与移动端布局', asy
   page.on('pageerror', error => errors.push(error.message))
   await page.goto('/#/i/demo-main/statistics')
   await expect(page.getByRole('img', {name: '石油交互趋势图'})).toBeVisible()
+  await expect(page.getByRole('tablist', {name: '统计分类'})).toHaveAttribute('data-slot', 'tabs-list')
+  await expect(page.getByRole('group', {name: '指标'}).getByRole('button', {name: '石油'})).toHaveAttribute('data-slot', 'button')
   const rawTable = page.locator('[data-card-key="resources:raw"] .statistics-table')
   const rawRecords = rawTable.locator('tbody tr')
   const recordTime = async (row: ReturnType<typeof rawRecords.first>) => Date.parse((await row.locator('td').first().innerText()).replace(' ', 'T'))
@@ -1123,16 +1312,14 @@ test('统计分类、K 线、时间过滤、表格导出与移动端布局', asy
   await page.setViewportSize({width: 390, height: 844})
   const picker = page.getByRole('combobox', {name: '统计分类', exact: true})
   await expect(picker).toBeVisible()
-  await picker.focus()
-  await page.keyboard.press('End')
-  await page.keyboard.press('Enter')
+  await picker.click()
+  await page.getByRole('option', {name: '仓库物品', exact: true}).click()
   await expect(picker).toHaveText('仓库物品')
   await picker.click()
   await page.getByRole('option', {name: '科研掉落', exact: true}).click()
   await expect(page.locator('.period-controls strong')).toHaveText('科研掉落')
-  await picker.focus()
-  await page.keyboard.press('Home')
-  await page.keyboard.press('Enter')
+  await picker.click()
+  await page.getByRole('option', {name: '资源趋势', exact: true}).click()
   await expect(picker).toHaveText('资源趋势')
   await expect(page.getByRole('img', {name: '石油交互趋势图'})).toBeVisible()
   await page.screenshot({path: 'test-results/statistics-mobile-new.png', fullPage: true})
@@ -1140,7 +1327,7 @@ test('统计分类、K 线、时间过滤、表格导出与移动端布局', asy
   expect(errors).toEqual([])
 })
 
-test('下拉切换实例、创建入口与实例隔离', async ({page}) => {
+test('标签切换实例、创建入口与实例隔离', async ({page}) => {
   await page.goto('/#/i/demo-main/task/Alas')
   const serial = page.locator('[id="Alas.Emulator.Serial"]')
   await expect(serial).toHaveValue('127.0.0.1:5555')
@@ -1148,15 +1335,11 @@ test('下拉切换实例、创建入口与实例隔离', async ({page}) => {
   await expect(page.locator('.primary-nav').getByRole('link', {name: '系统设置'})).toHaveCount(0)
   await expect(page.getByRole('button', {name: /保存/})).toHaveCount(0)
   await expect(page.getByRole('button', {name: '撤销修改'})).toHaveCount(0)
-  await page.getByRole('button', {name: '切换实例'}).click()
-  await page.getByRole('menuitemradio', {name: 'demo-alt', exact: true}).click()
+  await page.getByRole('tab', {name: 'demo-alt', exact: true}).click()
   await expect(page).toHaveURL(/demo-alt\/task\/Alas/)
   await page.goto('/#/i/demo-alt/task/Alas')
   await expect(serial).toHaveValue('127.0.0.1:5557')
-  await page.getByRole('button', {name: '切换实例'}).click()
-  await page.keyboard.press('End')
-  await expect(page.getByRole('menuitem', {name: '创建实例'})).toBeFocused()
-  await page.keyboard.press('Enter')
+  await page.locator('.instance-tabs').getByRole('button', {name: '创建实例', exact: true}).click()
   const name = `mock_${Date.now()}`
   await page.getByRole('dialog').getByLabel('实例名称', {exact: true}).fill(name)
   await page.getByRole('dialog').getByRole('button', {name: '创建实例', exact: true}).click()
@@ -1188,11 +1371,10 @@ test('配置字体、多行输入与 YAML 编辑实时保存及主题颜色', as
   await row.scrollIntoViewIfNeeded()
   await page.screenshot({path: 'test-results/yaml-light.png'})
   await page.goto('/#/interface')
-  await page.getByRole('combobox', {name: '界面主题', exact: true}).click()
-  await page.getByRole('option', {name: '深色', exact: true}).click()
+  await page.getByRole('tablist', {name: '明暗', exact: true}).getByRole('tab', {name: '深色', exact: true}).click()
   await page.goto('/#/i/demo-main/task/Alas')
   await expect(editor).toBeVisible()
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'modern-dark')
   expect(await token.evaluate(node => getComputedStyle(node).color)).not.toBe(lightColor)
   await row.scrollIntoViewIfNeeded()
   await page.screenshot({path: 'test-results/yaml-dark.png'})
@@ -1281,7 +1463,6 @@ test('语言偏好持久化，模拟启停、预览、统计和部署设置', as
   await page.reload()
   await expect(page.locator('#ui-language')).toHaveText('English')
   await expect(page.getByRole('heading', {name: 'Interface', exact: true})).toBeVisible()
-  await expect(page.locator('.primary-nav').getByRole('link', {name: 'Updater', exact: true})).toHaveCount(0)
   await page.goto('/#/i/demo-main/task/Alas')
   await expect(page.locator('label[for="Alas.Emulator.Serial"]')).toContainText(/serial/i)
   await page.goto('/#/interface')
@@ -1307,11 +1488,10 @@ test('语言偏好持久化，模拟启停、预览、统计和部署设置', as
 test('移动端放大布局无横向溢出，单栏导航可以收起', async ({page}) => {
   await page.setViewportSize({width: 390, height: 844})
   await page.goto('/#/i/demo-main/overview')
-  await page.getByRole('button', {name: '切换实例'}).click()
-  await page.getByRole('menuitemradio', {name: 'demo-alt', exact: true}).click()
+  await page.getByRole('tab', {name: 'demo-alt', exact: true}).click()
   await expect(page.locator('.app-shell')).not.toHaveClass(/mobile-open/)
   await page.getByRole('button', {name: '打开导航'}).click()
-  await page.getByRole('link', {name: 'AzurPilot 主页'}).click()
+  await page.getByRole('link', {name: 'AzurPilot 系统设置'}).click()
   await page.getByRole('button', {name: '打开导航'}).click()
   await page.locator('.primary-nav').getByRole('link', {name: '界面设置'}).click()
   await expect(page.getByLabel('界面主题')).toBeVisible()
@@ -1319,63 +1499,26 @@ test('移动端放大布局无横向溢出，单栏导航可以收起', async ({
   await page.screenshot({path: 'test-results/mock-mobile.png', fullPage: true, animations: 'disabled'})
 })
 
-test('窄窗口调度器入口位于左侧标题栏且可展开右栏', async ({page}) => {
-  await page.setViewportSize({width: 950, height: 844})
-  await page.goto('/#/i/demo-main/overview')
-  const topbar = page.locator('.topbar')
-  const toggle = page.getByRole('button', {name: '打开调度与任务'})
-  await expect(toggle).toBeVisible()
-  const [toggleBox, topbarBox] = await Promise.all([toggle.boundingBox(), topbar.boundingBox()])
-  expect(toggleBox!.y).toBeGreaterThanOrEqual(topbarBox!.y)
-  expect(toggleBox!.y + toggleBox!.height).toBeLessThanOrEqual(topbarBox!.y + topbarBox!.height)
-  expect(toggleBox!.x + toggleBox!.width).toBeLessThanOrEqual(topbarBox!.x + topbarBox!.width / 2)
-  await toggle.click()
-  await expect(page.locator('.app-shell')).toHaveClass(/rail-open/)
-  await expect(page.locator('.right-rail')).toBeVisible()
-  await page.locator('.mobile-rail-toggle').click()
-  await expect(page.locator('.app-shell')).not.toHaveClass(/rail-open/)
-  await page.setViewportSize({width: 213, height: 500})
-  await expect(page.locator('.breadcrumb')).toBeHidden()
-  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  await page.locator('.mobile-rail-toggle').click()
-  await expect(page.locator('.right-rail')).toBeVisible()
-  await page.locator('.right-rail').getByRole('button', {name: '关闭调度与任务'}).click()
-  await expect(page.locator('.app-shell')).not.toHaveClass(/rail-open/)
-  await page.setViewportSize({width: 951, height: 844})
-  await expect(page.locator('.mobile-rail-toggle')).toBeHidden()
-})
-
-
-test('主页实例状态、任务搜索收起与导航固定', async ({page}) => {
+test('直接进入实例总览、标签状态与任务搜索', async ({page}) => {
   const errors: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   await page.goto('/')
-  await expect(page.getByRole('heading', {name: /好，指挥官/})).toBeVisible()
-  await expect(page.locator('.home-stats')).toContainText('全部实例')
-  await expect(page.locator('.instance-card').filter({hasText: 'demo-main'})).toContainText('未运行')
-  await expect(page.locator('.sidebar .instance-picker')).toHaveCount(0)
-  await expect(page.locator('.sidebar-footer')).toHaveCount(0)
-  await expect(page.locator('a.home-deck-link')).toHaveAttribute('href', 'https://github.com/Metric-cell/AzurPilot')
-  await expect(page.locator('.primary-nav .nav-open-source')).toHaveAttribute('href', 'https://github.com/Metric-cell/AzurPilot')
-  await page.locator('.home-legacy-toggle').click()
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'legacy-light')
-  await page.locator('.home-legacy-toggle').click()
-  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
-  await page.screenshot({path: 'test-results/home-desktop.png', fullPage: true})
-  await page.locator('.instance-card').filter({hasText: 'demo-main'}).click()
+  await expect(page).toHaveURL(/demo-main\/overview$/)
+  const tab = page.getByRole('tab', {name: 'demo-main', exact: true})
+  await expect(tab).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByRole('heading', {name: 'demo-main', exact: true})).toBeVisible()
-  await expect(page.getByLabel('搜索任务', {exact: true})).toHaveCount(0)
-  await page.getByRole('button', {name: '展开任务搜索'}).click()
-  await page.getByLabel('搜索任务', {exact: true}).fill('Alas')
+  const search = page.getByRole('textbox', {name: '搜索任务', exact: true})
+  const alasLink = page.locator('#task-group-Alas a[href$="/task/Alas"]')
+  await expect(search).toBeVisible()
+  await expect(alasLink).toHaveCount(0)
+  await search.fill('Alas')
   await expect(page.locator('.task-group-button')).toHaveCount(1)
-  await page.getByRole('button', {name: '收起任务搜索'}).click()
-  await expect(page.getByLabel('搜索任务', {exact: true})).toHaveCount(0)
-  expect(await page.locator('.task-group-button').count()).toBeGreaterThan(1)
+  await expect(alasLink).toBeVisible()
+  await search.clear()
+  await expect(alasLink).toHaveCount(0)
+  await expect.poll(() => page.locator('.task-group-button').count()).toBeGreaterThan(1)
   await page.getByRole('button', {name: '启动调度器'}).click()
-  await page.getByRole('link', {name: 'AzurPilot 主页'}).click()
-  await expect(page.locator('.instance-card').filter({hasText: 'demo-main'})).toContainText('运行中')
-  await expect(page.locator('.instance-card').filter({hasText: 'demo-main'})).toContainText('委托')
-  await page.locator('.instance-card').filter({hasText: 'demo-main'}).click()
+  await expect(tab).toHaveClass(/running/)
   await page.getByRole('button', {name: '停止运行'}).click()
   await page.goto('/#/i/demo-main/task/Alas')
   await expect(page.locator('[id="Alas.Emulator.Serial"]')).toBeVisible()
@@ -1384,46 +1527,139 @@ test('主页实例状态、任务搜索收起与导航固定', async ({page}) =>
   const topbar = (await page.locator('.topbar').boundingBox())!
   expect(topbar.y).toBeLessThan(1)
   expect(topbar.y + topbar.height).toBeGreaterThan(0)
-  await page.locator('.breadcrumb').getByRole('button', {name: '切换实例'}).click()
-  await page.keyboard.press('Escape')
-  await expect(page.getByRole('button', {name: '切换实例'})).toBeFocused()
+  await expect(tab).toBeVisible()
   expect(errors).toEqual([])
 })
 
-test('空实例主页仍可访问全局设置，系统设置不请求实例数据', async ({page}) => {
+test('没有实例时进入首次设置，完成后打开新实例总览', async ({page}) => {
   const methods: string[] = []
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  const name = `oobe_${Date.now()}`
+  let createId: string | undefined
+  let created = false
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
     const ids = new Set<string>()
     socket.onMessage(message => {
       const request = JSON.parse(String(message))
       methods.push(request.method)
       if (request.method === 'instances.list') ids.add(request.id)
+      if (request.method === 'instances.create') createId = request.id
       server.send(message)
     })
     server.onMessage(message => {
       const result = JSON.parse(String(message))
-      if (ids.has(result.id)) result.result = []
-      if (result.topic === 'instances') result.data = []
+      if (createId && result.id === createId && result.ok) created = true
+      if (ids.has(result.id)) result.result = created ? result.result.filter((item: {name: string}) => item.name === name) : []
+      if (result.topic === 'instances') result.data = created ? result.data.filter((item: {name: string}) => item.name === name) : []
       socket.send(JSON.stringify(result))
     })
   })
   await page.goto('/')
-  await expect(page.getByRole('button', {name: '创建第一个实例'})).toBeVisible()
-  await page.locator('.primary-nav').getByRole('link', {name: '系统设置'}).click()
-  await expect(page.getByText('删除当前实例')).toHaveCount(0)
-  await page.locator('.primary-nav').getByRole('link', {name: '界面设置'}).click()
-  await expect(page.getByLabel('界面主题')).toBeVisible()
+  await expect(page).toHaveURL(/#\/setup$/)
+  const next = page.getByRole('button', {name: '下一步', exact: true})
+  await expect(page.getByRole('heading', {name: '选择语言'})).toBeVisible()
+  await expect(page.locator('.setup-illustration-art > svg')).toBeVisible()
+  await page.getByRole('button', {name: '简体中文'}).click()
+  await next.click()
+  await expect(page.getByRole('heading', {name: '导入旧数据'})).toBeVisible()
+  await next.click()
+  await expect(page.getByRole('heading', {name: '选择服务器'})).toBeVisible()
+  await next.click()
+  await page.getByLabel('模拟器ID').fill('127.0.0.1:7555')
+  await next.click()
+  await page.getByLabel('配置名称').fill(name)
   expect(methods).not.toContain('startup.get')
   expect(methods).not.toContain('config.get')
+  await page.getByRole('button', {name: '创建并完成'}).click()
+  await expect(page).toHaveURL(new RegExp(`/i/${name}/overview$`))
+})
+
+test('系统设置卡片保存部署字段', async ({page}) => {
+  await page.goto('/#/settings')
+  const branch = page.getByRole('textbox', {name: '分支', exact: true})
+  await expect(branch).toHaveValue('dev')
+  expect(await page.evaluate(() => getComputedStyle(document.documentElement).fontSize)).toBe('16px')
+  expect(await branch.evaluate(input => getComputedStyle(input).height)).toBe('36px')
+  await branch.fill('settings-test')
+  await branch.blur()
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('azurpilot.edits.deploy'))).toBeNull()
+  await page.reload()
+  await expect(branch).toHaveValue('settings-test')
   await page.setViewportSize({width: 390, height: 844})
-  await page.goto('/')
-  await page.screenshot({path: 'test-results/home-empty-mobile.png', fullPage: true})
+  await expect(branch).toBeVisible()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
 
+test('系统设置开关、选项和数字字段可校验并保存', async ({page}) => {
+  let enabled = false
+  let channel = 'legacy'
+  let interval = 60
+  const settingsRequests = new Set<string>()
+  await routeRpc(page, socket => {
+    const server = socket.connectToServer()
+    socket.onMessage(message => {
+      const request = JSON.parse(message.toString())
+      if (request.method === 'settings.get') settingsRequests.add(request.id)
+      if (request.method === 'settings.patch' && ('SSLVerify' in request.params.values || 'UpdateChannel' in request.params.values || 'CheckUpdateInterval' in request.params.values)) {
+        if ('SSLVerify' in request.params.values) enabled = request.params.values.SSLVerify
+        if ('UpdateChannel' in request.params.values) channel = request.params.values.UpdateChannel
+        if ('CheckUpdateInterval' in request.params.values) interval = request.params.values.CheckUpdateInterval
+        socket.send(JSON.stringify({v: 1, type: 'response', id: request.id, ok: true, result: {updated: Object.keys(request.params.values)}}))
+        return
+      }
+      server.send(message)
+    })
+    server.onMessage(message => {
+      const response = JSON.parse(message.toString())
+      if (response.type === 'response' && settingsRequests.delete(response.id) && response.ok) {
+        const group = response.result.groups.find((item: {key: string}) => item.key === 'Git')
+        group.fields.push({key: 'SSLVerify', type: 'bool', label: '验证证书', help: '检查证书', value: enabled, options: []})
+        group.fields.push({key: 'UpdateChannel', type: 'select', label: '更新渠道', help: '选择渠道', value: channel, options: ['stable', 'preview']})
+        response.result.groups.push({key: 'Update', label: 'Update', fields: [{key: 'CheckUpdateInterval', type: 'int', label: '检查间隔', help: '更新检查间隔', value: interval, options: []}]})
+        socket.send(JSON.stringify(response))
+        return
+      }
+      socket.send(message)
+    })
+  })
+
+  await page.goto('/#/settings')
+  const control = page.getByRole('switch', {name: '验证证书', exact: true})
+  await expect(control).toHaveAttribute('aria-checked', 'false')
+  await control.focus()
+  await page.keyboard.press('Space')
+  await expect(control).toHaveAttribute('aria-checked', 'true')
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('azurpilot.edits.deploy'))).toBeNull()
+  expect(enabled).toBe(true)
+  const select = page.getByRole('combobox', {name: '更新渠道', exact: true})
+  await expect(select).toHaveText('legacy')
+  await select.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('option', {name: 'legacy', exact: true})).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(page.getByRole('option', {name: 'preview', exact: true})).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(select).toHaveText('preview')
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('azurpilot.edits.deploy'))).toBeNull()
+  expect(channel).toBe('preview')
+  const number = page.getByRole('textbox', {name: '检查间隔', exact: true})
+  await number.fill('--')
+  await number.blur()
+  await expect(number).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.locator('#deploy-CheckUpdateInterval-status')).toHaveAttribute('role', 'alert')
+  expect(interval).toBe(60)
+  await number.fill('30')
+  await number.blur()
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('azurpilot.edits.deploy'))).toBeNull()
+  expect(interval).toBe(30)
+  await page.reload()
+  await expect(control).toHaveAttribute('aria-checked', 'true')
+  await expect(select).toHaveText('preview')
+  await expect(number).toHaveValue('30')
+})
+
 test('实例列表读取失败不阻塞全局设置', async ({page}) => {
-  await page.routeWebSocket('**/api/v1/ws', socket => {
+  await routeRpc(page, socket => {
     const server = socket.connectToServer()
     socket.onMessage(message => {
       const request = JSON.parse(String(message))
@@ -1445,18 +1681,18 @@ test('启动开关在系统设置页保存，点名称不切换且保存后不�
   await page.locator('.config-groups .field-name').nth(1).click()
   await expect(remember).toHaveAttribute('aria-checked', before!)
   await remember.check()
-  await expect(page.locator('#instance-remember-status')).toHaveText('已保存')
-  // 状态标记消失即队列已丢弃该条目，此后开关仍须显示服务端的值。
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('azurpilot.edits.startup:demo-main'))).toBeNull()
+  // 草稿清空即队列已丢弃该条目，此后开关仍须显示服务端的值；保存提示已随状态条移除。
   await expect(page.locator('#instance-remember-status')).toHaveCount(0)
   await expect(remember).toHaveAttribute('aria-checked', 'true')
   await autoRun.check()
-  await expect(page.locator('#instance-startup-status')).toHaveText('已保存')
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('azurpilot.edits.startup:demo-main'))).toBeNull()
 })
 
 test('仪表盘设置只含仪表盘项：无启动开关、无删除实例', async ({page}) => {
   await page.goto('/')
-  await page.getByRole('button', {name: '新建实例'}).click()
-  const name = `home_${Date.now()}`
+  await page.locator('.instance-tabs').getByRole('button', {name: '创建实例', exact: true}).click()
+  const name = `dashboard_${Date.now()}`
   await page.getByLabel('实例名称').fill(name)
   await page.getByRole('dialog').getByRole('button', {name: '创建实例', exact: true}).click()
   await page.locator('.primary-nav').getByRole('link', {name: '运行总览', exact: true}).click()
@@ -1466,8 +1702,6 @@ test('仪表盘设置只含仪表盘项：无启动开关、无删除实例', as
   await expect(dialog.getByLabel('启动时自动运行', {exact: true})).toHaveCount(0)
   await expect(dialog.getByRole('button', {name: '删除实例', exact: true})).toHaveCount(0)
 })
-
-
 
 test('指挥喵评分报告面板展示、刷新与空状态', async ({page}) => {
   const errors: string[] = []
@@ -1614,7 +1848,7 @@ test('商店配置只显示官源购买设置并保留普通过滤器保存', as
   const filter = page.locator('[id="EventShop.EventShop.CustomFilter"]')
   await filter.fill('Cube > Oil')
   await filter.blur()
-  await expect(page.locator('[id="EventShop.EventShop.CustomFilter-status"]')).toContainText('已保存')
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem('azurpilot.edits.config:demo-main'))).toBeNull()
   await page.reload()
   await expect(filter).toHaveValue('Cube > Oil')
   await page.setViewportSize({width: 390, height: 844})
@@ -1624,6 +1858,59 @@ test('商店配置只显示官源购买设置并保留普通过滤器保存', as
   await filter.scrollIntoViewIfNeeded()
   await expect(filter).toBeInViewport()
   await page.screenshot({path: 'test-results/shop-upstream-mobile.png', fullPage: true})
+})
+
+for (const theme of ['modern-light', 'modern-dark'] as const) {
+  test(`过滤器保留语法高亮并在${theme}保存`, async ({page}) => {
+    await page.addInitScript(value => {
+      localStorage.setItem('azurpilot.language', 'zh-CN')
+      localStorage.setItem('azurpilot.theme', value)
+    }, theme)
+    await page.goto('/#/i/demo-main/task/EventShop')
+    const filter = page.locator('[id="EventShop.EventShop.CustomFilter"]')
+    await expect(filter).toHaveAttribute('contenteditable', 'true')
+    const value = theme === 'modern-light' ? 'Daily > Gem > shortest' : 'Daily > Cube > shortest'
+    await filter.fill(value)
+    const editor = filter.locator('xpath=ancestor::div[contains(concat(" ", normalize-space(@class), " "), " cm-editor ")]')
+    await expect(editor.locator('.cm-filter-shortest')).toHaveText('shortest')
+    await expect(editor.locator('.cm-filter-arrow')).toHaveCount(2)
+    await expect(editor.locator('.cm-activeLine')).toHaveCount(0)
+    await expect(editor.locator('.cm-filter-shortest')).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    await expect(editor).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
+    await expect(editor).toHaveCSS('border-top-width', '1px')
+    await editor.screenshot({path: `test-results/filter-${theme}.png`})
+    await filter.blur()
+    await expect.poll(() => page.evaluate(() => sessionStorage.getItem('azurpilot.edits.config:demo-main'))).toBeNull()
+    await page.reload()
+    await expect(filter).toHaveText(value)
+  })
+}
+
+test('暗色任务配置的开关按状态切换颜色', async ({page}) => {
+  await page.addInitScript(() => localStorage.setItem('azurpilot.theme', 'modern-dark'))
+  await page.goto('/#/i/demo-main/task/Main')
+  await expect(page.locator('html')).toHaveClass(/\bdark\b/)
+  const control = page.locator('.config-group [data-slot="switch"]').first()
+  await expect(control).toBeVisible()
+  const thumb = control.locator('[data-slot="switch-thumb"]')
+  const before = await thumb.evaluate(element => getComputedStyle(element).backgroundColor)
+  const state = await control.getAttribute('aria-checked')
+  await control.click()
+  await expect(control).toHaveAttribute('aria-checked', state === 'true' ? 'false' : 'true')
+  await expect.poll(() => thumb.evaluate(element => getComputedStyle(element).backgroundColor)).not.toBe(before)
+  await page.emulateMedia({reducedMotion: 'reduce'})
+  const switches = page.locator('.config-group [data-slot="switch"]')
+  for (const item of await switches.all()) {
+    const bounds = await item.evaluate(element => {
+      const track = element.getBoundingClientRect()
+      const thumb = element.querySelector('[data-slot="switch-thumb"]')!.getBoundingClientRect()
+      return {left: thumb.left - track.left, right: track.right - thumb.right, center: (thumb.top + thumb.bottom - track.top - track.bottom) / 2}
+    })
+    expect(bounds.left).toBeGreaterThanOrEqual(-0.5)
+    expect(bounds.right).toBeGreaterThanOrEqual(-0.5)
+    expect(Math.abs(bounds.center)).toBeLessThan(1)
+  }
+  await page.screenshot({path: 'test-results/task-dark-switches.png', fullPage: true})
 })
 
 test('关闭背景后切回填写 URL 直接铺上，不必再点应用背景', async ({page}) => {

@@ -22,11 +22,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-14 为 Apple Silicon，标签来源见 GitHub runner 文档。
+        # macos-15 为 Apple Silicon，标签来源见 GitHub runner 文档。
         # https://docs.github.com/en/actions/reference/runners/github-hosted-runners
         # 不含 macos-15-intel：llvmlite（numba 依赖）无 macOS x86_64 wheel（上游 0.46 起删除），
         # 源码编译需 LLVM 的 CMake 包，该 runner 上 uv sync 必然失败。
-        os: [ubuntu-latest, windows-latest, macos-14]
+        os: [ubuntu-latest, windows-latest, macos-15]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -151,7 +151,10 @@ jobs:
       # 已知失败在白名单中（见 dev_tools/import_smoke_test.py），意外失败会使 CI 失败。
       # --summary-file 产出机器可读汇总，供 pr-report job 写入 PR 评论。
       - name: Run startup and clean network policy regression tests
-        run: uv run python -m unittest tests.test_deploy_settings_transactions tests.test_clean_network_policy
+        run: uv run python -m unittest tests.test_deploy_settings_transactions tests.test_clean_network_policy tests.test_ocr_local_only
+
+      - name: Run transport and event regression tests
+        run: uv run pytest -q tests/test_http_transport.py tests/test_event_20261022.py
 
       - name: Run import smoke test
         run: uv run python -m dev_tools.import_smoke_test --summary-file import-smoke-summary.json

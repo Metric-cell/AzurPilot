@@ -1,5 +1,8 @@
 # 前端
 
+部署版的入口与构建方式见 [前端说明](../../../frontend/README.md)。
+
+
 > clean 版删除远控、Cloudflare 隧道与扫码配对入口，保留本地启动器设置、舰队科技和用户授权的浏览器通知。
 
 二维码使用相连的圆角模块与圆角定位框，保留四模块静区、32px 纯白内边距及深色码点；主题色只少量混入深色基底。等待配对时，`PairingScanGuide` 在操作区旁展示手机对准二维码、扫描与识别反馈的六秒循环示意。示意图使用二维码图标，不接收配对密钥，其识别反馈不表示实际配对成功；真实二维码保持静止。窄屏时示意移至下方，离开视口或切到后台时暂停；系统开启减少动态效果时保留静态取景画面。示意图只保留辅助阅读标签，不展示说明文字。
@@ -85,7 +88,7 @@ frontend/README.md 与 frontend/API.md 已经是本前端的详细文档：前�
 ```text
 frontend/
 ├── src/main.tsx              # 应用入口：hash 路由表、错误兜底、先加载主题再挂载
-├── src/api/                  # client.ts 连接层；generated.ts 与 contract.json 为生成产物
+├── src/api/                  # client.ts 分流，socket.ts 连接；generated.ts 与 contract.json 为生成产物
 ├── src/app/                  # 布局、主题系统（theme.ts 按需加载）、连接上下文、任务优先级解析（taskPriority.ts）、各类偏好
 ├── src/pages/                # 页面：Home / Overview / TaskConfig / ResourceManagement / Statistics / Settings 等
 ├── src/resources/            # 资源管理桑基图、图数据转换与页面样式

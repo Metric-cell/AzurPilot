@@ -1,8 +1,9 @@
 """本机免密判定的单元测试。"""
 
 import unittest
+from unittest.mock import patch
 
-from module.runtime.password_utils import host_name, is_local_client
+from module.runtime.password_utils import ensure_password_for_host, host_name, is_local_client
 
 
 class HostNameTests(unittest.TestCase):
@@ -43,6 +44,23 @@ class LocalClientTests(unittest.TestCase):
 
     def test_tunnel_forwarded_request_is_not_local(self):
         self.assertFalse(is_local_client('127.0.0.1', '127.0.0.1:22267', None, '1'))
+
+
+class BindPasswordTests(unittest.TestCase):
+    def test_non_loopback_binds_generate_password(self):
+        for host in ('0.0.0.0', '::', '[::]', '192.168.1.10', 'fd00::1', 'lan.example', ''):
+            with self.subTest(host=host), patch('deploy.atomic.atomic_write') as write:
+                password = ensure_password_for_host('', host)
+                self.assertTrue(password)
+                write.assert_called_once_with('password.txt', password + '\n')
+
+    def test_loopback_demo_and_existing_password_do_not_generate(self):
+        with patch('deploy.atomic.atomic_write') as write:
+            for host in ('127.0.0.1', '::1', '[::1]', 'localhost'):
+                self.assertEqual('', ensure_password_for_host('', host))
+            self.assertEqual('', ensure_password_for_host('', '192.168.1.10', demo=True))
+            self.assertEqual('configured', ensure_password_for_host('configured', '192.168.1.10'))
+            write.assert_not_called()
 
 
 if __name__ == '__main__':

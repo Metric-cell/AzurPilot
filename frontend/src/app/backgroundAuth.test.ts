@@ -1,3 +1,6 @@
+/**
+ * @fileoverview 背景代理地址与 HTTP 能力令牌的领取、缓存与重领行为。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../api/client'
 import { applyGalleryEntry, disableBackground, getBackground, readBackgroundPreference, refreshGallery, setBackgroundUrls, uploadBackgroundFile } from './background'
@@ -5,6 +8,7 @@ import { getThemePreference } from './theme'
 
 vi.mock('../api/client', () => ({api: {request: vi.fn()}}))
 
+// 背景模块维护模块级快照与图库状态，每例先关闭背景复位，防止用例间串扰。
 beforeEach(() => {
   vi.resetAllMocks()
   vi.stubGlobal('localStorage', {getItem: () => null, setItem: vi.fn()})
@@ -13,25 +17,10 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('背景 HTTP 能力令牌', () => {
-  it('代理地址使用当前授权会话领取的令牌，后续解析重新领取', async () => {
-    let token = 'first-token'
-    vi.mocked(api.request).mockImplementation(async method => {
-      if (method === 'background.access') return {token}
-      if (method === 'background.resolve') return {final_url: 'https://example.com/final.png', content_type: 'image/png'}
-      throw new Error(`非预期请求：${method}`)
-    })
-    setBackgroundUrls(['https://example.com/random'], 'image')
-    await vi.waitFor(() => expect(getBackground().resolving).toBe(false))
-    let url = new URL(getBackground().assetUrl, 'http://localhost')
-    expect(url.pathname).toBe('/api/v1/background/media')
-    expect(url.searchParams.get('url')).toBe('https://example.com/final.png')
-    expect(url.searchParams.get('token')).toBe('first-token')
-    token = 'new-token'
-    setBackgroundUrls(['https://example.com/another'], 'image')
-    await vi.waitFor(() => expect(getBackground().resolving).toBe(false))
-    url = new URL(getBackground().assetUrl, 'http://localhost')
-    expect(url.searchParams.get('token')).toBe('new-token')
-    expect(JSON.stringify(vi.mocked(localStorage.setItem).mock.calls)).not.toContain('token')
+  it('自定义地址由浏览器直接加载，无后台请求', () => {
+    setBackgroundUrls(['http://localhost/custom'], 'image')
+    expect(getBackground().assetUrl).toBe('http://localhost/custom')
+    expect(api.request).not.toHaveBeenCalled()
   })
 
   it('上传在领取令牌后通过请求头发送，不把令牌放入 URL', async () => {
@@ -58,7 +47,7 @@ describe('背景 HTTP 能力令牌', () => {
   })
 })
 
-/* 关闭背景只停铺图，已填地址在重读后仍在。 */
+// 关闭背景只停铺图，已填地址在重读后仍在。
 describe('背景关闭档保留已填地址', () => {
   const store = new Map<string, string>()
 

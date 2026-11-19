@@ -10,7 +10,7 @@
 
 设计上有三个关键决策：
 
-1. **识别器与推理引擎分离**。`Ocr` 系列类负责「识别哪里、怎么预处理、结果怎么修正」，`AlOcr` 负责模型加载与推理，两者通过 `OCR_MODEL` 全局入口解耦。业务代码永远不接触后端细节，后端（ONNX Runtime / ncnn / 远程 RPC）可整体替换。
+1. **识别器与推理引擎分离**。`Ocr` 系列类负责「识别哪里、怎么预处理、结果怎么修正」，`AlOcr` 负责模型加载与推理，两者通过 `OCR_MODEL` 全局入口解耦。业务代码永远不接触后端细节，后端（ONNX Runtime / ncnn）可整体替换。
 2. **按字色预处理而非直接灰度识别**。游戏 UI 文字带描边、渐变和复杂背景，直接识别噪声大。先用已知字色（默认白色）把文字提取为「黑字白底」二值图，再送入模型，大幅提高对比度并屏蔽背景干扰，让一套通用识别模型能覆盖所有 UI 场景。
 3. **面向已知区域优化**。碧蓝航线的识别目标几乎都是位置固定的单行文本（已由 Button 定义区域），因此本地推理默认跳过文本检测模型、只加载识别模型（`RecOnlyOCR`），节省内存与加载时间；检测流水线（`det()`）作为框架能力保留但业务侧当前无调用方。
 
@@ -25,7 +25,6 @@
 - 定义 `Ocr`、`OcrYuv`、`Digit`、`DigitCounter`、`Duration` 及对应 Yuv 变体等识别器类与结果后处理（纠错映射、计数器/时长解析）。
 - 管理识别模型的懒加载、按后端+设备+版本组合的缓存，以及空闲期分级释放。
 - 封装 ONNX Runtime（RapidOCR）与 NCNN 双后端，及 Windows（DirectML/QNN/OpenVINO）、macOS（CoreML ANE）、ncnn（Vulkan）的设备选择。
-- 提供 zerorpc 分布式推理的客户端代理与服务器实现（可选部署）。
 - 提供 OCR 基准测试所需的基础设施配合（`OcrSettings`、模型工厂）。
 
 ### 不负责
@@ -43,8 +42,7 @@ module/ocr/
 ├── models.py       # OCR_MODEL 全局入口：6 个逻辑模型的懒加载集合
 ├── al_ocr.py       # AlOcr 统一推理接口：RapidOCR/ONNX 后端、模型缓存、单线程队列
 ├── ncnn_ocr.py     # NCNN 识别后端：模型规格、Vulkan GPU、CTC 解码
-├── windows_ml.py   # Windows 平台 ONNX Runtime 执行提供程序（EP）选择
-└── rpc.py          # zerorpc 客户端代理（ModelProxyFactory）与服务器进程
+└── windows_ml.py   # Windows 平台 ONNX Runtime 执行提供程序（EP）选择
 
 bin/ocr_models/     # 模型文件（非代码）
 ├── ppocr-v6/       # PP-OCRv6 识别模型三档（tiny/small/medium）+ 各字典
@@ -61,7 +59,6 @@ bin/ocr_models/     # 模型文件（非代码）
 | `al_ocr.py` | 推理核心：模型工厂与缓存、OCR 工作队列、ONNX/NCNN 分派、文本检测 |
 | `ncnn_ocr.py` | NCNN 后端：模型规格、预处理、推理与 CTC 解码 |
 | `windows_ml.py` | Windows 平台 ONNX Runtime 设备选择（DirectML/QNN/OpenVINO EP） |
-| `rpc.py` | OCR RPC 代理（客户端）与 zerorpc 服务器 |
 
 ## 4. 核心入口
 
@@ -69,10 +66,9 @@ bin/ocr_models/     # 模型文件（非代码）
 | --- | --- |
 | `from module.ocr.ocr import Ocr / Digit / DigitCounter / Duration` | 业务构造识别器的唯一常规入口（含 `*Yuv` 变体） |
 | `ocr_batch(image, readers, *, show_log=True)` | 同帧、同语言及字符表的单区域合并队列提交，逐字段保持预处理、后处理和有效性；后台采样可关闭结果日志 |
-| `OCR_MODEL.<lang>` | 框架内获取 `AlOcr` 实例；导入时按部署配置决定本地模型或 RPC 代理 |
+| `OCR_MODEL.<lang>` | 框架内获取 `AlOcr` 实例；进程内懒加载模型 |
 | `AlOcr(config=…, settings=…)` | 框架内部（models.py、ocr_benchmark）直接构造；业务代码不应使用 |
 | `release_ocr_models()` / `reset_ocr_model()` | 空闲释放内存 / 配置变更后重置模型缓存 |
-| `python -m module.ocr.rpc --port <port>` | 独立进程启动 OCR RPC 服务器 |
 | `alas.py` 的 `benchmark/ocr_benchmark` 任务 | 全量精度与速度基准 |
 
 追代码建议从 `module/ocr/ocr.py` 的 `Ocr.ocr()` 开始：它串起了预处理、后端调用与后处理全链路。
@@ -107,14 +103,13 @@ bin/ocr_models/     # 模型文件（非代码）
 
 | 组件 | 职责 |
 | --- | --- |
-| `OCR_MODEL`（`models.py`） | 全局单例。`UseOcrServer=false` 时是 `OcrModel`（6 个 `cached_property` 懒加载 `AlOcr`），为 `true` 时替换为 `ModelProxyFactory` RPC 代理。选择发生在模块导入时 |
+| `OCR_MODEL`（`models.py`） | 全局 `OcrModel` 单例，使用 6 个 `cached_property` 懒加载 `AlOcr` |
 | `AlOcr`（`al_ocr.py`） | 统一推理接口：`ocr()` 单行识别、`det()` 检测+识别、`ocr_for_single_lines()` 批量识别；`atomic_ocr*` 系列附加字母白名单过滤 |
 | `OcrSettings` | 单个逻辑模型的有效配置快照（backend/device/厂商 EP 开关/模型档位），不可变，缓存键的一部分 |
 | `RecOnlyOCR` | 只加载识别模型的 RapidOCR 子类，跳过检测与分类 |
 | `DetOnlyOCR` | 只加载检测模型，供 ncnn 后端的混合流水线使用 |
 | `NcnnRecOCR`（`ncnn_ocr.py`） | NCNN 识别推理：输入 3×48×320，CTC 解码，支持 Vulkan GPU |
 | `create_onnx_session`（`windows_ml.py`） | Windows 上按优先级选择执行提供程序（EP）并创建 ONNX Runtime 会话 |
-| `ModelProxyFactory` / `ModelProxy`（`rpc.py`） | OCR 服务器的 RPC 代理与自动回退 |
 
 ### 逻辑模型与语言对应
 
@@ -139,15 +134,12 @@ flowchart TB
     B --> C["pre_process(): extract_letters 按字色二值化"]
     C --> D["crop_to_text() 紧贴文本裁边"]
     D --> E["atomic_ocr_for_single_lines()"]
-    E --> F{"OCR_MODEL 类型"}
-    F -->|"本地 OcrModel"| G["投递到 AlOcrQueue 工作线程"]
-    F -->|"ModelProxyFactory"| H["zerorpc 远程推理, 失败回退本地"]
+    E --> G["本地 OcrModel 投递到 AlOcrQueue 工作线程"]
     G --> I{"后端"}
     I -->|onnxruntime| J["RecOnlyOCR 识别推理<br/>Windows 经 windows_ml 选设备"]
     I -->|ncnn| K["NcnnRecOCR 推理 + CTC 解码"]
     I -->|macOS ane| L["RapidOCR CoreML 会话"]
     J --> M["取 txts[0]"]
-    H --> M
     K --> M
     L --> M
     M --> N["alphabet 白名单过滤"]
@@ -180,7 +172,6 @@ flowchart TB
 | 几乎全部游戏功能模块（campaign、commission、research、shop、dorm、os、island、statistics 等） | 构造 `Ocr` 系列识别器读取界面数值与文本，多数以业务子类形式定制后处理 |
 | [设备层](device.md) | 首次连接设备时运行简单 OCR 基准自动选定 `OcrDevice`，之后 `reset_ocr_model()` 重置缓存 |
 | [基础层](base/index.md) | `module/base/resource.py` 在调度空闲期调用 `release_ocr_models()` 分级释放模型 |
-| `module/api`（lifecycle） | WebUI 启动时按部署配置拉起/停止 OCR 服务器子进程（详见 [WebUI 运行时](webui/runtime.md)） |
 | `module/daemon/ocr_benchmark.py` | 以动态 `model_name` 直接构造 `AlOcr` 跑精度/速度基准（见 [守护模式](infra/daemon.md)） |
 
 ### 下游
@@ -189,7 +180,6 @@ flowchart TB
 | --- | --- |
 | `module/base/utils.py` | `extract_letters()`、`crop_to_text()`、`rgb2luma()` 等预处理算法 |
 | `module/config/config.py` | 读取 `OcrBackend/OcrDevice/OcrModelVersion*` 配置并解析设备（`resolve_ocr_device`） |
-| `module/runtime/setting.py` | 读取部署配置 `UseOcrServer` 等决定本地/远程模式 |
 | `module/exception.py` | 依赖加载失败抛 `RequestHumanTakeover` |
 | 第三方 | rapidocr（RapidOCR 流水线与 CTC 解码）、onnxruntime、ncnn、windowsml（Windows ML 运行时，仅 Windows） |
 
@@ -202,8 +192,7 @@ flowchart TB
         ├─ extract_letters(letter, threshold)    # 按字色二值化 → 黑字白底灰度图
         ├─ crop_to_text()                        # 紧贴文本裁边，缩小推理输入
         ├─ atomic_ocr_for_single_lines()
-        │     ├─ 本地: numpy 原图 → AlOcrQueue → ONNX/ncnn 推理 → txts[0]
-        │     └─ RPC:  img.dumps() pickle 序列化 → zerorpc → 服务器推理 → 结果字符串
+        │     └─ numpy 原图 → AlOcrQueue → ONNX/ncnn 推理 → txts[0]
         ├─ alphabet 白名单过滤
         ├─ after_process() 纠错与结构化
         └─> str / int / (current, remain, total) / timedelta → 业务逻辑
@@ -236,15 +225,6 @@ flowchart TB
 - ncnn 后端只有 PP-OCRv6 三档，用户选择了旧版 `alocr_*` 档位时回退 `standard`。
 - `Optimization.OcrDevice == 'auto'` 时，设备实例启动会跑一次简单基准（GPU 准确率 100% 才用 GPU），结果回写配置。
 
-部署配置（`deploy/config.py`，与任务配置不同体系）：
-
-| 配置 | 默认值 | 说明 |
-| --- | --- | --- |
-| `UseOcrServer` | false | 实例改用 RPC 访问共享 OCR 服务器而非进程内推理 |
-| `StartOcrServer` | false | WebUI 启动时拉起 OCR 服务器子进程 |
-| `OcrServerPort` | 22268 | 服务器监听端口 |
-| `OcrClientAddress` | 127.0.0.1:22268 | 实例连接地址 |
-
 ## 11. 异常与错误处理
 
 | 异常 | 原因 | 处理 |
@@ -254,7 +234,6 @@ flowchart TB
 | `FileNotFoundError` | ncnn 模型文件缺失 | 构造模型时抛出，由上层按启动失败处理 |
 | `RuntimeError` | ncnn 加载/推理返回码非 0、请求 Vulkan 但无 GPU | 上抛终止当前任务 |
 | OCR 结果解析失败 | `DigitCounter` 未匹配 `x/y`、`Duration` 无法解析时间 | 记 warning 并返回安全默认值 `(0,0,0)` / `timedelta(0)`，由上层状态循环自然重试 |
-| RPC 调用异常 | OCR 服务器不可达 | `ModelProxy.online` 置 False，本次及之后永久回退进程内本地推理 |
 | 调试图保存失败 | 磁盘写入异常 | 仅 warning，不影响识别流程 |
 
 ## 12. 并发与线程模型
@@ -268,8 +247,6 @@ OCR 推理的线程模型围绕「模型实例非线程安全」这一前提设�
 - **多实例隔离**：每个调度实例是独立进程，拥有各自的队列与模型缓存，互不影响。显式传入 `config`/`settings` 的 `AlOcr`（如基准测试）可绕过全局默认配置。
 - **ncnn GPU 全局实例**：Vulkan GPU 实例由 `_gpu_lock` 保护创建，`atexit` 时销毁。
 - **Windows ML EP 注册**：`windows_ml.py` 用 `_provider_lock` 保证厂商 EP 只初始化与注册一次。
-- **RPC 模式**：`ModelProxy.client` 与 `online` 为类属性，全进程共享一条 zerorpc 连接；`ModelProxyFactory` 在首次属性访问时惰性建连。RPC 模式下不使用 AlOcrQueue（推理在服务器进程）。
-- **生命周期**：工作线程为 daemon 线程随主进程退出；OCR 服务器子进程由 WebUI 生命周期（`module/api/lifecycle.py`）统一停止。
 
 ## 13. 缓存与持久化
 
@@ -280,15 +257,15 @@ OCR 推理的线程模型围绕「模型实例非线程安全」这一前提设�
 | 默认配置快照 | `_default_config` | 按 `ALAS_CONFIG_NAME` 环境变量或默认配置名惰性读取；reset 时置空以在下次使用时重读 |
 | OCR 调试图 | `ocr_debug/` 目录 | 识别器的 `save_debug_images=True`（默认）时每次单行识别写入一张 PNG，超过 100 张按修改时间清理最旧的 |
 
-空闲释放策略（`module/base/resource.py` 的 `release_resources`）：下一任务是大世界/委托时保留全部模型；有后续任务时仅保留 `azur_lane`；完全空闲时释放全部语言模型与独立检测缓存，并触发一次 `gc.collect(2)`。`UseOcrServer` 模式下空闲时改为断开 RPC 连接。
+空闲释放策略（`module/base/resource.py` 的 `release_resources`）：下一任务是大世界/委托时保留全部模型；有后续任务时仅保留 `azur_lane`；完全空闲时释放全部语言模型与独立检测缓存，并触发一次 `gc.collect(2)`。
 
 ## 14. 生命周期
 
-1. **导入期**：`module/ocr/ocr.py` 被导入时，按 `State.deploy_config.UseOcrServer` 把 `OCR_MODEL` 绑定为本地 `OcrModel` 或 `ModelProxyFactory`，此后不再切换。
+1. **导入期**：`module/ocr/ocr.py` 被导入时，将 `OCR_MODEL` 绑定为本地 `OcrModel`。
 2. **构造期**：业务模块构造 `Ocr` 子类实例（轻量对象，仅记录区域与参数）；`AlOcr` 实例由 `OCR_MODEL` 创建但尚不加载模型。
 3. **首次识别**：第一次 `.ocr()` 触发——启动 AlOcrQueue 线程、读取有效配置（显式 config > 环境变量指定的默认配置）、按配置快照创建并缓存推理模型。Windows 上此时完成 EP 选择与（可选的）厂商 EP 下载注册。
 4. **运行期**：识别请求全部串行经过队列；配置热重载或设备重连后调用 `reset_ocr_model()`，下次识别按新配置重建。
-5. **释放与退出**：调度空闲期分级释放；进程退出时 daemon 工作线程随之结束，ncnn Vulkan 实例由 atexit 销毁，OCR 服务器子进程由 WebUI clearup 终止。
+5. **释放与退出**：调度空闲期分级释放；进程退出时 daemon 工作线程随之结束，ncnn Vulkan 实例由 atexit 销毁。
 
 ## 15. 扩展方式
 
@@ -299,8 +276,7 @@ OCR 推理的线程模型围绕「模型实例非线程安全」这一前提设�
 1. `al_ocr.py` 的 `ONNX_MODEL_PARAMS` 增加条目（各档模型路径+字典），并在 `DEFAULT_ONNX_MODEL_VERSION` 设默认档。
 2. `ncnn_ocr.py` 的 `MODEL_SPECS` 增加映射（复用现有 ncnn 文件时只需加键）。
 3. `models.py` 的 `OcrModel` 增加 `cached_property`。
-4. `rpc.py` 中 `ModelProxyFactory` 的白名单列表加入同名条目。
-5. 视需要在 `module/base/resource.py` 的释放名单中登记。
+4. 视需要在 `module/base/resource.py` 的释放名单中登记。
 
 **新增识别模型文件**：ONNX 模型与字典放 `bin/ocr_models/ppocr-v6/`；ncnn 版本用 `uv run python -m dev_tools.ocr_ncnn_convert` 从 ONNX 转换生成。注意字典类别数必须与模型档位对齐。
 
@@ -314,14 +290,11 @@ OCR 推理的线程模型围绕「模型实例非线程安全」这一前提设�
 - **`alphabet` 是推理后的字符过滤**，不能提升模型输出上限；真正的输出空间由字典文件决定。数字识别保留 `IDSB` 字符再纠错是刻意设计，收紧 alphabet 到纯数字反而会让形近字母被过滤成空结果。
 - **`lang='azur_lane'` 在日服自动切 `azur_lane_jp`**：按服务器语言写死 lang 的代码要意识到这个隐式切换。
 - **解析失败返回安全默认值是契约**：`Digit` 空结果返回 `0`、`DigitCounter` 返回 `(0,0,0)`、`Duration` 返回 0 时长，上层逻辑（如循环重试）依赖这些行为，不要改成抛异常。
-- **`OCR_MODEL` 的本地/RPC 选择发生在导入期**，切换 `UseOcrServer` 需要重启进程。
 - 文档性注释与实现可能漂移：`models.py` 的模块注释称所有逻辑模型统一 PP-OCRv6，而 `al_ocr.py` 的 `DEFAULT_ONNX_MODEL_VERSION` 实际让英文/简中的 auto 档默认使用旧版专用模型。以 `al_ocr.py` 与 `bin/ocr_models/README.md` 为准。
 
 ## 17. 已知限制
 
 - **调试图磁盘开销**：单行识别默认仍写 `ocr_debug/`（保留 100 张）；调用方可用 `AlOcr(..., save_debug_images=False)` 按识别器关闭写盘及目录整理。此开关不进入模型缓存、不改变推理与队列，也不影响其他实例；心智计算器的自动扫描和上传识别默认关闭。文本检测沿用独立的 `DET_DEBUG`。
-- **RPC 单向回退**：`ModelProxy` 一旦连接失败即永久 `online=False` 回退本地，不会自动重试服务器；服务器恢复需重建代理。
-- **pickle 传输**：RPC 图像序列化用 pickle，仅适合本机或可信内网。
 - **首次调用延迟高**：模型懒加载意味着进程启动后的第一次 OCR 需承担模型初始化耗时。
 - **ncnn 后端功能面窄**：仅支持识别推理（检测走 ONNX 混合流水线），不支持旧版 `alocr_*` 模型档位；厂商 NPU/GPU 设备值对 ncnn 无效。
 - **检测模型冗余**：`det/` 目录有 tiny/small/medium 三档检测模型，代码当前只引用 tiny；`AlOcr.det()` 无业务调用方，属保留能力。

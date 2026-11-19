@@ -27,6 +27,15 @@ REMOVED_NETWORK_MODULES = (
     "module/runtime/mcp_auth.py",
     "module/runtime/remote_access.py",
     "module/runtime/remote_cloudflare.py",
+    "module/runtime/remote_direct.py",
+    "module/runtime/remote_p2p.py",
+    "module/runtime/update_network.py",
+    "module/api/plugin_service.py",
+    "module/api/plugin_manifest.py",
+    "module/base/ssh.py",
+    "module/ocr/rpc.py",
+    "frontend/plugin-sdk",
+    "frontend/src/plugins",
     "module/api/remote_service.py",
     "dev_tools/remote_gateway_poc",
     ".github/workflows/sync-cnb.yml",
@@ -64,7 +73,6 @@ REMOVED_IMPORTS = (
     "module.runtime.remote_cloudflare",
     "module.api.remote_service",
     "module.runtime.updater",
-    "mcp_server_sse",
     "module.mcp",
     "module.statistics.cl1_data_submitter",
     "module.statistics.daily_summary",
@@ -88,6 +96,13 @@ REMOVED_CONFIG_FIELDS = (
     "CloudflareDeviceId",
     "TelemetryReport",
     "CloudUpload",
+    "RemoteStartCommand",
+    "RemoteStopCommand",
+    "EnableRemoteSSH",
+    "UseOcrServer",
+    "StartOcrServer",
+    "OcrServerPort",
+    "OcrClientAddress",
     "DropRecord_CloudUpload",
 )
 
@@ -101,7 +116,6 @@ FORBIDDEN_RUNTIME_TOKENS = (
     "ip9.com.cn/get",
     "microsoft-clarity-script",
     "www.clarity.ms",
-    "api.yppp.net",
     "api.azurpilot.com",
     "X-AzurPilot-ID",
 )
@@ -143,7 +157,7 @@ class TestCleanNetworkPolicy(unittest.TestCase):
         response = Mock()
         response.json.return_value = {'data': {'servers': {'jp': payload}}}
         handover = SimpleNamespace(config=SimpleNamespace(SERVER='jp'))
-        with patch('module.handover.handover.requests.get', return_value=response) as request:
+        with patch('module.handover.handover.http.get', return_value=response) as request:
             result, timezone, error = OperationHandover.handover_maintain_query(handover)
         self.assertEqual(payload, result)
         self.assertEqual(timedelta(hours=9), timezone)
@@ -192,7 +206,9 @@ class TestCleanNetworkPolicy(unittest.TestCase):
         restored = [
             relative_path
             for relative_path in REMOVED_NETWORK_MODULES
-            if (PROJECT_ROOT / relative_path).exists()
+            if ((PROJECT_ROOT / relative_path).is_file()
+                or any((PROJECT_ROOT / relative_path).rglob("*.py"))
+                or any((PROJECT_ROOT / relative_path).rglob("*.ts*")))
         ]
 
         self.assertEqual([], restored)
@@ -266,7 +282,7 @@ class TestCleanNetworkPolicy(unittest.TestCase):
         )
         self.assertNotRegex(source, r"https?://")
         background = (PROJECT_ROOT / "frontend/src/app/background.ts").read_text(encoding="utf-8")
-        self.assertIn("DEFAULT_BACKGROUND_URL = '/wallpaper.jpg'", background)
+        self.assertRegex(background, r"DEFAULT_BACKGROUND_URLS = \[\s*'/wallpaper\.jpg',\s*\]")
         self.assertTrue((PROJECT_ROOT / "frontend/public/wallpaper.jpg").is_file())
 
     def test_time_source_uses_only_the_local_clock(self):

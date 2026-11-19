@@ -159,6 +159,9 @@ Input(Uiautomator2)
 | `Hermit` | HTTP 注入，仅 VMOS（无 u2/minitouch 的环境） |
 | `scrcpy` | scrcpy 控制通道（代码保留，配置选项未暴露） |
 
+`control_interval()` 仅在当前调用范围内为输入增加随机间隔，默认不启用，正常返回或异常退出均恢复原值。
+智能换船的 `preflight_rotation()` 使用0.1–0.3秒间隔，通过 `Device.handle_control_check()` 覆盖点击、滑动和拖动，保留既有卡死及连点检测；普通任务不增加等待。该节流只控制输入节奏，界面就绪仍由截图状态循环确认。
+
 `PatchedIniter.push_url()` 为 atx-agent 预填 uiautomator2 的原有缓存，再沿用上游解包和 ADB 推送。
 下载时不发送固定的 GitHub `Origin`，避免 `atx.azurpilot.com` 重定向到 CNB 后被拒绝；连接/读取
 超时分别为 5/30 秒，镜像失败时回退到相同版本和架构的 OpenATX 官方 GitHub Release。
@@ -244,7 +247,7 @@ flowchart TD
 | `module/base` ModuleBase | 业务模块经继承链调用 `device.screenshot()/click()`；每次检测调 `stuck_record_add` |
 | `module/handler` LoginHandler | 登录等待期间用 `stuck_timeout_override` 放宽卡死阈值 |
 | `module/runtime/scheduler_stop.py` | WebUI 停止收尾用 `Device.for_existing_device` 执行关游戏/回主页/关模拟器 |
-| `module/mcp/device_worker.py` | MCP 的 `get_screenshot`/`restart_emulator`/`restart_adb` 工具在独立 spawn 进程中构造 `Device` 执行 |
+| `module/mcp/device_worker.py` | MCP 的 `azurpilot_observe_device` / `azurpilot_click` / `azurpilot_swipe` / `azurpilot_long_press` / `azurpilot_input_text` / `azurpilot_press_key` / `azurpilot_adb_shell` / `azurpilot_restart_emulator` / `azurpilot_restart_adb` 在独立 spawn 进程中构造 `Device` 执行 |
 | `module/daemon/benchmark.py` | 消费 Device 的各后端方法跑基准（截图方式 auto 的实现者） |
 
 ### 下游
@@ -419,6 +422,8 @@ device.emulator_start()   # 深度重启等参数同样委托 platform
 image = device.screenshot()
 ```
 
+MCP 坐标与输入类工具（`azurpilot_click` / `azurpilot_swipe` / `azurpilot_long_press` / `azurpilot_input_text` / `azurpilot_press_key`）在同一个 worker 内调用 `Device` 的对应方法，用操作前后的帧指纹差异回报「画面是否变化」；设备租约只存在于 MCP 服务进程，设备层不感知接管状态。
+
 ## 19. 调试方法
 
 - 画面采集工具 [dev_tools/uiautomator2_screenshot.py](../../dev_tools/uiautomator2_screenshot.py) 使用实例配置中的截图后端，将首帧和变化帧保存为无损 WebP。默认相似度阈值为 0.98；调用 `watch(similarity=1)` 可跳过相似度计算，保存每轮的新截图，首帧只保存一次。
@@ -434,5 +439,5 @@ image = device.screenshot()
 - [基础层 module/base](base/index.md)——消费 `Device.screenshot()/click()` 的上层原语；`appear()` 每次检测都会登记卡死记录。
 - [OCR 系统](ocr.md)——`Optimization_OcrDevice` 基准决定 OCR 跑在 GPU 还是 CPU。
 - [WebUI 总览](webui/index.md)——手动停止后的 `close_game`/`close_emulator` 收尾与实时截图预览都走设备层。
-- [MCP SSE 服务器](entry/mcp-server.md)——`get_screenshot`/`restart_emulator`/`restart_adb` 工具的底层实现（`module/mcp/device_worker.py`）。
+- [MCP SSE 服务器](entry/mcp-server.md)——`azurpilot_observe_device`、坐标/文本输入类工具与 `azurpilot_restart_emulator` / `azurpilot_restart_adb` 的底层实现（`module/mcp/device_worker.py`）。
 - [配置系统](config.md)——`Emulator.*`、`EmulatorInfo.*`、`Optimization.*` 的定义与写回。

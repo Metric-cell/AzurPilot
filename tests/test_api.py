@@ -3,7 +3,9 @@ import asyncio
 import json
 import shutil
 import tempfile
+import threading
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
@@ -16,6 +18,8 @@ from module.api.config_service import ConfigService, ROOT
 from module.api.protocol import ApiError, ConfigChange
 from module.api.runtime_service import RuntimeService
 from module.api.socket import Gateway, Session
+from module.api.ws_transport import FRAME_BYTES, frames
+from tests.platform_capabilities import supports_symlinks
 
 
 def fixture(directory):
@@ -36,6 +40,25 @@ class ConfigApiTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.configs = ConfigService(fixture(self.temp.name))
+
+    def test_reserved_state_files_cannot_be_used_as_instances(self):
+        for name in ('startup_memory', 'WEBUI_PREFS', 'webui-workers'):
+            with self.subTest(name=name):
+                with self.assertRaises(ApiError):
+                    self.configs.create(name)
+                with self.assertRaises(ApiError):
+                    self.configs.path(name)
+
+    @unittest.skipUnless(supports_symlinks(), 'OS does not grant symbolic-link creation privileges')
+    def test_importable_excludes_symbolic_links(self):
+        imports = self.configs.directory / 'import'
+        imports.mkdir(exist_ok=True)
+        source = imports / 'shared.json'
+        source.write_text(json.dumps({'Alas': {}}), encoding='utf-8')
+        (imports / 'link.json').symlink_to(source)
+        names = [entry['name'] for entry in self.configs.importable()]
+        self.assertIn('shared', names)
+        self.assertNotIn('link', names)
 
     def test_dorm_food_reserve_defaults_for_old_configs(self):
         from module.config.config_updater import ConfigUpdater
@@ -121,12 +144,10 @@ class ConfigApiTests(unittest.TestCase):
         imports.mkdir()
         shutil.copyfile(self.configs.directory / 'testpilot.json', imports / 'shared.json')
         (imports / 'broken.json').write_text('{ not json', encoding='utf-8')
-        (imports / 'link.json').symlink_to(imports / 'shared.json')
 
         names = [entry['name'] for entry in self.configs.importable()]
         self.assertIn('shared', names)
         self.assertNotIn('broken', names)     # 解不开的 JSON
-        self.assertNotIn('link', names)       # 符号链接
         self.assertNotIn('testpilot', names)  # 实例目录里的不会被当作导入源
 
         # 文件名不合规的不能被列出来：read_import 会拒掉它，列出来就是一个选不了的选项
@@ -450,6 +471,75 @@ class SocketApiTests(unittest.TestCase):
             self.assertTrue(self.call(ws, 'auth.login', {'password': 'test-secret'})['ok'])
             self.assertEqual('testpilot', self.call(ws, 'instances.list')['result'][0]['name'])
 
+    def test_data_channel_fragments_large_reports_without_blocking_operations(self):
+        entered, release = threading.Event(), threading.Event()
+        self.addCleanup(release.set)
+        report = {'tables': [{'title': '资源变化', 'rows': [['获得物资', index] for index in range(30000)]}]}
+
+        def statistics(_):
+            entered.set()
+            if not release.wait(10):
+                raise TimeoutError('操作通道未及时返回')
+            return report
+
+        methods = self.app.state.gateway.router.methods
+        with patch.dict(methods, {'statistics.report': replace(methods['statistics.report'], handler=statistics)}):
+            with (self.client.websocket_connect('/api/v1/ws?channel=control') as control,
+                  self.client.websocket_connect('/api/v1/ws?channel=data') as data):
+                self.login(control)
+                self.assertEqual('data', data.receive_json()['data']['channel'])
+                self.assertEqual('UNAUTHORIZED', self.call(data, 'statistics.report', {'instance': 'testpilot'})['error']['code'])
+                self.assertTrue(self.call(data, 'auth.login', {'password': 'test-secret'})['ok'])
+                self.assertEqual('WRONG_CHANNEL', self.call(data, 'scheduler.stop', {'instance': 'testpilot'})['error']['code'])
+                self.assertEqual('WRONG_CHANNEL', self.call(control, 'statistics.report', {'instance': 'testpilot'})['error']['code'])
+                self.assertEqual('WRONG_CHANNEL', self.call(control, 'events.subscribe', {
+                    'instance': 'testpilot', 'topics': ['logs'],
+                })['error']['code'])
+                data.send_json({'v': 1, 'type': 'request', 'id': 'large', 'method': 'statistics.report',
+                                'params': {'instance': 'testpilot'}})
+                try:
+                    self.assertTrue(entered.wait(3))
+                    self.assertTrue(self.call(control, 'instances.list')['ok'])
+                    self.assertFalse(release.is_set())
+                finally:
+                    release.set()
+                parts = []
+                while True:
+                    part = data.receive_bytes()
+                    self.assertLessEqual(len(part), FRAME_BYTES)
+                    parts.append(part[1:])
+                    if part[0] == 1:
+                        break
+                    self.assertEqual(0, part[0])
+                self.assertGreater(len(parts), 1)
+                self.assertEqual(report, json.loads(b''.join(parts))['result'])
+
+    def test_data_channel_reassembles_upload_and_preserves_request_limit(self):
+        import base64
+
+        rows = [{'name': '驱逐舰', 'level': 100}] * 3000
+        content = base64.b64encode(json.dumps({'ships': rows}, ensure_ascii=False).encode()).decode()
+        self.assertGreater(len(content), FRAME_BYTES)
+        with self.client.websocket_connect('/api/v1/ws?channel=data') as data:
+            self.login(data)
+            upload = Session.encode({'v': 1, 'type': 'request', 'id': 'upload', 'method': 'mind.import',
+                                     'params': {'instance': 'testpilot', 'filename': 'ships.json', 'content': content}})
+            for part in frames(upload):
+                data.send_bytes(part)
+            parts = []
+            while True:
+                part = data.receive_bytes()
+                self.assertLessEqual(len(part), FRAME_BYTES)
+                parts.append(part[1:])
+                if part[0] == 1:
+                    break
+            self.assertEqual(3000, len(json.loads(b''.join(parts))['result']['ships']))
+            oversized = Session.encode({'v': 1, 'type': 'request', 'id': 'limit', 'method': 'config.get',
+                                        'params': {'instance': 'testpilot', 'padding': 'x' * 1024 * 1024}})
+            for part in frames(oversized):
+                data.send_bytes(part)
+            self.assertEqual('INVALID_REQUEST', data.receive_json()['error']['code'])
+
     def test_large_calculator_file_keeps_other_message_limits(self):
         """舰船文件可超过 1 MiB，其余方法仍受原限制约束。"""
         import base64
@@ -484,6 +574,97 @@ class SocketApiTests(unittest.TestCase):
         with client.websocket_connect('/api/v1/ws', headers={'host': 'app.hk1.azurlane.cloud'}) as ws:
             self.assertTrue(ws.receive_json()['data']['authRequired'])
             self.assertEqual('UNAUTHORIZED', self.call(ws, 'instances.list')['error']['code'])
+
+    def test_passwordless_nonlocal_connections_fail_closed(self):
+        app = create_app(root=Path(self.temp.name), password='', manage_runtime=False)
+        for client_address, headers in (
+            (('192.168.1.20', 55555), {'host': '192.168.1.10:22267'}),
+            (('127.0.0.1', 55555), {'host': 'localhost:22267', 'x-forwarded-for': '192.168.1.20'}),
+        ):
+            with self.subTest(client=client_address), TestClient(app, client=client_address) as client:
+                with client.websocket_connect('/api/v1/ws', headers=headers) as ws:
+                    self.assertTrue(ws.receive_json()['data']['authRequired'])
+                    self.assertEqual('UNAUTHORIZED', self.call(ws, 'auth.login', {'password': ''})['error']['code'])
+                    self.assertEqual('UNAUTHORIZED', self.call(ws, 'instances.list')['error']['code'])
+
+    def test_passwordless_loopback_and_demo_keep_expected_access(self):
+        app = create_app(root=Path(self.temp.name), password='', manage_runtime=False)
+        local = TestClient(app, client=('127.0.0.1', 55555))
+        with local.websocket_connect('/api/v1/ws', headers={'host': 'localhost:22267'}) as ws:
+            self.assertFalse(ws.receive_json()['data']['authRequired'])
+            self.assertTrue(self.call(ws, 'instances.list')['ok'])
+        with patch.dict('os.environ', {'DEMO': '1'}):
+            remote = TestClient(app, client=('192.168.1.20', 55555))
+            with remote.websocket_connect('/api/v1/ws', headers={'host': '192.168.1.10:22267'}) as ws:
+                self.assertFalse(ws.receive_json()['data']['authRequired'])
+                self.assertTrue(self.call(ws, 'instances.list')['ok'])
+                self.assertEqual('READ_ONLY', self.call(ws, 'instances.create', {'name': 'blocked'})['error']['code'])
+
+    def test_lan_cannot_set_host_programs_or_import_arbitrary_configuration(self):
+        client = TestClient(self.app, client=('192.168.1.20', 55555))
+        with client.websocket_connect('/api/v1/ws', headers={'host': '192.168.1.10:22267'}) as ws:
+            self.login(ws)
+            for method, params in (
+                ('settings.patch', {'values': {'AdbExecutable': '/local/adb'}}),
+                ('instances.importConfig', {'name': 'incoming', 'content': '{}'}),
+                ('instances.create', {'name': 'newpilot', 'import_file': 'incoming'}),
+            ):
+                with self.subTest(method=method):
+                    self.assertEqual('LOCAL_ONLY', self.call(ws, method, params)['error']['code'])
+            for field in ('Emulator', 'name', 'path'):
+                with self.subTest(field=field):
+                    result = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
+                        {'path': f'Alas.EmulatorInfo.{field}', 'value': 'auto'},
+                    ]})
+                    self.assertEqual('LOCAL_ONLY', result['error']['code'])
+            for path in ('MeowfficerScore.MeowfficerScore.ReportPath',
+                         'MeowfficerScore.MeowfficerScore.Folder', 'Alas.DropRecord.SaveFolder'):
+                with self.subTest(path=path):
+                    result = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
+                        {'path': path, 'value': './local-data'},
+                    ]})
+                    self.assertEqual('LOCAL_ONLY', result['error']['code'])
+            result = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
+                {'path': 'Main.Scheduler.Enable', 'value': True},
+            ]})
+            self.assertTrue(result['ok'], result)
+            result = self.call(ws, 'instances.create', {'name': 'newpilot'})
+            self.assertTrue(result['ok'], result)
+
+    def test_local_program_settings_and_import_remain_available(self):
+        client = TestClient(self.app, client=('127.0.0.1', 55555))
+        with client.websocket_connect('/api/v1/ws', headers={'host': '127.0.0.1:22267'}) as ws:
+            self.assertFalse(ws.receive_json()['data']['authRequired'])
+            with patch('module.runtime.deploy_settings.save_deploy_settings', return_value={'updated': []}) as save:
+                result = self.call(ws, 'settings.patch', {'values': {'AdbExecutable': '/local/adb'}})
+                self.assertTrue(result['ok'], result)
+                save.assert_called_once()
+            result = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
+                {'path': 'Alas.EmulatorInfo.path', 'value': '/local/emulator'},
+            ]})
+            self.assertTrue(result['ok'], result)
+            for path in ('MeowfficerScore.MeowfficerScore.ReportPath',
+                         'MeowfficerScore.MeowfficerScore.Folder', 'Alas.DropRecord.SaveFolder'):
+                with self.subTest(path=path):
+                    result = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
+                        {'path': path, 'value': './local-data'},
+                    ]})
+                    self.assertTrue(result['ok'], result)
+            config = self.call(ws, 'config.export', {'instance': 'testpilot'})['result']
+            result = self.call(ws, 'instances.importConfig', {'name': 'incoming', 'content': json.dumps(config)})
+            self.assertTrue(result['ok'], result)
+            result = self.call(ws, 'instances.create', {'name': 'imported', 'import_file': 'incoming'})
+            self.assertTrue(result['ok'], result)
+
+    def test_forwarded_loopback_cannot_change_host_program_settings(self):
+        client = TestClient(self.app, client=('127.0.0.1', 55555))
+        with client.websocket_connect('/api/v1/ws', headers={'host': '127.0.0.1:22267',
+                                                             'x-forwarded-for': '192.168.1.20'}) as ws:
+            self.assertTrue(ws.receive_json()['data']['authRequired'])
+            self.assertEqual('UNAUTHORIZED', self.call(ws, 'instances.list')['error']['code'])
+            self.assertTrue(self.call(ws, 'auth.login', {'password': 'test-secret'})['ok'])
+            result = self.call(ws, 'settings.patch', {'values': {'AdbExecutable': '/local/adb'}})
+            self.assertEqual('LOCAL_ONLY', result['error']['code'])
 
     def test_tunnel_forwarded_request_keeps_password(self):
         """远程访问隧道同样来自回环地址，靠标记头避免被当成免密的本机直连。"""
@@ -680,14 +861,17 @@ class SocketApiTests(unittest.TestCase):
             self.login(ws)
             for method in ('updater.status', 'updater.commits', 'updater.fetch',
                            'updater.apply', 'updater.cancel', 'announcement.get',
-                           'stock.status', 'stock.request', 'stock.rebuild'):
+                           'stock.status', 'stock.request', 'stock.rebuild', 'stock.register',
+                           'plugins.access', 'plugins.list', 'plugins.storage.get',
+                           'plugins.storage.write'):
                 with self.subTest(method=method):
                     result = self.call(ws, method, {})
                     self.assertEqual('METHOD_NOT_FOUND', result['error']['code'])
 
     def test_clean_does_not_mount_mcp(self):
         routes = self.client.app.routes
-        self.assertFalse(any(getattr(route, 'path', '').startswith('/mcp') for route in routes))
+        removed = ('/mcp', '/api/v1/remote', '/api/v1/plugins')
+        self.assertFalse(any(getattr(route, 'path', '').startswith(removed) for route in routes))
 
     def test_slow_client_queue_is_bounded(self):
         from unittest.mock import AsyncMock

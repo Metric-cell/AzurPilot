@@ -371,6 +371,14 @@
           false
         ]
       },
+      "DisableChannelFloat": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
       "ScreenshotDedithering": {
         "type": "checkbox",
         "value": false
@@ -401,8 +409,7 @@
           "MuMuPlayer12",
           "MEmuPlayer",
           "BlueStacksAir",
-          "MuMuPro",
-          "SSH"
+          "MuMuPro"
         ]
       },
       "name": {
@@ -412,38 +419,6 @@
       "path": {
         "type": "textarea",
         "value": null
-      },
-      "EnableRemoteSSH": {
-        "type": "checkbox",
-        "value": false,
-        "option": [
-          true,
-          false
-        ]
-      },
-      "RemoteSSHHost": {
-        "type": "input",
-        "value": null
-      },
-      "RemoteSSHPort": {
-        "type": "input",
-        "value": 22
-      },
-      "RemoteSSHUser": {
-        "type": "input",
-        "value": "root"
-      },
-      "RemoteSSHPublicKey": {
-        "type": "textarea",
-        "value": null
-      },
-      "RemoteStartCommand": {
-        "type": "textarea",
-        "value": ""
-      },
-      "RemoteStopCommand": {
-        "type": "textarea",
-        "value": ""
       }
     },
     "Error": {
@@ -743,36 +718,22 @@
           "zip"
         ]
       },
-      "AzurStatsID": {
-        "type": "input",
-        "value": null
-      },
-      "API": {
-        "type": "select",
-        "value": "default",
-        "option": [
-          "default",
-          "cn_gz_reverse_proxy"
-        ]
-      },
       "ResearchRecord": {
         "type": "select",
-        "value": "do_not",
+        "value": "local",
         "option": [
-          "do_not",
+          "local",
           "save",
-          "upload",
-          "save_and_upload"
+          "do_not"
         ]
       },
       "CommissionRecord": {
         "type": "select",
-        "value": "do_not",
+        "value": "local",
         "option": [
-          "do_not",
+          "local",
           "save",
-          "upload",
-          "save_and_upload"
+          "do_not"
         ]
       },
       "CommissionIncomeScreenshot": {
@@ -793,90 +754,74 @@
       },
       "OpsiHazard1Leveling": {
         "type": "select",
-        "value": "upload",
+        "value": "do_not",
         "option": [
-          "do_not",
           "save",
-          "upload",
-          "save_and_upload"
+          "do_not"
         ]
       },
       "OpsiMeowfficerFarming": {
         "type": "select",
-        "value": "upload",
+        "value": "do_not",
         "option": [
-          "do_not",
           "save",
-          "upload",
-          "save_and_upload"
+          "do_not"
         ]
       },
       "OpsiDaily": {
         "type": "select",
-        "value": "upload",
+        "value": "do_not",
         "option": [
-          "do_not",
           "save",
-          "upload",
-          "save_and_upload"
+          "do_not"
         ]
       },
       "OpsiObscure": {
         "type": "select",
-        "value": "upload",
+        "value": "do_not",
         "option": [
-          "do_not",
           "save",
-          "upload",
-          "save_and_upload"
+          "do_not"
         ]
       },
       "OpsiAbyssal": {
         "type": "select",
-        "value": "upload",
+        "value": "do_not",
         "option": [
-          "do_not",
           "save",
-          "upload",
-          "save_and_upload"
+          "do_not"
         ]
       },
       "OpsiStronghold": {
         "type": "select",
-        "value": "upload",
+        "value": "do_not",
         "option": [
-          "do_not",
           "save",
-          "upload",
-          "save_and_upload"
+          "do_not"
         ]
       },
       "OpsiExplore": {
         "type": "select",
-        "value": "upload",
+        "value": "do_not",
         "option": [
-          "do_not",
           "save",
-          "upload",
-          "save_and_upload"
+          "do_not"
         ]
       },
       "OpsiOther": {
         "type": "select",
-        "value": "upload",
+        "value": "do_not",
         "option": [
-          "do_not",
           "save",
-          "upload",
-          "save_and_upload"
+          "do_not"
         ]
       },
       "MeowfficerBuy": {
         "type": "select",
         "value": "do_not",
         "option": [
-          "do_not",
-          "save"
+          "save",
+          "do_not"
         ]
       },
       "MeowfficerTalent": {
@@ -884,9 +829,7 @@
         "value": "do_not",
         "option": [
           "do_not",
-          "save",
-          "upload",
-          "save_and_upload"
+          "save"
         ]
       }
     },
@@ -1296,6 +1239,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "display"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -1771,6 +1723,15 @@
         "type": "checkbox",
         "value": true
       },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "display"
+      },
       "ContinueAfterRestart": {
         "type": "checkbox",
         "value": false
@@ -2244,6 +2205,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "display"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -2805,13 +2775,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ],
         "option_cn": [
@@ -2824,22 +2787,9 @@
           "event_20261022_cn"
         ],
         "option_tw": [
-          "event_20250912_cn",
-          "event_20250814_cn",
-          "event_20250520_cn",
-          "event_20250227_cn",
-          "event_20241219_cn",
-          "event_20240912_cn",
-          "event_20240815_cn"
+          "event_20261022_cn"
         ],
         "option_bold": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ]
       },
@@ -2865,6 +2815,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "hide"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -3152,13 +3111,11 @@
           "not_in_dormitory",
           "dormitory_floor_1",
           "dormitory_floor_2"
-        ],
-        "display": "hide"
+        ]
       },
       "Fleet1Oath": {
         "type": "checkbox",
-        "value": false,
-        "display": "hide"
+        "value": false
       },
       "Fleet1Onsen": {
         "type": "checkbox",
@@ -3201,13 +3158,11 @@
           "not_in_dormitory",
           "dormitory_floor_1",
           "dormitory_floor_2"
-        ],
-        "display": "hide"
+        ]
       },
       "Fleet2Oath": {
         "type": "checkbox",
-        "value": false,
-        "display": "hide"
+        "value": false
       },
       "Fleet2Onsen": {
         "type": "checkbox",
@@ -3405,13 +3360,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ],
         "option_cn": [
@@ -3424,22 +3372,9 @@
           "event_20261022_cn"
         ],
         "option_tw": [
-          "event_20250912_cn",
-          "event_20250814_cn",
-          "event_20250520_cn",
-          "event_20250227_cn",
-          "event_20241219_cn",
-          "event_20240912_cn",
-          "event_20240815_cn"
+          "event_20261022_cn"
         ],
         "option_bold": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ]
       },
@@ -3465,6 +3400,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "hide"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -3752,13 +3696,11 @@
           "not_in_dormitory",
           "dormitory_floor_1",
           "dormitory_floor_2"
-        ],
-        "display": "hide"
+        ]
       },
       "Fleet1Oath": {
         "type": "checkbox",
-        "value": false,
-        "display": "hide"
+        "value": false
       },
       "Fleet1Onsen": {
         "type": "checkbox",
@@ -3801,13 +3743,11 @@
           "not_in_dormitory",
           "dormitory_floor_1",
           "dormitory_floor_2"
-        ],
-        "display": "hide"
+        ]
       },
       "Fleet2Oath": {
         "type": "checkbox",
-        "value": false,
-        "display": "hide"
+        "value": false
       },
       "Fleet2Onsen": {
         "type": "checkbox",
@@ -4034,6 +3974,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": false,
+        "display": "hide"
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
         "display": "hide"
       },
       "ContinueAfterRestart": {
@@ -4489,13 +4438,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ],
         "option_cn": [
@@ -4508,22 +4450,9 @@
           "event_20261022_cn"
         ],
         "option_tw": [
-          "event_20250912_cn",
-          "event_20250814_cn",
-          "event_20250520_cn",
-          "event_20250227_cn",
-          "event_20241219_cn",
-          "event_20240912_cn",
-          "event_20240815_cn"
+          "event_20261022_cn"
         ],
         "option_bold": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ]
       },
@@ -4547,6 +4476,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "display"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -4999,13 +4937,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ],
         "option_cn": [
@@ -5018,22 +4949,9 @@
           "event_20261022_cn"
         ],
         "option_tw": [
-          "event_20250912_cn",
-          "event_20250814_cn",
-          "event_20250520_cn",
-          "event_20250227_cn",
-          "event_20241219_cn",
-          "event_20240912_cn",
-          "event_20240815_cn"
+          "event_20261022_cn"
         ],
         "option_bold": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ]
       },
@@ -5057,6 +4975,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "display"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -5509,13 +5436,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ],
         "option_cn": [
@@ -5528,22 +5448,9 @@
           "event_20261022_cn"
         ],
         "option_tw": [
-          "event_20250912_cn",
-          "event_20250814_cn",
-          "event_20250520_cn",
-          "event_20250227_cn",
-          "event_20241219_cn",
-          "event_20240912_cn",
-          "event_20240815_cn"
+          "event_20261022_cn"
         ],
         "option_bold": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ]
       },
@@ -5567,6 +5474,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "display"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -6077,6 +5993,15 @@
         "value": false,
         "display": "hide"
       },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "hide"
+      },
       "ContinueAfterRestart": {
         "type": "checkbox",
         "value": false,
@@ -6402,6 +6327,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "hide"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -7095,6 +7029,15 @@
         "value": false,
         "display": "hide"
       },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "hide"
+      },
       "ContinueAfterRestart": {
         "type": "checkbox",
         "value": false,
@@ -7437,6 +7380,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": false,
+        "display": "hide"
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
         "display": "hide"
       },
       "ContinueAfterRestart": {
@@ -7926,12 +7878,14 @@
           "war_archives_20230223_cn",
           "war_archives_20230525_cn",
           "war_archives_20230803_cn",
+          "war_archives_20230817_cn",
           "war_archives_20231026_cn",
           "war_archives_20240725_cn",
           "war_archives_20241024_cn",
           "war_archives_20251023_cn"
         ],
         "option_cn": [
+          "war_archives_20230817_cn",
           "war_archives_20251023_cn",
           "war_archives_20241024_cn",
           "war_archives_20240725_cn",
@@ -7984,6 +7938,7 @@
           "war_archives_20181020_en"
         ],
         "option_en": [
+          "war_archives_20230817_cn",
           "war_archives_20251023_cn",
           "war_archives_20241024_cn",
           "war_archives_20240725_cn",
@@ -8036,6 +7991,7 @@
           "war_archives_20181020_en"
         ],
         "option_jp": [
+          "war_archives_20230817_cn",
           "war_archives_20251023_cn",
           "war_archives_20241024_cn",
           "war_archives_20240725_cn",
@@ -8088,6 +8044,7 @@
           "war_archives_20181020_en"
         ],
         "option_tw": [
+          "war_archives_20230817_cn",
           "war_archives_20251023_cn",
           "war_archives_20241024_cn",
           "war_archives_20240725_cn",
@@ -8186,6 +8143,7 @@
           "war_archives_20230223_cn",
           "war_archives_20230525_cn",
           "war_archives_20230803_cn",
+          "war_archives_20230817_cn",
           "war_archives_20231026_cn",
           "war_archives_20240725_cn",
           "war_archives_20241024_cn",
@@ -8212,6 +8170,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "hide"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -8721,13 +8688,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ],
         "option_cn": [
@@ -8740,22 +8700,9 @@
           "event_20261022_cn"
         ],
         "option_tw": [
-          "event_20250912_cn",
-          "event_20250814_cn",
-          "event_20250520_cn",
-          "event_20250227_cn",
-          "event_20241219_cn",
-          "event_20240912_cn",
-          "event_20240815_cn"
+          "event_20261022_cn"
         ],
         "option_bold": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ]
       },
@@ -8779,6 +8726,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "display"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -9249,13 +9205,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ],
         "option_cn": [
@@ -9268,22 +9217,9 @@
           "event_20261022_cn"
         ],
         "option_tw": [
-          "event_20250912_cn",
-          "event_20250814_cn",
-          "event_20250520_cn",
-          "event_20250227_cn",
-          "event_20241219_cn",
-          "event_20240912_cn",
-          "event_20240815_cn"
+          "event_20261022_cn"
         ],
         "option_bold": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ]
       },
@@ -9307,6 +9243,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "display"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -9777,13 +9722,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ],
         "option_cn": [
@@ -9796,22 +9734,9 @@
           "event_20261022_cn"
         ],
         "option_tw": [
-          "event_20250912_cn",
-          "event_20250814_cn",
-          "event_20250520_cn",
-          "event_20250227_cn",
-          "event_20241219_cn",
-          "event_20240912_cn",
-          "event_20240815_cn"
+          "event_20261022_cn"
         ],
         "option_bold": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ]
       },
@@ -9835,6 +9760,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "display"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -10305,13 +10239,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ],
         "option_cn": [
@@ -10324,22 +10251,9 @@
           "event_20261022_cn"
         ],
         "option_tw": [
-          "event_20250912_cn",
-          "event_20250814_cn",
-          "event_20250520_cn",
-          "event_20250227_cn",
-          "event_20241219_cn",
-          "event_20240912_cn",
-          "event_20240815_cn"
+          "event_20261022_cn"
         ],
         "option_bold": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ]
       },
@@ -10363,6 +10277,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "display"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -10822,13 +10745,6 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ],
         "option_cn": [
@@ -10841,22 +10757,9 @@
           "event_20261022_cn"
         ],
         "option_tw": [
-          "event_20250912_cn",
-          "event_20250814_cn",
-          "event_20250520_cn",
-          "event_20250227_cn",
-          "event_20241219_cn",
-          "event_20240912_cn",
-          "event_20240815_cn"
+          "event_20261022_cn"
         ],
         "option_bold": [
-          "event_20240815_cn",
-          "event_20240912_cn",
-          "event_20241219_cn",
-          "event_20250227_cn",
-          "event_20250520_cn",
-          "event_20250814_cn",
-          "event_20250912_cn",
           "event_20261022_cn"
         ]
       },
@@ -10880,6 +10783,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "hide"
       },
       "ContinueAfterRestart": {
         "type": "checkbox",
@@ -11388,6 +11300,15 @@
         "value": false,
         "display": "hide"
       },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
+        "display": "hide"
+      },
       "ContinueAfterRestart": {
         "type": "checkbox",
         "value": false,
@@ -11700,6 +11621,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": false,
+        "display": "hide"
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
         "display": "hide"
       },
       "ContinueAfterRestart": {
@@ -13091,7 +13021,328 @@
         "type": "select",
         "value": "campaign_main",
         "option": [
-          "campaign_main"
+          "event_20261022_cn",
+          "war_archives_20180607_cn",
+          "war_archives_20180726_cn",
+          "war_archives_20181020_en",
+          "war_archives_20181026_en",
+          "war_archives_20181227_cn",
+          "war_archives_20190221_en",
+          "war_archives_20190314_en",
+          "war_archives_20190321_en",
+          "war_archives_20190620_en",
+          "war_archives_20190911_cn",
+          "war_archives_20191010_en",
+          "war_archives_20191031_en",
+          "war_archives_20200312_cn",
+          "war_archives_20200507_cn",
+          "war_archives_20200603_cn",
+          "war_archives_20200806_cn",
+          "war_archives_20200820_cn",
+          "war_archives_20200903_cn",
+          "war_archives_20200917_cn",
+          "war_archives_20201012_cn",
+          "war_archives_20201029_cn",
+          "war_archives_20201229_cn",
+          "war_archives_20210225_cn",
+          "war_archives_20210325_cn",
+          "war_archives_20210422_cn",
+          "war_archives_20210527_cn",
+          "war_archives_20210624_cn",
+          "war_archives_20210819_cn",
+          "war_archives_20210916_cn",
+          "war_archives_20211014_cn",
+          "war_archives_20211028_cn",
+          "war_archives_20211111_cn",
+          "war_archives_20211229_cn",
+          "war_archives_20220210_cn",
+          "war_archives_20220224_cn",
+          "war_archives_20220324_cn",
+          "war_archives_20220414_cn",
+          "war_archives_20220428_cn",
+          "war_archives_20220526_cn",
+          "war_archives_20220728_cn",
+          "war_archives_20220818_cn",
+          "war_archives_20220915_cn",
+          "war_archives_20221222_cn",
+          "war_archives_20230223_cn",
+          "war_archives_20230525_cn",
+          "war_archives_20230803_cn",
+          "war_archives_20230817_cn",
+          "war_archives_20231026_cn",
+          "war_archives_20240725_cn",
+          "war_archives_20241024_cn",
+          "war_archives_20251023_cn"
+        ],
+        "option_cn": [
+          "event_20261022_cn",
+          "war_archives_20230817_cn",
+          "war_archives_20251023_cn",
+          "war_archives_20241024_cn",
+          "war_archives_20240725_cn",
+          "war_archives_20230525_cn",
+          "war_archives_20230803_cn",
+          "war_archives_20220818_cn",
+          "war_archives_20230223_cn",
+          "war_archives_20221222_cn",
+          "war_archives_20220915_cn",
+          "war_archives_20231026_cn",
+          "war_archives_20220428_cn",
+          "war_archives_20220728_cn",
+          "war_archives_20220526_cn",
+          "war_archives_20220324_cn",
+          "war_archives_20220224_cn",
+          "war_archives_20211229_cn",
+          "war_archives_20210422_cn",
+          "war_archives_20210916_cn",
+          "war_archives_20211111_cn",
+          "war_archives_20201012_cn",
+          "war_archives_20210225_cn",
+          "war_archives_20210527_cn",
+          "war_archives_20200917_cn",
+          "war_archives_20201229_cn",
+          "war_archives_20200603_cn",
+          "war_archives_20220414_cn",
+          "war_archives_20220210_cn",
+          "war_archives_20200507_cn",
+          "war_archives_20211028_cn",
+          "war_archives_20210819_cn",
+          "war_archives_20200903_cn",
+          "war_archives_20201029_cn",
+          "war_archives_20200806_cn",
+          "war_archives_20210624_cn",
+          "war_archives_20210325_cn",
+          "war_archives_20190911_cn",
+          "war_archives_20211014_cn",
+          "war_archives_20200820_cn",
+          "war_archives_20181227_cn",
+          "war_archives_20200312_cn",
+          "war_archives_20180726_cn",
+          "war_archives_20190314_en",
+          "war_archives_20180607_cn",
+          "war_archives_20190221_en",
+          "war_archives_20191010_en",
+          "war_archives_20181026_en",
+          "war_archives_20190620_en",
+          "war_archives_20190321_en",
+          "war_archives_20191031_en",
+          "war_archives_20181020_en"
+        ],
+        "option_en": [
+          "event_20261022_cn",
+          "war_archives_20230817_cn",
+          "war_archives_20251023_cn",
+          "war_archives_20241024_cn",
+          "war_archives_20240725_cn",
+          "war_archives_20230525_cn",
+          "war_archives_20230803_cn",
+          "war_archives_20220818_cn",
+          "war_archives_20230223_cn",
+          "war_archives_20221222_cn",
+          "war_archives_20220915_cn",
+          "war_archives_20231026_cn",
+          "war_archives_20220428_cn",
+          "war_archives_20220728_cn",
+          "war_archives_20220526_cn",
+          "war_archives_20220324_cn",
+          "war_archives_20220224_cn",
+          "war_archives_20211229_cn",
+          "war_archives_20210422_cn",
+          "war_archives_20210916_cn",
+          "war_archives_20211111_cn",
+          "war_archives_20201012_cn",
+          "war_archives_20210225_cn",
+          "war_archives_20210527_cn",
+          "war_archives_20200917_cn",
+          "war_archives_20201229_cn",
+          "war_archives_20200603_cn",
+          "war_archives_20220414_cn",
+          "war_archives_20220210_cn",
+          "war_archives_20200507_cn",
+          "war_archives_20211028_cn",
+          "war_archives_20210819_cn",
+          "war_archives_20200903_cn",
+          "war_archives_20201029_cn",
+          "war_archives_20200806_cn",
+          "war_archives_20210624_cn",
+          "war_archives_20210325_cn",
+          "war_archives_20190911_cn",
+          "war_archives_20211014_cn",
+          "war_archives_20200820_cn",
+          "war_archives_20181227_cn",
+          "war_archives_20200312_cn",
+          "war_archives_20180726_cn",
+          "war_archives_20190314_en",
+          "war_archives_20180607_cn",
+          "war_archives_20190221_en",
+          "war_archives_20191010_en",
+          "war_archives_20181026_en",
+          "war_archives_20190620_en",
+          "war_archives_20190321_en",
+          "war_archives_20191031_en",
+          "war_archives_20181020_en"
+        ],
+        "option_jp": [
+          "event_20261022_cn",
+          "war_archives_20230817_cn",
+          "war_archives_20251023_cn",
+          "war_archives_20241024_cn",
+          "war_archives_20240725_cn",
+          "war_archives_20230525_cn",
+          "war_archives_20230803_cn",
+          "war_archives_20220818_cn",
+          "war_archives_20230223_cn",
+          "war_archives_20221222_cn",
+          "war_archives_20220915_cn",
+          "war_archives_20231026_cn",
+          "war_archives_20220428_cn",
+          "war_archives_20220728_cn",
+          "war_archives_20220526_cn",
+          "war_archives_20220324_cn",
+          "war_archives_20220224_cn",
+          "war_archives_20211229_cn",
+          "war_archives_20210422_cn",
+          "war_archives_20210916_cn",
+          "war_archives_20211111_cn",
+          "war_archives_20201012_cn",
+          "war_archives_20210225_cn",
+          "war_archives_20210527_cn",
+          "war_archives_20200917_cn",
+          "war_archives_20201229_cn",
+          "war_archives_20200603_cn",
+          "war_archives_20220414_cn",
+          "war_archives_20220210_cn",
+          "war_archives_20200507_cn",
+          "war_archives_20211028_cn",
+          "war_archives_20210819_cn",
+          "war_archives_20200903_cn",
+          "war_archives_20201029_cn",
+          "war_archives_20200806_cn",
+          "war_archives_20210624_cn",
+          "war_archives_20210325_cn",
+          "war_archives_20190911_cn",
+          "war_archives_20211014_cn",
+          "war_archives_20200820_cn",
+          "war_archives_20181227_cn",
+          "war_archives_20200312_cn",
+          "war_archives_20180726_cn",
+          "war_archives_20190314_en",
+          "war_archives_20180607_cn",
+          "war_archives_20190221_en",
+          "war_archives_20191010_en",
+          "war_archives_20181026_en",
+          "war_archives_20190620_en",
+          "war_archives_20190321_en",
+          "war_archives_20191031_en",
+          "war_archives_20181020_en"
+        ],
+        "option_tw": [
+          "event_20261022_cn",
+          "war_archives_20230817_cn",
+          "war_archives_20251023_cn",
+          "war_archives_20241024_cn",
+          "war_archives_20240725_cn",
+          "war_archives_20230525_cn",
+          "war_archives_20230803_cn",
+          "war_archives_20220818_cn",
+          "war_archives_20230223_cn",
+          "war_archives_20221222_cn",
+          "war_archives_20220915_cn",
+          "war_archives_20231026_cn",
+          "war_archives_20220428_cn",
+          "war_archives_20220728_cn",
+          "war_archives_20220526_cn",
+          "war_archives_20220324_cn",
+          "war_archives_20220224_cn",
+          "war_archives_20211229_cn",
+          "war_archives_20210422_cn",
+          "war_archives_20210916_cn",
+          "war_archives_20211111_cn",
+          "war_archives_20201012_cn",
+          "war_archives_20210225_cn",
+          "war_archives_20210527_cn",
+          "war_archives_20200917_cn",
+          "war_archives_20201229_cn",
+          "war_archives_20200603_cn",
+          "war_archives_20220414_cn",
+          "war_archives_20220210_cn",
+          "war_archives_20200507_cn",
+          "war_archives_20211028_cn",
+          "war_archives_20210819_cn",
+          "war_archives_20200903_cn",
+          "war_archives_20201029_cn",
+          "war_archives_20200806_cn",
+          "war_archives_20210624_cn",
+          "war_archives_20210325_cn",
+          "war_archives_20190911_cn",
+          "war_archives_20211014_cn",
+          "war_archives_20200820_cn",
+          "war_archives_20181227_cn",
+          "war_archives_20200312_cn",
+          "war_archives_20180726_cn",
+          "war_archives_20190314_en",
+          "war_archives_20180607_cn",
+          "war_archives_20190221_en",
+          "war_archives_20191010_en",
+          "war_archives_20181026_en",
+          "war_archives_20190620_en",
+          "war_archives_20190321_en",
+          "war_archives_20191031_en",
+          "war_archives_20181020_en"
+        ],
+        "option_bold": [
+          "event_20261022_cn",
+          "war_archives_20180607_cn",
+          "war_archives_20180726_cn",
+          "war_archives_20181020_en",
+          "war_archives_20181026_en",
+          "war_archives_20181227_cn",
+          "war_archives_20190221_en",
+          "war_archives_20190314_en",
+          "war_archives_20190321_en",
+          "war_archives_20190620_en",
+          "war_archives_20190911_cn",
+          "war_archives_20191010_en",
+          "war_archives_20191031_en",
+          "war_archives_20200312_cn",
+          "war_archives_20200507_cn",
+          "war_archives_20200603_cn",
+          "war_archives_20200806_cn",
+          "war_archives_20200820_cn",
+          "war_archives_20200903_cn",
+          "war_archives_20200917_cn",
+          "war_archives_20201012_cn",
+          "war_archives_20201029_cn",
+          "war_archives_20201229_cn",
+          "war_archives_20210225_cn",
+          "war_archives_20210325_cn",
+          "war_archives_20210422_cn",
+          "war_archives_20210527_cn",
+          "war_archives_20210624_cn",
+          "war_archives_20210819_cn",
+          "war_archives_20210916_cn",
+          "war_archives_20211014_cn",
+          "war_archives_20211028_cn",
+          "war_archives_20211111_cn",
+          "war_archives_20211229_cn",
+          "war_archives_20220210_cn",
+          "war_archives_20220224_cn",
+          "war_archives_20220324_cn",
+          "war_archives_20220414_cn",
+          "war_archives_20220428_cn",
+          "war_archives_20220526_cn",
+          "war_archives_20220728_cn",
+          "war_archives_20220818_cn",
+          "war_archives_20220915_cn",
+          "war_archives_20221222_cn",
+          "war_archives_20230223_cn",
+          "war_archives_20230525_cn",
+          "war_archives_20230803_cn",
+          "war_archives_20230817_cn",
+          "war_archives_20231026_cn",
+          "war_archives_20240725_cn",
+          "war_archives_20241024_cn",
+          "war_archives_20251023_cn"
         ]
       },
       "Mode": {
@@ -13116,6 +13367,15 @@
       "UseAutoSearch": {
         "type": "checkbox",
         "value": true,
+        "display": "hide"
+      },
+      "MultipleSortiesCount": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          999
+        ],
         "display": "hide"
       },
       "ContinueAfterRestart": {
@@ -13157,6 +13417,25 @@
           0,
           999
         ]
+      },
+      "DailyRunCount": {
+        "type": "input",
+        "value": 1,
+        "validate": [
+          0,
+          999
+        ]
+      },
+      "DailyRunCountUsed": {
+        "type": "stored",
+        "value": 0,
+        "display": "hide"
+      },
+      "DailyRunCountRecord": {
+        "type": "stored",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "hide"
       },
       "AutoSupplementTime": {
         "type": "checkbox",
@@ -13217,6 +13496,273 @@
         "type": "stored",
         "value": "2020-01-01 00:00:00",
         "display": "hide"
+      }
+    },
+    "Fleet": {
+      "Fleet1": {
+        "type": "select",
+        "value": 1,
+        "option": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "Fleet1Formation": {
+        "type": "select",
+        "value": "double_line",
+        "option": [
+          "line_ahead",
+          "double_line",
+          "diamond"
+        ]
+      },
+      "Fleet1Mode": {
+        "type": "select",
+        "value": "combat_auto",
+        "option": [
+          "combat_auto",
+          "combat_manual",
+          "stand_still_in_the_middle",
+          "hide_in_bottom_left",
+          "hide_in_upper_left"
+        ]
+      },
+      "Fleet1Step": {
+        "type": "select",
+        "value": 3,
+        "option": [
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "Fleet2": {
+        "type": "select",
+        "value": 2,
+        "option": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6
+        ]
+      },
+      "Fleet2Formation": {
+        "type": "select",
+        "value": "double_line",
+        "option": [
+          "line_ahead",
+          "double_line",
+          "diamond"
+        ]
+      },
+      "Fleet2Mode": {
+        "type": "select",
+        "value": "combat_auto",
+        "option": [
+          "combat_auto",
+          "combat_manual",
+          "stand_still_in_the_middle",
+          "hide_in_bottom_left",
+          "hide_in_upper_left"
+        ]
+      },
+      "Fleet2Step": {
+        "type": "select",
+        "value": 2,
+        "option": [
+          2,
+          3,
+          4,
+          5
+        ]
+      },
+      "FleetOrder": {
+        "type": "select",
+        "value": "fleet1_mob_fleet2_boss",
+        "option": [
+          "fleet1_mob_fleet2_boss",
+          "fleet1_boss_fleet2_mob",
+          "fleet1_all_fleet2_standby",
+          "fleet1_standby_fleet2_all"
+        ]
+      },
+      "SkipPreparation": {
+        "type": "checkbox",
+        "value": false
+      }
+    },
+    "Submarine": {
+      "Fleet": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          1,
+          2
+        ]
+      },
+      "Mode": {
+        "type": "select",
+        "value": "do_not_use",
+        "option": [
+          "do_not_use",
+          "hunt_only",
+          "boss_only",
+          "hunt_and_boss",
+          "every_combat",
+          "advanced"
+        ]
+      },
+      "AutoSearchMode": {
+        "type": "select",
+        "value": "sub_standby",
+        "option": [
+          "sub_standby",
+          "sub_auto_call"
+        ]
+      },
+      "DistanceToBoss": {
+        "type": "select",
+        "value": "2_grid_to_boss",
+        "option": [
+          "to_boss_position",
+          "1_grid_to_boss",
+          "2_grid_to_boss",
+          "use_open_ocean_support"
+        ]
+      },
+      "AdvancedConfig": {
+        "type": "textarea",
+        "value": "# 弹药数\nammo: 7\n\n# 远洋支援数\nsupport: 1\n\n# 松鲷的狩猎范围\nrange:\n  - \"ONONOOO\"\n  - \"ONNNNOO\"\n  - \"NNNNNNO\"\n  - \"ONNHNNN\"\n  - \"NNNNNNO\"\n  - \"ONOONOO\"\n  - \"OOOOOOO\"\n\n# 规则\nrules:\n  battle_0: # 所有战斗\n    type: hunt  # 出击类型为狩猎\n    condition:  # 出击条件\n      ammo: \">2\"  # 弹药数大于2\n      enemy:  # 敌人类型为\n        - \"2C\"  # 中航\n        - \"3T\"  # 大运\n        - \"0E\"  # 未知敌人\n      in_range: true  # 在狩猎范围里\n    move: false # 不移动\n  battle_2: # 第二场战斗\n    type: call  # 出击类型为召唤\n    condition:  # 出击条件\n      ammo: \">=2\" # 弹药数大于等于2\n      support: \"!=0\" # 远洋支援数不等于0\n      enemy:  # 敌人类型为\n        - \"3*\"  # 所有大型舰队\n      in_range: false  # 不要求在狩猎范围里\n    move: false # 不移动\n  battle_-1:  # 最后一场战斗\n    type: call  # 出击类型为召唤\n    # 这里没写条件所以是必定出击\n    support: true # 远洋支援\n    move: true # 移动\n",
+        "mode": "yaml"
+      }
+    },
+    "Emotion": {
+      "Mode": {
+        "type": "select",
+        "value": "calculate",
+        "option": [
+          "calculate",
+          "ignore",
+          "calculate_ignore"
+        ]
+      },
+      "IgnoreShipwreck": {
+        "type": "checkbox",
+        "value": false
+      },
+      "MinReserve": {
+        "type": "input",
+        "value": 0,
+        "validate": [
+          0,
+          150
+        ]
+      },
+      "RecoveryWait": {
+        "type": "stored",
+        "value": null,
+        "display": "hide"
+      },
+      "Fleet1Value": {
+        "type": "input",
+        "value": 119,
+        "validate": [
+          0,
+          150
+        ]
+      },
+      "Fleet1Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet1RecoveryState": {
+        "type": "stored",
+        "value": null,
+        "display": "hide"
+      },
+      "Fleet1Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet1Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet1Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet1Onsen": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet2Value": {
+        "type": "input",
+        "value": 119,
+        "validate": [
+          0,
+          150
+        ]
+      },
+      "Fleet2Record": {
+        "type": "datetime",
+        "value": "2020-01-01 00:00:00",
+        "validate": "datetime",
+        "display": "disabled"
+      },
+      "Fleet2RecoveryState": {
+        "type": "stored",
+        "value": null,
+        "display": "hide"
+      },
+      "Fleet2Control": {
+        "type": "select",
+        "value": "prevent_green_face",
+        "option": [
+          "keep_exp_bonus",
+          "prevent_green_face",
+          "prevent_yellow_face",
+          "prevent_red_face"
+        ]
+      },
+      "Fleet2Recover": {
+        "type": "select",
+        "value": "not_in_dormitory",
+        "option": [
+          "not_in_dormitory",
+          "dormitory_floor_1",
+          "dormitory_floor_2"
+        ]
+      },
+      "Fleet2Oath": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Fleet2Onsen": {
+        "type": "checkbox",
+        "value": false
       }
     },
     "Storage": {
@@ -15380,6 +15926,19 @@
       "ForceRun": {
         "type": "checkbox",
         "value": false
+      },
+      "FullScan": {
+        "type": "checkbox",
+        "value": false
+      },
+      "RadarScan": {
+        "type": "checkbox",
+        "value": false
+      },
+      "ResumeState": {
+        "type": "stored",
+        "value": null,
+        "display": "hide"
       }
     },
     "OpsiFleet": {
@@ -15461,6 +16020,10 @@
     },
     "OpsiAbyssal": {
       "ForceRun": {
+        "type": "checkbox",
+        "value": false
+      },
+      "ContinueAfterRestart": {
         "type": "checkbox",
         "value": false
       }
@@ -16221,6 +16784,10 @@
         "type": "input",
         "value": 0
       },
+      "StrongholdCheckDelayDays": {
+        "type": "input",
+        "value": 0
+      },
       "MonthEndActionPointCleanupEnable": {
         "type": "checkbox",
         "value": false,
@@ -16884,7 +17451,12 @@
           "Mogador",
           "RoyalFortune",
           "DaVinci",
-          "Taihou"
+          "Taihou",
+          "Nagato",
+          "Agir",
+          "HwahJah",
+          "Argus",
+          "Ognevoy"
         ]
       },
       "Char2": {
@@ -16926,7 +17498,12 @@
           "Mogador",
           "RoyalFortune",
           "DaVinci",
-          "Taihou"
+          "Taihou",
+          "Nagato",
+          "Agir",
+          "HwahJah",
+          "Argus",
+          "Ognevoy"
         ]
       },
       "Product1": {
@@ -16941,7 +17518,9 @@
           "fo_tiao",
           "amaranth_rice_ball",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "Product2": {
@@ -16956,7 +17535,9 @@
           "fo_tiao",
           "amaranth_rice_ball",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "Product3": {
@@ -16971,7 +17552,9 @@
           "fo_tiao",
           "amaranth_rice_ball",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "Product4": {
@@ -16986,7 +17569,9 @@
           "fo_tiao",
           "amaranth_rice_ball",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "Product5": {
@@ -17001,7 +17586,9 @@
           "fo_tiao",
           "amaranth_rice_ball",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "SeasonalFallback": {
@@ -17016,7 +17603,9 @@
           "fo_tiao",
           "amaranth_rice_ball",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "BoostReplaceFilter": {
@@ -17064,7 +17653,12 @@
           "Mogador",
           "RoyalFortune",
           "DaVinci",
-          "Taihou"
+          "Taihou",
+          "Nagato",
+          "Agir",
+          "HwahJah",
+          "Argus",
+          "Ognevoy"
         ]
       },
       "Char2": {
@@ -17106,7 +17700,12 @@
           "Mogador",
           "RoyalFortune",
           "DaVinci",
-          "Taihou"
+          "Taihou",
+          "Nagato",
+          "Agir",
+          "HwahJah",
+          "Argus",
+          "Ognevoy"
         ]
       },
       "Product1": {
@@ -17115,6 +17714,7 @@
         "option": [
           "None",
           "spring_flower_tea",
+          "banana_mango",
           "strawberry_lemon",
           "strawberry_honey",
           "floral_fruity",
@@ -17132,6 +17732,7 @@
         "option": [
           "None",
           "spring_flower_tea",
+          "banana_mango",
           "strawberry_lemon",
           "strawberry_honey",
           "floral_fruity",
@@ -17149,6 +17750,7 @@
         "option": [
           "None",
           "spring_flower_tea",
+          "banana_mango",
           "strawberry_lemon",
           "strawberry_honey",
           "floral_fruity",
@@ -17166,6 +17768,7 @@
         "option": [
           "None",
           "spring_flower_tea",
+          "banana_mango",
           "strawberry_lemon",
           "strawberry_honey",
           "floral_fruity",
@@ -17183,6 +17786,7 @@
         "option": [
           "None",
           "spring_flower_tea",
+          "banana_mango",
           "strawberry_lemon",
           "strawberry_honey",
           "floral_fruity",
@@ -17200,6 +17804,7 @@
         "option": [
           "None",
           "spring_flower_tea",
+          "banana_mango",
           "strawberry_lemon",
           "strawberry_honey",
           "floral_fruity",
@@ -17256,7 +17861,12 @@
           "Mogador",
           "RoyalFortune",
           "DaVinci",
-          "Taihou"
+          "Taihou",
+          "Nagato",
+          "Agir",
+          "HwahJah",
+          "Argus",
+          "Ognevoy"
         ]
       },
       "Char2": {
@@ -17298,7 +17908,12 @@
           "Mogador",
           "RoyalFortune",
           "DaVinci",
-          "Taihou"
+          "Taihou",
+          "Nagato",
+          "Agir",
+          "HwahJah",
+          "Argus",
+          "Ognevoy"
         ]
       },
       "Product1": {
@@ -17310,7 +17925,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "Product2": {
@@ -17322,7 +17939,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "Product3": {
@@ -17334,7 +17953,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "Product4": {
@@ -17346,7 +17967,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "Product5": {
@@ -17358,7 +17981,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "BoostReplaceFilter": {
@@ -17406,7 +18031,12 @@
           "Mogador",
           "RoyalFortune",
           "DaVinci",
-          "Taihou"
+          "Taihou",
+          "Nagato",
+          "Agir",
+          "HwahJah",
+          "Argus",
+          "Ognevoy"
         ]
       },
       "Char2": {
@@ -17448,7 +18078,12 @@
           "Mogador",
           "RoyalFortune",
           "DaVinci",
-          "Taihou"
+          "Taihou",
+          "Nagato",
+          "Agir",
+          "HwahJah",
+          "Argus",
+          "Ognevoy"
         ]
       },
       "Product1": {
@@ -17561,7 +18196,12 @@
           "Mogador",
           "RoyalFortune",
           "DaVinci",
-          "Taihou"
+          "Taihou",
+          "Nagato",
+          "Agir",
+          "HwahJah",
+          "Argus",
+          "Ognevoy"
         ]
       },
       "Char2": {
@@ -17603,7 +18243,12 @@
           "Mogador",
           "RoyalFortune",
           "DaVinci",
-          "Taihou"
+          "Taihou",
+          "Nagato",
+          "Agir",
+          "HwahJah",
+          "Argus",
+          "Ognevoy"
         ]
       },
       "Product1": {
@@ -17756,6 +18401,24 @@
         "type": "input",
         "value": 660
       },
+      "CropTargets": {
+        "type": "textarea",
+        "value": ""
+      },
+      "DefaultCrop": {
+        "type": "select",
+        "value": "wheat",
+        "option": [
+          "wheat",
+          "corn",
+          "rice",
+          "chinese_cabbage",
+          "potato",
+          "soybean",
+          "pasture",
+          "coffee_bean"
+        ]
+      },
       "PlantPotatoes": {
         "type": "select",
         "value": 4,
@@ -17787,9 +18450,30 @@
         "type": "input",
         "value": 300
       },
+      "CropTargets": {
+        "type": "textarea",
+        "value": ""
+      },
       "IgnoreAvocado": {
         "type": "checkbox",
         "value": true
+      },
+      "DefaultCrop": {
+        "type": "select",
+        "value": "rubber",
+        "option": [
+          "apple",
+          "citrus",
+          "banana",
+          "mango",
+          "lemon",
+          "avocado",
+          "rubber",
+          "pear",
+          "persimmon",
+          "sugar_tangerine",
+          "green_jujube"
+        ]
       },
       "PlantRubber": {
         "type": "select",
@@ -17824,9 +18508,28 @@
         "type": "input",
         "value": 0
       },
+      "CropTargets": {
+        "type": "textarea",
+        "value": ""
+      },
       "IgnorePineapple": {
         "type": "checkbox",
         "value": true
+      },
+      "DefaultCrop": {
+        "type": "select",
+        "value": "lavender",
+        "option": [
+          "carrot",
+          "onion",
+          "flax",
+          "strawberry",
+          "cotton",
+          "tea",
+          "lavender",
+          "pineapple",
+          "asparagus"
+        ]
       },
       "PlantLavender": {
         "type": "select",
@@ -17943,23 +18646,31 @@
           3
         ]
       },
-      "MinBass": {
-        "type": "input",
-        "value": 50
-      },
-      "MinYellowfinTuna": {
-        "type": "input",
-        "value": 50
-      },
       "MinShell": {
         "type": "input",
         "value": 50
+      },
+      "MinCatfish": {
+        "type": "input",
+        "value": 0
+      },
+      "MinKoiCarp": {
+        "type": "input",
+        "value": 0
+      },
+      "MinCommonCarp": {
+        "type": "input",
+        "value": 0
       },
       "MinShrimp": {
         "type": "input",
         "value": 50
       },
       "MinCrayfish": {
+        "type": "input",
+        "value": 50
+      },
+      "MinBass": {
         "type": "input",
         "value": 50
       },
@@ -17971,9 +18682,41 @@
         "type": "input",
         "value": 50
       },
+      "MinMackerel": {
+        "type": "input",
+        "value": 0
+      },
+      "MinTuna": {
+        "type": "input",
+        "value": 0
+      },
+      "MinSalmon": {
+        "type": "input",
+        "value": 0
+      },
+      "MinRedSeaBream": {
+        "type": "input",
+        "value": 0
+      },
+      "MinBlackPorgy": {
+        "type": "input",
+        "value": 0
+      },
+      "MinYellowfinTuna": {
+        "type": "input",
+        "value": 50
+      },
       "MinSeaCucumber": {
         "type": "input",
         "value": 50
+      },
+      "MinFreshwaterFishMeat": {
+        "type": "input",
+        "value": 0
+      },
+      "MinSaltwaterFishMeat": {
+        "type": "input",
+        "value": 0
       },
       "PlantYellowfinTuna": {
         "type": "select",
@@ -17983,6 +18726,28 @@
           1,
           2,
           3
+        ]
+      },
+      "DefaultFish": {
+        "type": "select",
+        "value": "yellowfin_tuna",
+        "option": [
+          "shell",
+          "catfish",
+          "koi_carp",
+          "common_carp",
+          "shrimp",
+          "crayfish",
+          "bass",
+          "crab",
+          "squid",
+          "mackerel",
+          "tuna",
+          "salmon",
+          "red_sea_bream",
+          "black_porgy",
+          "yellowfin_tuna",
+          "sea_cucumber"
         ]
       },
       "RancherFilter": {
@@ -18073,6 +18838,17 @@
           4
         ]
       },
+      "DefaultOre": {
+        "type": "select",
+        "value": "Silver",
+        "option": [
+          "Copper",
+          "Aluminium",
+          "Iron",
+          "Sulphur",
+          "Silver"
+        ]
+      },
       "WorkerFilter": {
         "type": "textarea",
         "value": "WorkerJuu"
@@ -18118,6 +18894,15 @@
           2,
           3,
           4
+        ]
+      },
+      "DefaultWood": {
+        "type": "select",
+        "value": "Elegant",
+        "option": [
+          "Practical",
+          "Selected",
+          "Elegant"
         ]
       },
       "WorkerFilter": {
@@ -18233,7 +19018,9 @@
           "fo_tiao",
           "onion_fish",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "MealNumber1": {
@@ -18258,7 +19045,9 @@
           "fo_tiao",
           "onion_fish",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "MealNumber2": {
@@ -18283,7 +19072,9 @@
           "fo_tiao",
           "onion_fish",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "MealNumber3": {
@@ -18308,7 +19099,9 @@
           "fo_tiao",
           "onion_fish",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "MealNumber4": {
@@ -18333,7 +19126,9 @@
           "fo_tiao",
           "onion_fish",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "MealNumber5": {
@@ -18358,7 +19153,9 @@
           "fo_tiao",
           "onion_fish",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "MealNumber6": {
@@ -18383,7 +19180,9 @@
           "fo_tiao",
           "onion_fish",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "MealNumber7": {
@@ -18408,7 +19207,9 @@
           "fo_tiao",
           "onion_fish",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       },
       "MealNumber8": {
@@ -18435,7 +19236,9 @@
           "fo_tiao",
           "onion_fish",
           "matsutake_chicken_soup",
-          "persimmon_cake"
+          "persimmon_cake",
+          "shiitake_chicken_soup",
+          "green_jujube_porridge"
         ]
       }
     },
@@ -19055,7 +19858,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "MealNumber1": {
@@ -19076,7 +19881,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "MealNumber2": {
@@ -19097,7 +19904,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "MealNumber3": {
@@ -19118,7 +19927,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "MealNumber4": {
@@ -19139,7 +19950,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "MealNumber5": {
@@ -19160,7 +19973,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "MealNumber6": {
@@ -19181,7 +19996,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "MealNumber7": {
@@ -19202,7 +20019,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       },
       "MealNumber8": {
@@ -19225,7 +20044,9 @@
           "succulently_sweet",
           "berry_orange",
           "strawberry_charlotte",
-          "seafood_rice"
+          "seafood_rice",
+          "water_chestnut_cake",
+          "sugar_tangerine_daifuku"
         ]
       }
     },
@@ -19556,6 +20377,11 @@
           1,
           2
         ]
+      },
+      "Products": {
+        "type": "input",
+        "value": "",
+        "preserve_empty": true
       }
     },
     "ElectronicProcessing": {
@@ -19567,6 +20393,11 @@
           1,
           2
         ]
+      },
+      "Products": {
+        "type": "input",
+        "value": "",
+        "preserve_empty": true
       }
     },
     "Industrial": {
@@ -19578,6 +20409,11 @@
           1,
           2
         ]
+      },
+      "Products": {
+        "type": "input",
+        "value": "",
+        "preserve_empty": true
       }
     },
     "Handmade": {
@@ -19589,6 +20425,11 @@
           1,
           2
         ]
+      },
+      "Products": {
+        "type": "input",
+        "value": "",
+        "preserve_empty": true
       }
     },
     "Storage": {
@@ -20102,7 +20943,29 @@
         ]
       }
     },
+    "FleetDorm": {
+      "Enabled": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Floor": {
+        "type": "select",
+        "value": "floor_1",
+        "option": [
+          "floor_1",
+          "floor_2"
+        ]
+      }
+    },
     "FleetTraining": {
+      "StopOnComplete": {
+        "type": "checkbox",
+        "value": false
+      },
+      "Notify": {
+        "type": "checkbox",
+        "value": false
+      },
       "FullScanRecord": {
         "type": "stored",
         "value": "2020-01-01 00:00:00",
@@ -20749,50 +21612,6 @@
       }
     }
   },
-  "EmulatorManager": {
-    "EmulatorManager": {
-      "EnableRemoteSSH": {
-        "type": "checkbox",
-        "value": false,
-        "option": [
-          true,
-          false
-        ]
-      },
-      "RemoteSSHHost": {
-        "type": "input",
-        "value": ""
-      },
-      "RemoteSSHPort": {
-        "type": "input",
-        "value": 22
-      },
-      "RemoteSSHUser": {
-        "type": "input",
-        "value": ""
-      },
-      "RemoteSSHPublicKey": {
-        "type": "textarea",
-        "value": ""
-      },
-      "RemoteStartCommand": {
-        "type": "input",
-        "value": ""
-      },
-      "RemoteStopCommand": {
-        "type": "input",
-        "value": ""
-      }
-    },
-    "Storage": {
-      "Storage": {
-        "type": "storage",
-        "value": {},
-        "valuetype": "ignore",
-        "display": "disabled"
-      }
-    }
-  },
   "MeowfficerScore": {
     "MeowfficerScore": {
       "Source": {
@@ -20850,6 +21669,226 @@
         "validate": [
           1,
           60
+        ]
+      }
+    },
+    "Storage": {
+      "Storage": {
+        "type": "storage",
+        "value": {},
+        "valuetype": "ignore",
+        "display": "disabled"
+      }
+    }
+  },
+  "IslandProductionPlanner": {
+    "IslandProductionPlanner": {
+      "ApplySettings": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "Season": {
+        "type": "select",
+        "value": "auto",
+        "option": [
+          "auto",
+          "season_1",
+          "season_2",
+          "season_3",
+          "season_4",
+          "season_5"
+        ]
+      },
+      "Priority": {
+        "type": "select",
+        "value": "pt",
+        "option": [
+          "pt",
+          "coins"
+        ]
+      },
+      "FillSparePosts": {
+        "type": "checkbox",
+        "value": true,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "AutoPositions": {
+        "type": "checkbox",
+        "value": true,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "UnlockedFish": {
+        "type": "multiselect",
+        "value": [
+          "shell",
+          "catfish",
+          "koi_carp",
+          "common_carp",
+          "shrimp",
+          "crayfish",
+          "bass",
+          "crab",
+          "squid",
+          "mackerel",
+          "tuna",
+          "salmon",
+          "red_sea_bream",
+          "black_porgy",
+          "yellowfin_tuna",
+          "sea_cucumber"
+        ],
+        "option": [
+          "shell",
+          "catfish",
+          "koi_carp",
+          "common_carp",
+          "shrimp",
+          "crayfish",
+          "bass",
+          "crab",
+          "squid",
+          "mackerel",
+          "tuna",
+          "salmon",
+          "red_sea_bream",
+          "black_porgy",
+          "yellowfin_tuna",
+          "sea_cucumber"
+        ]
+      },
+      "RescanTechnology": {
+        "type": "checkbox",
+        "value": true,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "ScanSeasonTasks": {
+        "type": "checkbox",
+        "value": true,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "SeasonTaskTargets": {
+        "type": "textarea",
+        "value": ""
+      },
+      "ScanCargoOrders": {
+        "type": "checkbox",
+        "value": true,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "CargoTargets": {
+        "type": "textarea",
+        "value": ""
+      },
+      "CargoTargetDays": {
+        "type": "input",
+        "value": 1
+      },
+      "ExtraTargets": {
+        "type": "textarea",
+        "value": ""
+      },
+      "DailyProfitLowerLimit": {
+        "type": "input",
+        "value": 50000
+      },
+      "DailyBufferSafetyMargin": {
+        "type": "input",
+        "value": 0
+      },
+      "FieldsEfficiency": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          4,
+          12
+        ]
+      },
+      "OrchardEfficiency": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          4,
+          12
+        ]
+      },
+      "NurseryEfficiency": {
+        "type": "select",
+        "value": 0,
+        "option": [
+          0,
+          4,
+          12
+        ]
+      },
+      "RestaurantGrade": {
+        "type": "select",
+        "value": "bronze",
+        "option": [
+          "bronze",
+          "silver",
+          "gold",
+          "diamond"
+        ]
+      },
+      "TeahouseGrade": {
+        "type": "select",
+        "value": "bronze",
+        "option": [
+          "bronze",
+          "silver",
+          "gold",
+          "diamond"
+        ]
+      },
+      "JuuEateryGrade": {
+        "type": "select",
+        "value": "bronze",
+        "option": [
+          "bronze",
+          "silver",
+          "gold",
+          "diamond"
+        ]
+      },
+      "GrillGrade": {
+        "type": "select",
+        "value": "bronze",
+        "option": [
+          "bronze",
+          "silver",
+          "gold",
+          "diamond"
+        ]
+      },
+      "JuuCoffeeGrade": {
+        "type": "select",
+        "value": "bronze",
+        "option": [
+          "bronze",
+          "silver",
+          "gold",
+          "diamond"
         ]
       }
     },

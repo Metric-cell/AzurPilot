@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="doc/logo.webp" alt="AzurPilot Logo" width="400">
+  <img src="docs/images/logo.webp" alt="AzurPilot Logo" width="400">
 </p>
 
 <p align="center">
@@ -62,7 +62,7 @@ AzurPilot은 [AzurLaneAutoScript](https://github.com/LmeSzinc/AzurLaneAutoScript
 ## GUI 미리보기
 
 <div align="center">
-  <img src="doc/GUI.png" alt="GUI Preview" width="800">
+  <img src="docs/images/GUI.png" alt="GUI Preview" width="800">
 </div>
 
 ## 빠른 시작
@@ -140,91 +140,22 @@ uv run python gui.py
 
 이러한 항목은 이미지 인식 결과에 영향을 주어 자동화 프로세스에 이상을 유발할 수 있습니다.
 
-## MCP 서비스
-
-AzurPilot은 MCP 서비스를 제공하며, MCP 호환 클라이언트나 도구에서 호출하여 Agent로 AzurPilot을 쉽게 관리할 수 있습니다.
-
-> MCP 서비스는 기본적으로 WebUI와 함께 시작되며 `/mcp` 경로(WebUI 기본 포트 25548)에 마운트됩니다. 또한 `uv run python mcp_server_sse.py`로 단독 실행할 수도 있습니다(단독 포트 22268).
-
-MCP는 WebUI 비밀번호(`--key` 또는 `config/deploy.yaml`의 `Password`)를 그대로 사용합니다. 비밀번호가 없고 WebUI가 공용 주소를 수신하면 WebUI가 자동으로 생성하며, 저장소 루트의 `password.txt`에서 확인할 수 있습니다. 이 비밀번호가 없는 요청은 401로 거부됩니다.
-
-### 로컬 연결 설정
-
-```json
-{
-  "mcpServers": {
-    "alas": {
-      "url": "http://127.0.0.1:25548/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer <WebUI 비밀번호>"
-      }
-    }
-  }
-}
-```
-
-### 클라우드 서버 또는 인트라넷 연결 설정
-
-```json
-{
-  "mcpServers": {
-    "alas": {
-      "url": "http://[IP_ADDRESS]:25548/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer <WebUI 비밀번호>"
-      }
-    }
-  }
-}
-```
-
-`[IP_ADDRESS]`를 실제 서버 주소 또는 인트라넷 주소로 바꾸세요. WebUI 포트를 변경한 경우 URL의 포트도 함께 변경하세요.
-
-URL만 입력할 수 있고 요청 헤더를 설정할 수 없는 클라이언트는 비밀번호를 쿼리 파라미터에 넣을 수 있습니다: `http://[IP_ADDRESS]:25548/mcp/sse?key=<WebUI 비밀번호>`. 이 경우 URL 자체가 자격 증명이므로 캡처하거나 공유하지 말고, 가능하면 헤더를 사용하세요. `Authorization` 대신 `X-API-Key: <WebUI 비밀번호>`도 사용할 수 있습니다.
-
-비밀번호를 변경한 경우 MCP에 반영되도록 WebUI를 다시 시작하세요.
-
-### MCP 도구 목록
-
-현재 사용 가능한 MCP 도구는 총 18개입니다.
-
-| 카테고리 | 도구 이름 | 기능 |
-| --- | --- | --- |
-| 인스턴스 관리 | `list_instances` | 모든 인스턴스 나열 |
-| | `get_status` | 인스턴스 상태 가져오기 |
-| | `start_instance` | 인스턴스 시작 |
-| | `stop_instance` | 인스턴스 중지 |
-| 작업 관리 | `list_tasks` | 모든 작업 나열 |
-| | `get_task_help` | 작업 도움말 가져오기 |
-| | `trigger_task` | 작업 트리거 |
-| | `get_scheduler_queue` | 스케줄러 큐 가져오기 |
-| | `clear_scheduler_queue` | 스케줄러 큐 비우기 |
-| 모니터링 및 정보 | `get_current_running_task` | 현재 실행 중인 작업 가져오기 |
-| | `get_resources` | 리소스 상태 가져오기 |
-| | `get_config` | 인스턴스 설정 가져오기 |
-| | `get_recent_logs` | 최근 로그 가져오기 |
-| | `get_screenshot` | 스크린샷 가져오기 |
-| 설정 관리 | `update_config` | 설정 업데이트 |
-| 유지보수 도구 | `restart_emulator` | 에뮬레이터 재시작 |
-| | `restart_adb` | ADB 재시작 |
-| | `update_alas` | AzurPilot 업데이트 |
-
 ## 멀티 플랫폼 런처
 
 > 📥 [AzurPilot 공식 웹사이트](https://azurpilot.com/download.html)에서 Windows / macOS / Linux 런처 다운로드
 
 <div align="center">
-  <img src="doc/loading.png" alt="loading" width="500" />
+  <img src="docs/images/loading.png" alt="loading" width="500" />
   <p>로딩 화면</p>
   <table align="center">
     <tr>
-      <td align="center"><img src="doc/GUI.png" alt="신버전" width="260"><br>신버전</td>
-      <td align="center"><img src="doc/GUI-legacy.webp" alt="구버전" width="260"><br>구버전</td>
-      <td align="center"><img src="doc/GUI-minimal.png" alt="심플" width="260"><br>심플</td>
+      <td align="center"><img src="docs/images/GUI.png" alt="신버전" width="260"><br>신버전</td>
+      <td align="center"><img src="docs/images/GUI-legacy.webp" alt="구버전" width="260"><br>구버전</td>
+      <td align="center"><img src="docs/images/GUI-minimal.png" alt="심플" width="260"><br>심플</td>
     </tr>
   </table>
   <p>Windows 클라이언트 화면</p>
-  <img src="doc/macGUI.png" alt="macGUI" width="500" />
+  <img src="docs/images/macGUI.png" alt="macGUI" width="500" />
   <p>Mac 클라이언트 화면</p>
 </div>
 
@@ -326,7 +257,7 @@ uv run -m module.config.config_updater
 
 <p align="center">
   <a href="https://afdian.com/a/miaonaa">
-    <img src="doc/afdian.jfif" alt="爱发电" width="200">
+    <img src="docs/images/afdian.jfif" alt="爱发电" width="200">
   </a>
   <br>
   <b>이 프로젝트 후원(서버 비용 또는 새 모델 훈련 등에 사용)</b>

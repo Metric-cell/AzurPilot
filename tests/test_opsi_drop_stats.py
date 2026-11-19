@@ -1,8 +1,8 @@
 """大世界掉落统计：任务范围、开关语义与按窗口汇总。
 
 背景：掉落统计原先只认短猫相接、且只有「上传」档才解析入库（2026-09-25 改）。
-现在除侵蚀1练级外的所有大世界任务都会解析，且「保存」与「上传」都算，区别只在
-要不要把截图落盘。展示金菜、SSR/UR研发图纸、指定研发材料、实验计划及突破部件，
+现在除侵蚀1练级外的大世界任务都会解析，截图设置决定是否将图片落盘。
+展示金菜、SSR/UR研发图纸、指定研发材料、实验计划及突破部件，
 其余物品照常入库、只是不展示。这里用真临时 SQLite 验证范围与汇总。
 """
 
@@ -78,7 +78,7 @@ class TestGenreScope(unittest.TestCase):
 
 
 class TestDropRecordSwitch(unittest.TestCase):
-    """「保存」与「上传」都统计，只有「不记录」什么都不做。"""
+    """截图保存独立于统计；兼容旧上传档位的调用。"""
 
     def test_save_and_upload_both_parse(self):
         stats = AzurStats(make_config('OpsiAbyssal', {'OpsiAbyssal': 'save'}))
@@ -94,12 +94,12 @@ class TestDropRecordSwitch(unittest.TestCase):
         self.assertTrue(drop.save)
         self.assertTrue(drop.local)
 
-    def test_do_not_records_nothing(self):
+    def test_do_not_keeps_local_statistics(self):
         drop = AzurStats(make_config('OpsiStronghold')).new(
             genre='opsi_stronghold', method='do_not')
         self.assertFalse(drop.save)
-        self.assertFalse(drop.local)
-        self.assertFalse(bool(drop))
+        self.assertTrue(drop.local)
+        self.assertTrue(bool(drop))
 
     def test_corrosion_one_never_parses(self):
         """侵蚀1在任何档位都不入库；「保存」仍按原样落盘截图。"""
@@ -113,7 +113,7 @@ class TestDropRecordSwitch(unittest.TestCase):
         self.assertFalse(drop.local)
 
     def test_research_path_unchanged(self):
-        """科研走自己的解析链路（analyze），仍只在非「不记录」时统计。"""
+        """科研使用专用解析链路，按档位控制统计。"""
         stats = AzurStats(make_config('Alas'))
         drop = stats.new(genre='research', method='upload')
         self.assertTrue(drop.analyze)

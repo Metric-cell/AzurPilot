@@ -26,6 +26,7 @@ config/*.json
 !config/template*.json
 
 config/scheduler/
+/config/plugins/
 config/stock-exchange/
 config/opsi_secure/
 
@@ -56,6 +57,7 @@ test.py
 test/
 !test/
 PaddleOCR
+.orphans-live.txt
 
 # Tests
 test/*
@@ -73,6 +75,7 @@ docs/*
 /f
 /workers
 /debug_img
+/.tmp/
 
 # AI and coding tools
 .codex/
@@ -81,6 +84,7 @@ docs/*
 .agents/
 .trae/
 .workbuddy/
+.codebuddy/
 .zcode/
 .cursor/
 .graphflow-cache/
@@ -88,10 +92,11 @@ docs/*
 RTK.md
 
 # Frontend
-frontend/node_modules/
+node_modules/
 frontend/test-results/
 frontend/playwright-report/
 frontend/*.tsbuildinfo
+/frontend/plugin-src
 
 .github/scripts/node_modules/
 .github/scripts/package-lock.json
@@ -110,8 +115,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+/lib/
+/lib64/
 parts/
 sdist/
 var/
@@ -251,3 +256,5 @@ cursor-helper/**/review/reports/files/
 
 # 独立舰船数据库及 SQLite 事务旁文件（实例私有数据）
 /config/fleet/
+/pytest-of-AzurLane
+/tmp5nvjit1d

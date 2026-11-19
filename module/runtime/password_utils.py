@@ -25,16 +25,15 @@ def is_demo_mode() -> bool:
 
 
 def is_public_webui_host(host: str) -> bool:
-    """判断监听地址是否对所有网络接口开放。
+    """判断监听地址是否可能接受本机以外的连接。
 
     Args:
         host: 监听地址字符串。
 
     Returns:
-        bool: 允许所有外部设备访问返回 True，否则返回 False。
+        bool: 非明确的本机地址返回 True。
     """
-    host = str(host or "").strip().lower()
-    return host in ("0.0.0.0", "::", "[::]")
+    return host_name(host) not in LOCAL_HOSTS
 
 
 def is_webui_password_set(password: str) -> bool:
@@ -73,7 +72,7 @@ def generate_webui_password(length: int = 32) -> str:
 
 
 def ensure_password_for_host(key: str | None, host: str, demo: bool = False) -> str | None:
-    """监听公网且未设置密码时自动生成随机密码并写入文件。
+    """监听非本机地址且未设置密码时自动生成随机密码并写入文件。
 
     只负责生成与落盘；是否把密码回写部署配置、如何记录日志由调用方决定，
     这样 WebUI 与独立 MCP 能共享同一份密码策略。

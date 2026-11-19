@@ -75,20 +75,14 @@
       "ScreenshotMethod": "auto",
       "ControlMethod": "MaaTouch",
       "GameSettings": false,
+      "DisableChannelFloat": false,
       "ScreenshotDedithering": false,
       "AdbRestart": false
     },
     "EmulatorInfo": {
       "Emulator": "auto",
       "name": null,
-      "path": null,
-      "EnableRemoteSSH": false,
-      "RemoteSSHHost": null,
-      "RemoteSSHPort": 22,
-      "RemoteSSHUser": "root",
-      "RemoteSSHPublicKey": null,
-      "RemoteStartCommand": null,
-      "RemoteStopCommand": null
+      "path": null
     },
     "Error": {
       "HandleError": true,
@@ -137,20 +131,18 @@
       "RetentionDays": 0,
       "BackUpMethod": "zip",
       "ZipMethod": "zip",
-      "AzurStatsID": null,
-      "API": "default",
-      "ResearchRecord": "do_not",
-      "CommissionRecord": "do_not",
+      "ResearchRecord": "local",
+      "CommissionRecord": "local",
       "CommissionIncomeScreenshot": "save",
       "CombatRecord": "do_not",
-      "OpsiHazard1Leveling": "upload",
-      "OpsiMeowfficerFarming": "upload",
-      "OpsiDaily": "upload",
-      "OpsiObscure": "upload",
-      "OpsiAbyssal": "upload",
-      "OpsiStronghold": "upload",
-      "OpsiExplore": "upload",
-      "OpsiOther": "upload",
+      "OpsiHazard1Leveling": "do_not",
+      "OpsiMeowfficerFarming": "do_not",
+      "OpsiDaily": "do_not",
+      "OpsiObscure": "do_not",
+      "OpsiAbyssal": "do_not",
+      "OpsiStronghold": "do_not",
+      "OpsiExplore": "do_not",
+      "OpsiOther": "do_not",
       "MeowfficerBuy": "do_not",
       "MeowfficerTalent": "do_not"
     },
@@ -254,6 +246,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -344,6 +337,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -434,6 +428,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -544,6 +539,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -644,6 +640,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -744,6 +741,7 @@
       "UseClearMode": false,
       "UseFleetLock": true,
       "UseAutoSearch": false,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -835,6 +833,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -925,6 +924,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1015,6 +1015,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1109,6 +1110,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": false,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1171,6 +1173,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1296,6 +1299,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": false,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1361,6 +1365,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": false,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1457,11 +1462,12 @@
     },
     "Campaign": {
       "Name": "D3",
-      "Event": "war_archives_20251023_cn",
+      "Event": "war_archives_20230817_cn",
       "Mode": "normal",
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1566,6 +1572,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1660,6 +1667,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1754,6 +1762,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1848,6 +1857,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -1938,6 +1948,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -2031,6 +2042,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": false,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -2089,6 +2101,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": false,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -2414,6 +2427,7 @@
       "UseClearMode": true,
       "UseFleetLock": true,
       "UseAutoSearch": true,
+      "MultipleSortiesCount": 0,
       "ContinueAfterRestart": false,
       "Use2xBook": false,
       "AmbushEvade": true,
@@ -2422,6 +2436,9 @@
     },
     "OperationHandover": {
       "Count": 1,
+      "DailyRunCount": 1,
+      "DailyRunCountUsed": 0,
+      "DailyRunCountRecord": "2020-01-01 00:00:00",
       "AutoSupplementTime": false,
       "UseHandoverBook": false,
       "ConsumeAllBook": false,
@@ -2431,6 +2448,45 @@
       "OilLimit": 1000,
       "ConsumeAllBookRecord": "2020-01-01 00:00:00",
       "CommissionEnd": "2020-01-01 00:00:00"
+    },
+    "Fleet": {
+      "Fleet1": 1,
+      "Fleet1Formation": "double_line",
+      "Fleet1Mode": "combat_auto",
+      "Fleet1Step": 3,
+      "Fleet2": 2,
+      "Fleet2Formation": "double_line",
+      "Fleet2Mode": "combat_auto",
+      "Fleet2Step": 2,
+      "FleetOrder": "fleet1_mob_fleet2_boss",
+      "SkipPreparation": false
+    },
+    "Submarine": {
+      "Fleet": 0,
+      "Mode": "do_not_use",
+      "AutoSearchMode": "sub_standby",
+      "DistanceToBoss": "2_grid_to_boss",
+      "AdvancedConfig": "# 弹药数\nammo: 7\n\n# 远洋支援数\nsupport: 1\n\n# 松鲷的狩猎范围\nrange:\n  - \"ONONOOO\"\n  - \"ONNNNOO\"\n  - \"NNNNNNO\"\n  - \"ONNHNNN\"\n  - \"NNNNNNO\"\n  - \"ONOONOO\"\n  - \"OOOOOOO\"\n\n# 规则\nrules:\n  battle_0: # 所有战斗\n    type: hunt  # 出击类型为狩猎\n    condition:  # 出击条件\n      ammo: \">2\"  # 弹药数大于2\n      enemy:  # 敌人类型为\n        - \"2C\"  # 中航\n        - \"3T\"  # 大运\n        - \"0E\"  # 未知敌人\n      in_range: true  # 在狩猎范围里\n    move: false # 不移动\n  battle_2: # 第二场战斗\n    type: call  # 出击类型为召唤\n    condition:  # 出击条件\n      ammo: \">=2\" # 弹药数大于等于2\n      support: \"!=0\" # 远洋支援数不等于0\n      enemy:  # 敌人类型为\n        - \"3*\"  # 所有大型舰队\n      in_range: false  # 不要求在狩猎范围里\n    move: false # 不移动\n  battle_-1:  # 最后一场战斗\n    type: call  # 出击类型为召唤\n    # 这里没写条件所以是必定出击\n    support: true # 远洋支援\n    move: true # 移动\n"
+    },
+    "Emotion": {
+      "Mode": "calculate",
+      "IgnoreShipwreck": false,
+      "MinReserve": 0,
+      "RecoveryWait": null,
+      "Fleet1Value": 119,
+      "Fleet1Record": "2020-01-01 00:00:00",
+      "Fleet1RecoveryState": null,
+      "Fleet1Control": "prevent_green_face",
+      "Fleet1Recover": "not_in_dormitory",
+      "Fleet1Oath": false,
+      "Fleet1Onsen": false,
+      "Fleet2Value": 119,
+      "Fleet2Record": "2020-01-01 00:00:00",
+      "Fleet2RecoveryState": null,
+      "Fleet2Control": "prevent_green_face",
+      "Fleet2Recover": "not_in_dormitory",
+      "Fleet2Oath": false,
+      "Fleet2Onsen": false
     },
     "Storage": {
       "Storage": {}
@@ -2920,7 +2976,10 @@
     },
     "OpsiObscure": {
       "SkipHazard2Obscure": false,
-      "ForceRun": false
+      "ForceRun": false,
+      "FullScan": false,
+      "RadarScan": false,
+      "ResumeState": null
     },
     "OpsiFleet": {
       "Fleet": 1,
@@ -2942,7 +3001,8 @@
       "Sensitive": true
     },
     "OpsiAbyssal": {
-      "ForceRun": false
+      "ForceRun": false,
+      "ContinueAfterRestart": false
     },
     "OpsiFleetFilter": {
       "Filter": "Fleet-4 > CallSubmarine > Fleet-2 > Fleet-3 > Fleet-1"
@@ -3128,6 +3188,7 @@
       "EnableStronghold": false,
       "TaskPriority": "OpsiStronghold > OpsiObscure > OpsiAbyssal > OpsiMeowfficerFarming",
       "ObscureAbyssalCheckDelayDays": 0,
+      "StrongholdCheckDelayDays": 0,
       "MonthEndActionPointCleanupEnable": false,
       "MonthEndActionPointCleanupDays": 0,
       "MonthEndActionPointPreserve": 0,
@@ -3353,13 +3414,17 @@
       "Positions": 3,
       "WorkerFilter": "WorkerJuu",
       "MinFarm": 660,
+      "CropTargets": null,
+      "DefaultCrop": "wheat",
       "PlantPotatoes": 4
     },
     "IslandOrchard": {
       "Positions": 4,
       "WorkerFilter": "WorkerJuu",
       "MinOrchard": 300,
+      "CropTargets": null,
       "IgnoreAvocado": true,
+      "DefaultCrop": "rubber",
       "PlantRubber": 0,
       "AmagiChanRubber": false
     },
@@ -3367,7 +3432,9 @@
       "Positions": 2,
       "WorkerFilter": "WorkerJuu",
       "MinNursery": 0,
+      "CropTargets": null,
       "IgnorePineapple": true,
+      "DefaultCrop": "lavender",
       "PlantLavender": 2
     },
     "Storage": {
@@ -3397,15 +3464,26 @@
     },
     "IslandFishery": {
       "Positions": 3,
-      "MinBass": 50,
-      "MinYellowfinTuna": 50,
       "MinShell": 50,
+      "MinCatfish": 0,
+      "MinKoiCarp": 0,
+      "MinCommonCarp": 0,
       "MinShrimp": 50,
       "MinCrayfish": 50,
+      "MinBass": 50,
       "MinCrab": 50,
       "MinSquid": 50,
+      "MinMackerel": 0,
+      "MinTuna": 0,
+      "MinSalmon": 0,
+      "MinRedSeaBream": 0,
+      "MinBlackPorgy": 0,
+      "MinYellowfinTuna": 50,
       "MinSeaCucumber": 50,
+      "MinFreshwaterFishMeat": 0,
+      "MinSaltwaterFishMeat": 0,
       "PlantYellowfinTuna": 3,
+      "DefaultFish": "yellowfin_tuna",
       "RancherFilter": "WorkerJuu"
     },
     "Storage": {
@@ -3426,6 +3504,7 @@
     "IslandMine": {
       "Positions": 1,
       "MineSilver": 1,
+      "DefaultOre": "Silver",
       "WorkerFilter": "WorkerJuu",
       "MinCopper": 50,
       "MinAluminium": 50,
@@ -3436,6 +3515,7 @@
     "IslandForest": {
       "Positions": 1,
       "CutElegant": 1,
+      "DefaultWood": "Elegant",
       "WorkerFilter": "WorkerJuu",
       "MinElegant": 50,
       "MinPractical": 50,
@@ -3650,16 +3730,20 @@
       "Sensitive": false
     },
     "WoodProcessing": {
-      "Positions": 2
+      "Positions": 2,
+      "Products": ""
     },
     "ElectronicProcessing": {
-      "Positions": 2
+      "Positions": 2,
+      "Products": ""
     },
     "Industrial": {
-      "Positions": 2
+      "Positions": 2,
+      "Products": ""
     },
     "Handmade": {
-      "Positions": 2
+      "Positions": 2,
+      "Products": ""
     },
     "Storage": {
       "Storage": {}
@@ -3800,7 +3884,13 @@
       "Enabled": false,
       "Target": 100
     },
+    "FleetDorm": {
+      "Enabled": false,
+      "Floor": "floor_1"
+    },
     "FleetTraining": {
+      "StopOnComplete": false,
+      "Notify": false,
       "FullScanRecord": "2020-01-01 00:00:00",
       "CheckIntervalHours": 6.0,
       "State": {}
@@ -3966,20 +4056,6 @@
       "Storage": {}
     }
   },
-  "EmulatorManager": {
-    "EmulatorManager": {
-      "EnableRemoteSSH": false,
-      "RemoteSSHHost": null,
-      "RemoteSSHPort": 22,
-      "RemoteSSHUser": null,
-      "RemoteSSHPublicKey": null,
-      "RemoteStartCommand": null,
-      "RemoteStopCommand": null
-    },
-    "Storage": {
-      "Storage": {}
-    }
-  },
   "MeowfficerScore": {
     "MeowfficerScore": {
       "Source": "screenshot",
@@ -3990,6 +4066,53 @@
       "DeviceInterval": 2,
       "ScanLimit": 0,
       "ScanPasses": 12
+    },
+    "Storage": {
+      "Storage": {}
+    }
+  },
+  "IslandProductionPlanner": {
+    "IslandProductionPlanner": {
+      "ApplySettings": false,
+      "Season": "auto",
+      "Priority": "pt",
+      "FillSparePosts": true,
+      "AutoPositions": true,
+      "UnlockedFish": [
+        "shell",
+        "catfish",
+        "koi_carp",
+        "common_carp",
+        "shrimp",
+        "crayfish",
+        "bass",
+        "crab",
+        "squid",
+        "mackerel",
+        "tuna",
+        "salmon",
+        "red_sea_bream",
+        "black_porgy",
+        "yellowfin_tuna",
+        "sea_cucumber"
+      ],
+      "RescanTechnology": true,
+      "ScanSeasonTasks": true,
+      "SeasonTaskTargets": null,
+      "ScanCargoOrders": true,
+      "CargoTargets": null,
+      "CargoTargetDays": 1,
+      "ExtraTargets": null,
+      "DailyProfitLowerLimit": 50000,
+      "DailyBufferSafetyMargin": 0,
+      "FieldsEfficiency": 0,
+      "OrchardEfficiency": 0,
+      "NurseryEfficiency": 0,
+      "RestaurantGrade": "bronze",
+      "TeahouseGrade": "bronze",
+      "JuuEateryGrade": "bronze",
+      "GrillGrade": "bronze",
+      "JuuCoffeeGrade": "bronze"
     },
     "Storage": {
       "Storage": {}

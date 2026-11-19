@@ -91,6 +91,8 @@ class DropImage:
         self.analyze = bool(analyze)
         self.info = info
         self.images = []
+        self.research_groups = []
+        self._commission_kind = None
         self.combat_count = 0
 
     def add(self, image):
@@ -100,9 +102,20 @@ class DropImage:
             image (np.ndarray): 截图图像。
         """
         if self:
+            if self.genre == 'commission' and self.analyze:
+                from module.statistics.commission_drop import classify_frame
+                kind = classify_frame(image)
+                if kind == self._commission_kind and (kind != 'reward' or np.array_equal(self.images[-1], image)):
+                    return
+                self._commission_kind = kind
             self.images.append(image)
             logger.info(
                 f'Drop record added, genre={self.genre}, amount={self.count}')
+
+    def capture_commission_status(self, image):
+        from module.statistics.commission_drop import classify_frame
+        if self and classify_frame(image) in ('done', 'perfect'):
+            self.add(image)
 
     def set_combat_count(self, count):
         """设置当前关联的战斗场次计数。
@@ -111,6 +124,11 @@ class DropImage:
             count (int): 战斗场次数。
         """
         self.combat_count = count
+
+    def finish_research_reward(self, start):
+        """Keep the live collector's project boundary, including a scrolled reward page."""
+        if self.genre == 'research' and len(self.images) > start:
+            self.research_groups.append((start, len(self.images)))
 
     def handle_add(self, main, before=None):
         """在添加截图前后执行等待，并截取当前屏幕保存。
@@ -131,6 +149,8 @@ class DropImage:
     def clear(self):
         """清空已缓存的截图列表。"""
         self.images = []
+        self.research_groups = []
+        self._commission_kind = None
 
     @property
     def count(self):
@@ -151,7 +171,7 @@ class DropImage:
         if self:
             self.stat.commit(images=self.images, genre=self.genre, save=self.save,
                              local=self.local, info=self.info, combat_count=self.combat_count,
-                             analyze=self.analyze)
+                             analyze=self.analyze, research_groups=self.research_groups)
 
 
 class AzurStats:
@@ -365,31 +385,61 @@ class AzurStats:
             [(scope, int(row[0]), instance, get_device_id(), int(row[1]), *map(float, row[2:])) for row in data])
 
     @staticmethod
+    def _farming_watermark(connection, instance):
+        """取该统计范围的明细水位，用于复核聚合期间是否有新数据。"""
+        row = connection.execute('''SELECT COALESCE(MAX(id), 0) FROM opsi_items
+            WHERE device_id=? AND genre='opsi_meowfficer_farming'
+                AND (? IS NULL OR instance=?) AND hazard_level BETWEEN 1 AND 6''',
+            (get_device_id(), instance, instance)).fetchone()
+        return int(row[0])
+
+    @staticmethod
+    def _aggregate_farming(connection, instance):
+        """按原截图分组口径聚合六个等级的收益数据。"""
+        rows = connection.execute('''WITH selected AS (
+            SELECT *, ROW_NUMBER() OVER (PARTITION BY instance,device_id,imgid ORDER BY id) AS capture_row
+            FROM opsi_items WHERE device_id=? AND genre='opsi_meowfficer_farming'
+                AND (? IS NULL OR instance=?) AND hazard_level BETWEEN 1 AND 6
+        ) SELECT hazard_level,
+            SUM(CASE WHEN capture_row=1 THEN COALESCE(combat_count,0) ELSE 0 END) AS combats,
+            SUM(CASE WHEN substr(item,1,13)='OperationCoin' THEN COALESCE(amount,0) ELSE 0 END) AS coins,
+            SUM(CASE WHEN substr(item,1,5)='Plate' THEN COALESCE(amount,0) ELSE 0 END) AS plates,
+            SUM(CASE WHEN substr(item,1,17)='CoordinateAbyssal' THEN COALESCE(amount,0) ELSE 0 END) AS abyssal,
+            SUM(CASE WHEN substr(item,1,17)='CoordinateObscure' THEN COALESCE(amount,0) ELSE 0 END) AS obscure
+            FROM selected GROUP BY hazard_level''', (get_device_id(), instance, instance)).fetchall()
+        out_data = np.zeros((6, len(AzurStats.meowofficer_farming_labels)))
+        out_data[:, 0] = np.arange(1, 7)
+        out_data[:, 1] = int(datetime.timestamp(datetime.now()))
+        for row in rows:
+            hazard = row['hazard_level']
+            rounds = row['combats'] / AzurStats.unit_combat_count[hazard]
+            out_data[hazard - 1, 2] = rounds
+            amounts = [row[name] for name in ('coins', 'plates', 'abyssal', 'obscure')]
+            out_data[hazard - 1, 3:] = np.array(amounts) / rounds if rounds > 0 else amounts
+        return out_data
+
+    @staticmethod
     def get_meowofficer_farming(instance=None):
-        """在同一个写事务中按原截图分组口径重算并提交缓存。"""
+        """先只读聚合，再用短写事务复核水位后提交缓存。
+
+        整表窗口函数在只读事务里执行，写锁只覆盖缓存替换；
+        聚合期间若有新掉落插入，水位变化会触发重算，绝不写入陈旧缓存。
+        """
+        for _ in range(3):
+            with AzurStats._database().transaction(write=False) as connection:
+                watermark = AzurStats._farming_watermark(connection, instance)
+                out_data = AzurStats._aggregate_farming(connection, instance)
+            with AzurStats._database().transaction() as connection:
+                if AzurStats._farming_watermark(connection, instance) != watermark:
+                    continue
+                AzurStats._write_meowofficer_farming(out_data, instance, connection=connection)
+                logger.info(f'[本地统计] 本地统计数据更新成功: {instance or "全局共享"}')
+                return out_data
+        # 极端并发下退回单事务路径，保证缓存与明细一致。
         with AzurStats._database().transaction() as connection:
-            rows = connection.execute('''WITH selected AS (
-                SELECT *, ROW_NUMBER() OVER (PARTITION BY instance,device_id,imgid ORDER BY id) AS capture_row
-                FROM opsi_items WHERE device_id=? AND genre='opsi_meowfficer_farming'
-                    AND (? IS NULL OR instance=?) AND hazard_level BETWEEN 1 AND 6
-            ) SELECT hazard_level,
-                SUM(CASE WHEN capture_row=1 THEN COALESCE(combat_count,0) ELSE 0 END) AS combats,
-                SUM(CASE WHEN substr(item,1,13)='OperationCoin' THEN COALESCE(amount,0) ELSE 0 END) AS coins,
-                SUM(CASE WHEN substr(item,1,5)='Plate' THEN COALESCE(amount,0) ELSE 0 END) AS plates,
-                SUM(CASE WHEN substr(item,1,17)='CoordinateAbyssal' THEN COALESCE(amount,0) ELSE 0 END) AS abyssal,
-                SUM(CASE WHEN substr(item,1,17)='CoordinateObscure' THEN COALESCE(amount,0) ELSE 0 END) AS obscure
-                FROM selected GROUP BY hazard_level''', (get_device_id(), instance, instance)).fetchall()
-            out_data = np.zeros((6, len(AzurStats.meowofficer_farming_labels)))
-            out_data[:, 0] = np.arange(1, 7)
-            out_data[:, 1] = int(datetime.timestamp(datetime.now()))
-            for row in rows:
-                hazard = row['hazard_level']
-                rounds = row['combats'] / AzurStats.unit_combat_count[hazard]
-                out_data[hazard - 1, 2] = rounds
-                amounts = [row[name] for name in ('coins', 'plates', 'abyssal', 'obscure')]
-                out_data[hazard - 1, 3:] = np.array(amounts) / rounds if rounds > 0 else amounts
+            out_data = AzurStats._aggregate_farming(connection, instance)
             AzurStats._write_meowofficer_farming(out_data, instance, connection=connection)
-            logger.info(f'[Statistics] 本地统计数据更新成功: {instance or "全局共享"}')
+            logger.info(f'[本地统计] 本地统计数据更新成功: {instance or "全局共享"}')
             return out_data
 
     @staticmethod
@@ -485,7 +535,7 @@ class AzurStats:
                 except (TypeError, ValueError):
                     pass
         except Exception:
-            logger.warning('[Statistics] 查询耄耋相接掉落总数失败', exc_info=True)
+            logger.warning('[本地统计] 查询耄耋相接掉落总数失败', exc_info=True)
         return totals
 
     @staticmethod
@@ -514,7 +564,7 @@ class AzurStats:
                     params,
                 ).fetchall()
         except Exception:
-            logger.warning('[Statistics] 查询耄耋相接掉落月份列表失败', exc_info=True)
+            logger.warning('[本地统计] 查询耄耋相接掉落月份列表失败', exc_info=True)
             return []
         months = []
         for (ym,) in rows:
@@ -615,17 +665,17 @@ class AzurStats:
             rows = self._parse_local_opsi_items(
                 image, imgid, genre, combat_count, filename=filename, instance=self.config.config_name)
             if not rows:
-                logger.warning('本地碧蓝统计解析跳过, no opsi item rows extracted')
+                logger.warning('AzurStats 本地统计解析跳过, no opsi item rows extracted')
                 return False
             inserted = self._insert_local_opsi_items(rows)
             # 短猫的收益汇总只认自己那一类记录，其他大世界任务入库时不重算，
             # 免得每来一条要塞/每日记录都把整表重跑一遍。
             if genre == 'opsi_meowfficer_farming':
                 self.get_meowofficer_farming(instance=self.config.config_name)
-            logger.info(f'本地碧蓝统计解析成功，记录 {inserted} 条')
+            logger.info(f'AzurStats 本地统计解析成功，记录 {inserted} 条')
             return True
         except Exception as e:
-            logger.warning(f'本地碧蓝统计解析失败, {type(e).__name__}')
+            logger.warning(f'AzurStats 本地统计解析失败, {type(e).__name__}')
             return False
 
     def _save(self, image, genre, filename):
@@ -653,7 +703,7 @@ class AzurStats:
         return False
 
     def commit(self, images, genre, save=False, local=False, info='', combat_count=0,
-               analyze=False):
+               analyze=False, research_groups=None):
         """提交并处理一组掉落截图，执行保存、本地入库或专用解析。
 
         Args:
@@ -688,7 +738,7 @@ class AzurStats:
             save_thread.start()
 
         if local:
-            logger.info(f'本地碧蓝统计解析开始，类型={genre}')
+            logger.info(f'AzurStats 本地统计解析开始，类型={genre}')
             with self._record_lock:
                 self._record_local(image, genre, filename, combat_count)
 
@@ -697,9 +747,24 @@ class AzurStats:
             # 解析失败只记日志，绝不影响领奖流程本身。
             try:
                 from module.statistics.research_drop import record_research_drop
-                record_research_drop(images, instance=self.config.config_name, imgid=filename)
+                if research_groups:
+                    from module.statistics.research_drop import read_research_identity
+                    for index, (start, end) in enumerate(research_groups):
+                        identity = read_research_identity(images[0], index)
+                        record_research_drop(images[start:end], instance=self.config.config_name,
+                                             imgid=f'{filename}:{index}', identity=identity,
+                                             )
+                else:
+                    record_research_drop(images, instance=self.config.config_name, imgid=filename)
             except Exception as e:
                 logger.warning(f'[科研统计] 掉落解析失败，跳过本次记录: {type(e).__name__}')
+
+        if analyze and genre == 'commission':
+            try:
+                from module.statistics.commission_drop import record_commission_drops
+                record_commission_drops(images, self.config)
+            except Exception as e:
+                logger.warning(f'[委托统计] 掉落解析失败: {type(e).__name__}')
 
         return True
 
@@ -726,16 +791,11 @@ class AzurStats:
             method = None
         if method is not None:
             method_value = str(method)
-            save = save or 'save' in method_value
+            save = save or method_value in ('save', 'save_and_upload')
         if local is None:
-            if is_opsi_drop_genre(genre):
-                # 大世界掉落统计（2026-09-25 用户定，与科研同口径）：
-                # 「保存」与「上传」都解析入库，区别只在要不要把截图落盘；
-                # 只有「不记录」才不统计。侵蚀1练级不适用（见 is_opsi_drop_genre）。
-                local = method_value != 'do_not'
-            else:
-                local = False
+            # 大世界截图开关只控制保留图片；掉落统计独立记录。
+            local = is_opsi_drop_genre(genre)
         # 科研掉落走独立解析链路（写 cl1_record.db）：只要用户没有显式关掉记录，
         # 存图与否都统计——save 档事后要能核对，upload 档就是不落盘只要数据。
-        analyze = genre == 'research' and method_value != 'do_not'
+        analyze = genre in ('research', 'commission') and method_value != 'do_not'
         return DropImage(stat=self, genre=genre, save=save, local=local, info=info, analyze=analyze)

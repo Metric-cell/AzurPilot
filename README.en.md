@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <img src="doc/logo.webp" alt="AzurPilot Logo" width="400">
+  <img src="docs/images/logo.webp" alt="AzurPilot Logo" width="400">
 </p>
 
 <p align="center">
@@ -62,7 +62,7 @@ Visit the **[AzurPilot Official Website](https://azurpilot.com/)** for more feat
 ## GUI Preview
 
 <div align="center">
-  <img src="doc/GUI.png" alt="GUI Preview" width="800">
+  <img src="docs/images/GUI.png" alt="GUI Preview" width="800">
 </div>
 
 ## Quick Start
@@ -140,91 +140,22 @@ Please remove the following content that may affect recognition:
 
 These may affect image recognition results and cause anomalies in the automation workflow.
 
-## MCP Service
-
-AzurPilot provides an MCP service that can be called by MCP-compatible clients or tools, making it convenient to manage AzurPilot with an Agent.
-
-> The MCP service starts by default with the WebUI and is mounted under the `/mcp` path (WebUI default port 25548). It can also be run standalone via `uv run python mcp_server_sse.py` (standalone port 22268).
-
-The MCP service reuses the WebUI password (the `--key` flag or `Password` in `config/deploy.yaml`). If no password is set and the WebUI listens on a public address, it generates one automatically — see `password.txt` in the repository root. Requests without this password are rejected with 401.
-
-### Local Connection Configuration
-
-```json
-{
-  "mcpServers": {
-    "alas": {
-      "url": "http://127.0.0.1:25548/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer <WebUI password>"
-      }
-    }
-  }
-}
-```
-
-### Cloud Server or Intranet Connection Configuration
-
-```json
-{
-  "mcpServers": {
-    "alas": {
-      "url": "http://[IP_ADDRESS]:25548/mcp/sse",
-      "headers": {
-        "Authorization": "Bearer <WebUI password>"
-      }
-    }
-  }
-}
-```
-
-Replace `[IP_ADDRESS]` with your actual server address or intranet address. If the WebUI port has been changed, update the port in the URL accordingly.
-
-Clients that can only specify a URL and cannot set custom headers may put the password in the query string instead: `http://[IP_ADDRESS]:25548/mcp/sse?key=<WebUI password>`. The URL itself then becomes the credential, so do not share or screenshot it, and prefer the header when possible. `X-API-Key: <WebUI password>` is also accepted in place of `Authorization`.
-
-After changing the password, restart the WebUI so that MCP picks it up.
-
-### MCP Tool List
-
-18 MCP tools are currently available.
-
-| Category | Tool Name | Description |
-| --- | --- | --- |
-| Instance Management | `list_instances` | List all instances |
-| | `get_status` | Get instance status |
-| | `start_instance` | Start an instance |
-| | `stop_instance` | Stop an instance |
-| Task Management | `list_tasks` | List all tasks |
-| | `get_task_help` | Get task help |
-| | `trigger_task` | Trigger a task |
-| | `get_scheduler_queue` | Get the scheduler queue |
-| | `clear_scheduler_queue` | Clear the scheduler queue |
-| Monitoring & Info | `get_current_running_task` | Get the currently running task |
-| | `get_resources` | Get resource status |
-| | `get_config` | Get instance configuration |
-| | `get_recent_logs` | Get recent logs |
-| | `get_screenshot` | Get a screenshot |
-| Configuration Management | `update_config` | Update configuration |
-| Maintenance Tools | `restart_emulator` | Restart the emulator |
-| | `restart_adb` | Restart ADB |
-| | `update_alas` | Update AzurPilot |
-
 ## Multi-Platform Launcher
 
 > 📥 Download the Windows / macOS / Linux launchers from the [AzurPilot Official Website](https://azurpilot.com/download.html)
 
 <div align="center">
-  <img src="doc/loading.png" alt="loading" width="500" />
+  <img src="docs/images/loading.png" alt="loading" width="500" />
   <p>Loading screen</p>
   <table align="center">
     <tr>
-      <td align="center"><img src="doc/GUI.png" alt="New" width="260"><br>New</td>
-      <td align="center"><img src="doc/GUI-legacy.webp" alt="Legacy" width="260"><br>Legacy</td>
-      <td align="center"><img src="doc/GUI-minimal.png" alt="Minimal" width="260"><br>Minimal</td>
+      <td align="center"><img src="docs/images/GUI.png" alt="New" width="260"><br>New</td>
+      <td align="center"><img src="docs/images/GUI-legacy.webp" alt="Legacy" width="260"><br>Legacy</td>
+      <td align="center"><img src="docs/images/GUI-minimal.png" alt="Minimal" width="260"><br>Minimal</td>
     </tr>
   </table>
   <p>Windows client UI</p>
-  <img src="doc/macGUI.png" alt="macGUI" width="500" />
+  <img src="docs/images/macGUI.png" alt="macGUI" width="500" />
   <p>macOS client UI</p>
 </div>
 
@@ -326,7 +257,7 @@ When using, modifying, or distributing this project, please comply with the lice
 
 <p align="center">
   <a href="https://afdian.com/a/miaonaa">
-    <img src="doc/afdian.jfif" alt="爱发电" width="200">
+    <img src="docs/images/afdian.jfif" alt="爱发电" width="200">
   </a>
   <br>
   <b>Support this project (for server costs or training new models, etc.?)</b>

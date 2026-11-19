@@ -86,31 +86,6 @@ Deploy:
     # [In most cases] Use true
     InstallUiautomator2: true
 
-  Ocr:
-    # 以服务方式运行 OCR，避免每次启动实例时都导入 mxnet，减少内存占用
-    # Run Ocr as a service, can reduce memory usage by not import mxnet everytime you start an ap instance
-
-    # 是否使用 OCR 服务器
-    # Whether to use ocr server
-    # [默认] false
-    # [Default] false
-    UseOcrServer: false
-    # 启动 GUI 时是否同时启动 OCR 服务器
-    # Whether to start ocr server when start GUI
-    # [默认] false
-    # [Default] false
-    StartOcrServer: false
-    # GUI 运行的 OCR 服务器端口
-    # Port of ocr server runs by GUI
-    # [默认] 22268
-    # [Default] 22268
-    OcrServerPort: 22268
-    # 实例连接 OCR 服务器的地址
-    # Address of ocr server for ap instance to connect
-    # [默认] 127.0.0.1:22268
-    # [Default] 127.0.0.1:22268
-    OcrClientAddress: 127.0.0.1:22268
-
   Update:
     EnableReload: true
 

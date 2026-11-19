@@ -1,7 +1,19 @@
+/**
+ * @fileoverview 换船调度页：调度目标表单与培养舰船、完成舰船、旧记录舰船三组记录展示。
+ */
+
+import {Button} from '../components/ui/button'
+import {Table, TableBody, TableCell, TableHead, TableHeader, TableRow} from '../components/ui/table'
 import {useEffect, useState} from 'react'
 import {Link, useParams} from 'react-router-dom'
 import {api} from '../api/client'
+import type {Value} from '../api/types'
 import {useApp, useConnection} from '../app/context'
+import {Switch} from '../components/official-ui/switch'
+import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from '../components/official-ui/select'
+import {Checkbox} from '../components/official-ui/checkbox'
+import {Label} from '../components/ui/label'
+import {Input} from '../components/official-ui/input'
 import {editor} from '../config/editors'
 import {ErrorBox, Loading, PageTitle} from '../components/ui'
 import {rotationRules} from './FleetRotation'
@@ -38,7 +50,7 @@ export function trainingRecordGroups({records, readings = {}, formation, rules}:
   const isCompleted = (row: Row) => !!row.completed_for && Object.keys(row.completed_for).length > 0
   const atPosition = (a: PositionedRow, b: PositionedRow) => (a.fleet ?? 7) - (b.fleet ?? 7)
     || (a.slot ?? 7) - (b.slot ?? 7) || a.name.localeCompare(b.name)
-  const training = ships.filter(ship => rules[String(ship.fleet)]?.slots.includes(ship.slot!))
+  const training = ships.filter(ship => ship.slot !== undefined && rules[String(ship.fleet)]?.slots.includes(ship.slot))
     .filter(ship => !byName.has(ship.name) || !isCompleted(records[ship.name] ?? {}))
     .map(ship => {
       // 同名的实读只属于当前舰位，不借用按舰名保存的完成记录，也不归入完成分类。
@@ -64,6 +76,7 @@ export function trainingRecordGroups({records, readings = {}, formation, rules}:
     completedCount: completed.length, historyCount: history.length}
 }
 
+/** 把记录快照归类成培养舰船、完成舰船、旧记录舰船三张表；完成与旧记录各只显示最近六条。 */
 export function TrainingRecords({snapshot}: {snapshot: RecordSnapshot}) {
   const {ui} = useApp()
   const result = trainingRecordGroups(snapshot)
@@ -74,24 +87,24 @@ export function TrainingRecords({snapshot}: {snapshot: RecordSnapshot}) {
       return <section className="panel" key={kind} aria-label={ui(`training.${kind}Ships`)} style={{padding: 20, minWidth: 0}}>
         <h2>{ui(`training.${kind}Ships`)} · {rows.length}</h2>
         {kind !== 'training' && <p className="muted">{ui('training.historyLimit', {count: total})}</p>}
-        {!rows.length ? <p className="muted">{ui('training.empty')}</p> : <div className="training-record-table" style={{overflowX: 'auto'}}>
-          <table className="data-table" style={{width: '100%', minWidth: 900, whiteSpace: 'nowrap', fontSize: 14, padding: 0, borderCollapse: 'collapse'}}>
-          <thead><tr><th>{ui('training.fleet')}</th><th>{ui('training.slot')}</th><th>{ui('training.ship')}</th><th>{ui('training.emotion')}</th><th>{ui('training.level')}</th><th>{ui('training.exp')}</th><th>{ui('training.affinity')}</th><th>{ui('training.checkedAt')}</th></tr></thead>
-          <tbody>{rows.map(row => <tr key={row.key}>
-            <td>{row.fleet ? ui('fleet.title', {number: row.fleet}) : ui('training.unread')}</td>
-            <td>{row.slot ? ui('fleet.slot', {number: row.slot}) : ui('training.unread')}</td>
-            <td>{row.name || ui('fleet.unknown')}</td><td>{row.emotion ?? ui('training.unread')}</td>
-            <td title={row.display_level == null ? undefined : ui('training.displayLevel', {level: row.display_level})}>{row.level ?? ui('training.unread')}</td><td>{row.exp ?? ui('training.unread')}</td><td>{row.affinity ?? ui('training.unread')}</td>
-            <td>{row.checked_at ? row.checked_at.replace('T', ' ') : ui('training.unread')}</td>
-          </tr>)}</tbody>
-          </table>
+        {!rows.length ? <p className="muted">{ui('training.empty')}</p> : <div className="training-record-table overflow-x-auto">
+          <Table className="min-w-[900px] whitespace-nowrap tabular-nums">
+          <TableHeader><TableRow><TableHead>{ui('training.fleet')}</TableHead><TableHead>{ui('training.slot')}</TableHead><TableHead>{ui('training.ship')}</TableHead><TableHead>{ui('training.emotion')}</TableHead><TableHead>{ui('training.level')}</TableHead><TableHead>{ui('training.exp')}</TableHead><TableHead>{ui('training.affinity')}</TableHead><TableHead>{ui('training.checkedAt')}</TableHead></TableRow></TableHeader>
+          <TableBody>{rows.map(row => <TableRow key={row.key}>
+            <TableCell>{row.fleet ? ui('fleet.title', {number: row.fleet}) : ui('training.unread')}</TableCell>
+            <TableCell>{row.slot ? ui('fleet.slot', {number: row.slot}) : ui('training.unread')}</TableCell>
+            <TableCell>{row.name || ui('fleet.unknown')}</TableCell><TableCell>{row.emotion ?? ui('training.unread')}</TableCell>
+            <TableCell title={row.display_level == null ? undefined : ui('training.displayLevel', {level: row.display_level})}>{row.level ?? ui('training.unread')}</TableCell><TableCell>{row.exp ?? ui('training.unread')}</TableCell><TableCell>{row.affinity ?? ui('training.unread')}</TableCell>
+            <TableCell>{row.checked_at ? row.checked_at.replace('T', ' ') : ui('training.unread')}</TableCell>
+          </TableRow>)}</TableBody>
+          </Table>
         </div>}
       </section>
     })}
   </div>
 }
 
-function recordSnapshot(values: Record<string, Record<string, unknown>>): RecordSnapshot {
+function recordSnapshot(values: Record<string, Record<string, Value>>): RecordSnapshot {
   const saved = values.FleetTraining?.State as Pick<RecordSnapshot, 'records' | 'readings'> | undefined
   const snapshot = {records: saved?.records ?? {}, readings: saved?.readings ?? {},
     formation: values.FleetInfo?.Result, rules: rotationRules(values.FleetRotation?.Rules)}
@@ -104,10 +117,16 @@ const groups = {level: 'FleetLevelTraining', affinity: 'FleetAffinityTraining'} 
 type Metric = keyof typeof groups
 const metrics: Metric[] = ['level', 'affinity']
 
+/**
+ * 换船调度页：调度开关与目标的本地表单经「保存调度设置」一次 config.patch 写入；
+ * 任务运行中每 3 秒轮询记录快照，记录表随扫描自动更新。
+ */
 export function FleetTraining() {
   const {instance = ''} = useParams(), {ui, notify, instances} = useApp(), connection = useConnection()
   const [morale, setMorale] = useState(false), [selectedOnly, setSelectedOnly] = useState(false)
+  const [dorm, setDorm] = useState(false), [dormFloor, setDormFloor] = useState('floor_1')
   const [hours, setHours] = useState('6')
+  const [stopOnComplete, setStopOnComplete] = useState(false), [push, setPush] = useState(false)
   const [settings, setSettings] = useState<Record<Metric, Goal>>({
     level: {enabled: false, target: '120'},
     affinity: {enabled: false, target: '100'},
@@ -126,10 +145,14 @@ export function FleetTraining() {
     setLoaded(false)
     void api.request('config.get', {instance}).then(config => {
       if (!active) return
-      const values = config.values.FleetInfo
+      const values = config.values.FleetInfo ?? {}
       setMorale(values.FleetRotation?.Enabled === true)
       setSelectedOnly(values.FleetRotation?.SelectedOnly === true)
+      setDorm(values.FleetDorm?.Enabled === true)
+      setDormFloor(values.FleetDorm?.Floor === 'floor_2' ? 'floor_2' : 'floor_1')
       setHours(String(values.FleetTraining?.CheckIntervalHours ?? 6))
+      setStopOnComplete(values.FleetTraining?.StopOnComplete === true)
+      setPush(values.FleetTraining?.Notify === true)
       setSettings(Object.fromEntries(metrics.map(metric => {
         const value = values[groups[metric]]
         return [metric, {enabled: value?.Enabled === true, target: String(value?.Target ?? (metric === 'level' ? 120 : 100))}]
@@ -144,7 +167,7 @@ export function FleetTraining() {
     let active = true
     const timer = setInterval(() => {
       void api.request('config.get', {instance}).then(config => {
-        if (active) setSnapshot(recordSnapshot(config.values.FleetInfo))
+        if (active) setSnapshot(recordSnapshot(config.values.FleetInfo ?? {}))
       }).catch(error => {if (active) setError((error as Error).message)})
     }, 3000)
     return () => {active = false; clearInterval(timer)}
@@ -155,7 +178,7 @@ export function FleetTraining() {
     setDirty(true)
   }
 
-  async function save(nextMorale = morale, nextSettings = settings) {
+  async function save(nextMorale = morale, nextSettings = settings, nextDorm = dorm) {
     if (!valid) return
     setBusy(true); setError('')
     try {
@@ -164,13 +187,17 @@ export function FleetTraining() {
       await api.request('config.patch', {instance, revision: config.revision, changes: [
         {path: 'FleetInfo.FleetRotation.Enabled', value: nextMorale},
         {path: 'FleetInfo.FleetRotation.SelectedOnly', value: selectedOnly},
+        {path: 'FleetInfo.FleetDorm.Enabled', value: nextDorm},
+        {path: 'FleetInfo.FleetDorm.Floor', value: dormFloor},
         {path: 'FleetInfo.FleetTraining.CheckIntervalHours', value: Number(hours)},
+        {path: 'FleetInfo.FleetTraining.StopOnComplete', value: stopOnComplete},
+        {path: 'FleetInfo.FleetTraining.Notify', value: push},
         ...metrics.flatMap(metric => [
           {path: `FleetInfo.${groups[metric]}.Enabled`, value: nextSettings[metric].enabled},
           {path: `FleetInfo.${groups[metric]}.Target`, value: Number(nextSettings[metric].target)},
         ]),
       ]})
-      setMorale(nextMorale); setSettings(nextSettings); setDirty(false); notify(ui('training.saved'))
+      setMorale(nextMorale); setSettings(nextSettings); setDorm(nextDorm); setDirty(false); notify(ui('training.saved'))
     } catch (error) {setError((error as Error).message)} finally {setBusy(false)}
   }
 
@@ -180,15 +207,15 @@ export function FleetTraining() {
       await editor(`config:${instance}`).settled()
       const current = await api.request('config.get', {instance})
       const result = await api.request('fleetTraining.reset', {instance, revision: current.revision})
-      setSnapshot(recordSnapshot(result.values.FleetInfo)); notify(ui('training.resetDone'))
+      setSnapshot(recordSnapshot(result.values.FleetInfo ?? {})); notify(ui('training.resetDone'))
     } catch (error) {setError((error as Error).message)} finally {setBusy(false)}
   }
 
   return <>
     <PageTitle title={ui('training.title')} actions={
       <>
-        <button className="button" disabled={disabled || running || !loaded} onClick={() => void resetStatus()}>{ui('training.reset')}</button>
-        <button className="button primary" disabled={disabled || !loaded || !dirty || !valid} onClick={() => void save()}>{ui('training.save')}</button>
+        <Button variant="outline" disabled={disabled || running || !loaded} onClick={() => void resetStatus()}>{ui('training.reset')}</Button>
+        <Button disabled={disabled || !loaded || !dirty || !valid} onClick={() => void save()}>{ui('training.save')}</Button>
       </>
     }/>
     <p className="muted">{ui('training.help')}</p>
@@ -196,20 +223,17 @@ export function FleetTraining() {
     {error && <ErrorBox message={error}/>}
     {!loaded ? !error && <Loading/> : <>
       <section className="panel" style={{padding: 20, margin: '20px 0'}}>
-        <label className="checkbox-label">
-          <input type="checkbox" checked={selectedOnly} disabled={disabled} onChange={event => {setSelectedOnly(event.target.checked); setDirty(true)}}/>
-          {ui('rotation.selectedOnly')}
-        </label>
+        <span className="flex items-center gap-3"><Checkbox id="training-selected-only" checked={selectedOnly} disabled={disabled} onCheckedChange={next => {setSelectedOnly(next === true); setDirty(true)}}/><Label htmlFor="training-selected-only">{ui('rotation.selectedOnly')}</Label></span>
         <p className="muted">{ui('rotation.emotionHelp')}</p>
         <label style={{display: 'grid', gap: 8, marginTop: 16}}>{ui('training.interval')}
-          <input type="number" min={0} step="any" value={hours} disabled={disabled} onChange={event => {setHours(event.target.value); setDirty(true)}}/>
+          <Input type="number" min={0} step="any" value={hours} disabled={disabled} onChange={event => {setHours(event.target.value); setDirty(true)}}/>
         </label>
         <p className="muted">{ui('training.intervalHelp')}</p>
       </section>
       <div className="fleet-grid" style={{marginBottom: 20}}>
         <section className="panel" aria-label={ui('training.moraleTitle')}>
           <div className="panel-heading"><h2>{ui('training.moraleTitle')}</h2>
-            <button type="button" className={`toggle ${morale ? 'on' : ''}`} role="switch" aria-label={ui('training.moraleEnable')} aria-checked={morale} disabled={disabled || !valid} onClick={() => void save(!morale)}><span/></button>
+            <Switch checked={morale} aria-label={ui('training.moraleEnable')} disabled={disabled || !valid} onCheckedChange={next => void save(next)}/>
           </div>
           <div style={{padding: 20}}><p className="muted">{ui('training.moraleHelp')}</p></div>
         </section>
@@ -217,16 +241,36 @@ export function FleetTraining() {
           const goal = settings[metric], isLevel = metric === 'level'
           return <section className="panel" key={metric} aria-label={ui(isLevel ? 'training.levelTitle' : 'training.affinityTitle')}>
             <div className="panel-heading"><h2>{ui(isLevel ? 'training.levelTitle' : 'training.affinityTitle')}</h2>
-              <button type="button" className={`toggle ${goal.enabled ? 'on' : ''}`} role="switch" aria-label={ui(isLevel ? 'training.levelEnable' : 'training.affinityEnable')} aria-checked={goal.enabled} disabled={disabled || !valid} onClick={() => void save(morale, {...settings, [metric]: {...goal, enabled: !goal.enabled}})}><span/></button>
+              <Switch checked={goal.enabled} aria-label={ui(isLevel ? 'training.levelEnable' : 'training.affinityEnable')} disabled={disabled || !valid} onCheckedChange={next => void save(morale, {...settings, [metric]: {...goal, enabled: next}})}/>
             </div>
             <div style={{padding: 20, display: 'grid', gap: 16}}>
               <label style={{display: 'grid', gap: 8}}>{ui(isLevel ? 'training.targetLevel' : 'training.targetAffinity')}
-                <input type="number" min={1} max={isLevel ? 125 : 200} step={1} value={goal.target} disabled={disabled} onChange={event => change(metric, 'target', event.target.value)}/>
+                <Input type="number" min={1} max={isLevel ? 125 : 200} step={1} value={goal.target} disabled={disabled} onChange={event => change(metric, 'target', event.target.value)}/>
               </label>
             </div>
           </section>
         })}
+        <section className="panel" aria-label={ui('training.dormTitle')}>
+          <div className="panel-heading"><h2>{ui('training.dormTitle')}</h2>
+            <Switch checked={dorm} aria-label={ui('training.dormEnable')} disabled={disabled || !valid} onCheckedChange={next => void save(morale, settings, next)}/>
+          </div>
+          <div style={{padding: 20, display: 'grid', gap: 16}}>
+            <label style={{display: 'grid', gap: 8}}>{ui('training.dormFloor')}
+              <Select value={dormFloor} disabled={disabled} onValueChange={value => {setDormFloor(value); setDirty(true)}}>
+                <SelectTrigger aria-label={ui('training.dormFloor')}><SelectValue/></SelectTrigger>
+                <SelectContent><SelectItem value="floor_1">{ui('training.dormFloor1')}</SelectItem><SelectItem value="floor_2">{ui('training.dormFloor2')}</SelectItem></SelectContent>
+              </Select>
+            </label>
+            <p className="muted" style={{margin: 0}}>{ui('training.dormHelp')}</p>
+          </div>
+        </section>
       </div>
+      <section className="panel" style={{padding: 20, margin: '20px 0'}}>
+        <span className="flex items-center gap-3"><Checkbox id="training-stop-on-complete" checked={stopOnComplete} disabled={disabled} onCheckedChange={next => {setStopOnComplete(next === true); setDirty(true)}}/><Label htmlFor="training-stop-on-complete">{ui('training.stopOnComplete')}</Label></span>
+        <p className="muted">{ui('training.stopHelp')}</p>
+        <span className="flex items-center gap-3"><Checkbox id="training-notify" checked={push} disabled={disabled} onCheckedChange={next => {setPush(next === true); setDirty(true)}}/><Label htmlFor="training-notify">{ui('training.notify')}</Label></span>
+        <p className="muted">{ui('training.notifyHelp')}</p>
+      </section>
       <p className="muted">{ui('training.resetHelp')}</p>
       <TrainingRecords snapshot={snapshot}/>
     </>}

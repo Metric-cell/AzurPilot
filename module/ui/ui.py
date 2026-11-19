@@ -27,10 +27,12 @@ from module.base.button import Button
 from module.base.decorator import run_once
 from module.base.timer import Timer
 from module.combat.assets import GET_ITEMS_1, GET_ITEMS_2, GET_SHIP
+from module.config.deep import deep_get
 from module.exception import (GameNotRunningError, GamePageUnknownError,
                               RequestHumanTakeover)
 from module.exercise.assets import EXERCISE_PREPARATION
-from module.handler.assets import (AUTO_SEARCH_MENU_EXIT, BATTLE_PASS_NEW_SEASON, BATTLE_PASS_NOTICE, GAME_TIPS,
+from module.handler.assets import (AUTO_SEARCH_MENU_EXIT, BATTLE_PASS_NEW_SEASON, BATTLE_PASS_NOTICE,
+                                   BILIBILI_LOGIN_BUTTON, BILIBILI_LOGIN_RECORD, GAME_TIPS,
                                    LOGIN_ANNOUNCE, LOGIN_ANNOUNCE_2, LOGIN_CHECK, LOGIN_RETURN_SIGN,
                                    MAINTENANCE_ANNOUNCE, MONTHLY_PASS_NOTICE)
 from module.handler.info_handler import InfoHandler
@@ -555,6 +557,10 @@ class UI(InfoHandler):
         Returns:
             bool: 是否处理了弹窗。
         """
+        # 离开岛屿时 ui_current 要等到下一帧识别后才更新，期间仍需处理主界面弹窗。
+        # 岛屿管理页的邮箱按钮与 GET_SHIP 检测区域重叠，因此只跳过这一项。
+        is_island_page = bool(getattr(self, 'ui_current', None) and 'island' in self.ui_current.name)
+
         # 大舰队弹窗
         if self.handle_guild_popup_cancel():
             return True
@@ -574,7 +580,7 @@ class UI(InfoHandler):
             return True
         if self.appear_then_click(GET_ITEMS_2, offset=True, interval=3):
             return True
-        if get_ship:
+        if get_ship and not is_island_page:
             if self.appear_then_click(GET_SHIP, offset=(20, 20), interval=5):
                 return True
         if self.appear_then_click(LOGIN_RETURN_SIGN, offset=(30, 30), interval=3):
@@ -657,6 +663,28 @@ class UI(InfoHandler):
 
         return False
 
+    def handle_bilibili_login_record(self):
+        """处理 B 站客户端偶发的已保存账号登录记录弹窗。
+
+        Pages:
+            in: 游戏开始画面上的登录记录弹窗
+            out: 等待 B 站登录完成后的游戏画面
+
+        Returns:
+            bool: 是否点击了弹窗的登录按钮。
+        """
+        if (self.config.SERVER != 'cn'
+                or deep_get(self.config.data, 'Alas.Emulator.PackageName', default='')
+                != 'com.bilibili.azurlane'):
+            return False
+        if not self.match_template_color(BILIBILI_LOGIN_RECORD, offset=(5, 5)):
+            return False
+        if self.match_template_color(BILIBILI_LOGIN_BUTTON, offset=(5, 5), interval=3):
+            self.device.click(BILIBILI_LOGIN_BUTTON)
+            logger.info('[登录] 点击 B 站登录记录弹窗的登录按钮')
+            return True
+        return False
+
     def ui_additional(self, get_ship=True):
         """处理 UI 切换过程中出现的各种弹窗。
 
@@ -678,11 +706,8 @@ class UI(InfoHandler):
             return True
 
         # 主界面和奖励页面弹窗
-        # 仅在非岛屿页面时处理，避免岛屿页面的 UI 元素被误检测为 GET_SHIP/GET_ITEMS
-        # 例如岛屿管理界面的邮箱按钮与 GET_SHIP 检测区域 (1104,610,1110,630) 重叠
-        if not (hasattr(self, 'ui_current') and self.ui_current and 'island' in self.ui_current.name):
-            if self.ui_page_main_popups(get_ship=get_ship):
-                return True
+        if self.ui_page_main_popups(get_ship=get_ship):
+            return True
 
         # 剧情跳过
         if self.handle_story_skip():
@@ -746,6 +771,8 @@ class UI(InfoHandler):
                 self.interval_reset(WITHDRAW)
 
         # 登录相关
+        if self.handle_bilibili_login_record():
+            return True
         if self.appear_then_click(LOGIN_CHECK, offset=(30, 30), interval=3):
             return True
         if self.appear_then_click(MAINTENANCE_ANNOUNCE, offset=(30, 30), interval=3):

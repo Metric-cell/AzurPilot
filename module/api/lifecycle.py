@@ -1,10 +1,9 @@
 """运行服务生命周期管理模块。
 
-管理与界面会话解耦的后端服务生命周期，包含定时任务处理器、OCR 进程、SSH 隧道以及调度器工作进程的启动与清理。
+管理与界面会话解耦的后端服务生命周期，包含定时任务处理器及调度器工作进程的启动与清理。
 """
 
 from module.logger import logger
-from module.ocr.rpc import stop_ocr_server_process
 from module.runtime.process_manager import ProcessManager
 from module.runtime.setting import State
 from module.runtime.startup_memory import record_running
@@ -16,23 +15,20 @@ task_handler = TaskHandler()
 def startup(runs=None):
     """初始化共享进程登记与可选后台服务。
 
-    启动 OCR 独立服务（若配置启用）以及指定实例的调度器进程。
+    启动指定实例的调度器进程。
 
     Args:
         runs (list[str], optional): 随 WebUI 启动自动运行的实例名称列表。默认为 None。
     """
     State.init()
     task_handler.start()
-    if State.deploy_config.StartOcrServer:
-        from module.ocr.rpc import start_ocr_server_process
-        start_ocr_server_process(State.deploy_config.OcrServerPort)
     ProcessManager.restart_processes(instances=runs, ev=None)
 
 
 def clearup():
     """逐项停止服务，即使某项失败也继续回收其他工作进程。
 
-    依次停止定时任务、OCR 服务进程、SSH 隧道进程及所有活跃的调度器实例，
+    依次停止定时任务及所有活跃的调度器实例，
     并将运行状态记录到启动记忆中。
 
     Returns:
@@ -41,7 +37,7 @@ def clearup():
     with State.cleanup_lock:
         if State._clearup:
             return True
-        actions = [task_handler.stop, stop_ocr_server_process]
+        actions = [task_handler.stop]
         success = True
         try:
             running = ProcessManager.running_instances()

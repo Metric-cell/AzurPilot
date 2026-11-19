@@ -30,7 +30,7 @@ class ApiLifecycleTests(unittest.TestCase):
                     executed.set()
                     yield
 
-            settings = SimpleNamespace(Run='', StartOcrServer=False)
+            settings = SimpleNamespace(Run='')
             tasks = TaskHandler()
             stack.enter_context(patch.object(State, '_deploy_config_', settings, create=True))
             stack.enter_context(patch.multiple(State, _init=False, _clearup=False, manager=None,
@@ -62,11 +62,11 @@ class ApiLifecycleTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, '模拟启动失败'), TestClient(app):
                     pass
             else:
-                with TestClient(app) as client:
+                with TestClient(app, client=('127.0.0.1', 55555), base_url='http://localhost') as client:
                     self.assertTrue(executed.wait(timeout=2))
                     self.assertIsNotNone(State.manager)
                     self.assertEqual(200, client.get('/healthz').status_code)
-                    with client.websocket_connect('/api/v1/ws') as socket:
+                    with client.websocket_connect('/api/v1/ws', headers={'host': 'localhost'}) as socket:
                         self.assertEqual('session', socket.receive_json()['topic'])
                         socket.send_json({'v': 1, 'type': 'request', 'id': 'smoke',
                                           'method': 'system.ping', 'params': {}})

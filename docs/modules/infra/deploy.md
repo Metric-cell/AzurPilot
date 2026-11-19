@@ -131,3 +131,9 @@ Alas.bat → python -m deploy.installer
 - [WebUI 总览](../webui/index.md) —— 更新事务与进程监督全貌
 - [运行时服务](../webui/runtime.md) —— updater 与 installer 共享的依赖同步
 - [外部桥接与开发工具](submodule-tools.md) —— dev_tools 中的生成器（CI 侧的对应物）
+
+### Local device tools
+
+Install Android platform-tools locally and configure `AdbExecutable` in `config/deploy.yaml` or put `adb` on `PATH`. The application does not download ADB at runtime.
+
+Device initialization requires the uiautomator helper APKs to be installed on the device. Use an existing compatible atx-agent, or set `AZURPILOT_ATX_AGENT` to an administrator-provisioned local atx-agent binary for the device architecture. The initializer pushes that file when needed; it does not fetch device executables or APKs.

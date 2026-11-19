@@ -272,6 +272,9 @@ Reward:
       - Scheduler
       - Campaign
       - OperationHandover
+      - Fleet
+      - Submarine
+      - Emotion
 DailyMission:
   menu: collapse
   page: setting
@@ -476,6 +479,7 @@ FleetManagement:
       - FleetRotation
       - FleetLevelTraining
       - FleetAffinityTraining
+      - FleetDorm
       - FleetTraining
       - FleetEquipment
 
@@ -520,10 +524,10 @@ Tool:
       - AzurLaneUncensored
     GameManager:
       - GameManager
-    EmulatorManager:
-      - EmulatorManager
     MeowfficerScore:
       - MeowfficerScore
+    IslandProductionPlanner:
+      - IslandProductionPlanner
 Dashboard:
   page: dashboard
   tasks:

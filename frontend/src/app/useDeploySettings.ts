@@ -9,10 +9,10 @@ import { editor } from '../config/editors'
 import { useConnection } from './context'
 
 /**
- * 部署设置的取数与编辑队列。
+ * 获取部署设置并管理其编辑队列。
  *
- * 三个设置页共用同一份逻辑与同一条 `deploy` 队列：队列按作用域取单例，
- * 页面切换不会丢掉未确认的输入。
+ * @param pollRemote 是否根据远程地址状态轮询更新。
+ * @returns 设置数据、加载错误、编辑快照与共享队列。
  */
 export function useDeploySettings() {
   const [data, setData] = useState<SettingsData>()
@@ -24,18 +24,19 @@ export function useDeploySettings() {
   useEffect(() => {
     if (connection !== 'ready') return
     let active = true
-    const confirmed = queue.confirmed()
-    void api.request('settings.get', {})
+    const load = () => void api.request('settings.get', {})
       .then(data => {
         if (active) {
           setData(data)
           setError('')
-          queue.reconcile(confirmed)
         }
       })
       .catch(error => {
-        if (active) setError(error.message)
+        if (active) {
+          setError(error.message)
+        }
       })
+    load()
     return () => { active = false }
   }, [connection, queue])
 
