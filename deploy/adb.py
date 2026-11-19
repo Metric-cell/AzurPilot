@@ -41,16 +41,15 @@ class AdbManager(DeployConfig):
         Returns:
             str: ADB 可执行文件绝对路径或回退命令 'adb'。
         """
-        exe = self.filepath('AdbExecutable')
-        if os.path.exists(exe):
-            return exe
-
-        logger.warning(f'AdbExecutable: {exe} does not exist, use `adb` instead')
-        return 'adb'
+        from deploy.adb_provision import resolve_adb
+        return resolve_adb(self.root_filepath, self.AdbExecutable)
 
     def adb_install(self):
         """启动并初始化 ADB 服务，完成模拟器连接与环境检查。"""
         logger.hr('Start ADB service', 0)
+
+        if not self.ReplaceAdb and not self.AutoConnect:
+            return
 
         emulator = EmulatorConnect(adb=self.adb)
         if self.ReplaceAdb:

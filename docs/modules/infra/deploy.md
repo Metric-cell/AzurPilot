@@ -132,8 +132,8 @@ Alas.bat → python -m deploy.installer
 - [运行时服务](../webui/runtime.md) —— updater 与 installer 共享的依赖同步
 - [外部桥接与开发工具](submodule-tools.md) —— dev_tools 中的生成器（CI 侧的对应物）
 
-### Local device tools
+### ADB 与 ATX 自动安装
 
-Install Android platform-tools locally and configure `AdbExecutable` in `config/deploy.yaml` or put `adb` on `PATH`. The application does not download ADB at runtime.
+应用优先使用 `config/deploy.yaml` 中配置的 ADB、已知本地路径和系统 `PATH`。找不到时自动从 Google 的 Android platform-tools 安装当前平台的 ADB。
 
-Device initialization requires the uiautomator helper APKs to be installed on the device. Use an existing compatible atx-agent, or set `AZURPILOT_ATX_AGENT` to an administrator-provisioned local atx-agent binary for the device architecture. The initializer pushes that file when needed; it does not fetch device executables or APKs.
+uiautomator2 在设备初始化或恢复时自动安装缺失的助手 APK，并检查和修复 ATX Agent。它优先复用设备上已安装的 Agent 和下载缓存，下载时使用项目镜像，失败时回退到同版本、同架构的 OpenATX GitHub 发布包。ATX 服务绑定设备回环地址。

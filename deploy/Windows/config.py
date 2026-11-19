@@ -142,12 +142,8 @@ class DeployConfig(DeployConfigTransaction, ConfigModel):
         Returns:
             str: ADB 绝对路径或回退命令 'adb'。
         """
-        exe = self.filepath(self.AdbExecutable)
-        if os.path.exists(exe):
-            return exe
-
-        logger.warning(f'AdbExecutable: {exe} does not exist, use `adb` instead')
-        return 'adb'
+        from deploy.adb_provision import resolve_adb
+        return resolve_adb(self.root_filepath, self.AdbExecutable)
 
     @cached_property
     def git(self) -> str:

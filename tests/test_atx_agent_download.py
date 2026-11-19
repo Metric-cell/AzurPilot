@@ -1,63 +1,267 @@
-"""Device initialization must use administrator-provisioned executables only."""
+"""ATX 下载回归测试：隔离网络、缓存目录和设备，不操作真实模拟器。"""
 
+import io
 import os
+import subprocess
+import sys
+import tarfile
 import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
-from types import SimpleNamespace
 
+# 先加载项目设备兼容层，不构造设备或读取用户配置。
+from module.device.device import Device  # noqa: F401
 from module.device.method import utils
+import niquests as requests
+import uiautomator2 as u2
 
 
-class TestAtxAgentProvisioning(unittest.TestCase):
+def agent_archive(payload=b'\x7fELFtest-agent'):
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
+        member = tarfile.TarInfo('atx-agent')
+        member.size = len(payload)
+        archive.addfile(member, io.BytesIO(payload))
+    return buffer.getvalue()
+
+
+def response(content, status=200, content_length=True):
+    result = Mock()
+    result.__enter__ = Mock(return_value=result)
+    result.__exit__ = Mock(return_value=False)
+    result.headers = {'Content-Length': str(len(content))} if content_length else {}
+    result.iter_content.return_value = iter([content])
+    if status >= 400:
+        result.raise_for_status.side_effect = requests.HTTPError(f'{status} Forbidden')
+    return result
+
+
+class TestAtxAgentDownload(unittest.TestCase):
     def setUp(self):
-        self.init = utils.PatchedIniter.__new__(utils.PatchedIniter)
+        self.directory = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(patch.object(u2.init, 'appdir', str(self.directory)))
+        self.init = u2.init.Initer.__new__(u2.init.Initer)
+        self.init.abis = ['x86_64', 'arm64-v8a']
+        self.init.logger = Mock()
         self.init._device = Mock()
+        self.enterContext(patch.dict(os.environ, {'AZURPILOT_ATX_AGENT': ''}))
+        self.pushed = []
+        self.init._device.sync.push.side_effect = lambda path, dest, mode: self.pushed.append(
+            (Path(path).read_bytes(), dest, mode, path))
+        self.payload = b'\x7fELFtest-agent'
+        self.content = agent_archive(self.payload)
+        self.url = self.init.atx_agent_url
+        self.cache = Path(u2.init.gen_cachepath(self.url))
 
-    def test_missing_binary_fails_without_push(self):
-        with patch.dict(os.environ, {}, clear=True):
-            with self.assertRaisesRegex(RuntimeError, 'AZURPILOT_ATX_AGENT'):
-                self.init.push_url('https://example.invalid/agent', tgz=True, extract_name='atx-agent')
-        self.init._device.sync.push.assert_not_called()
+    def install_agent(self):
+        return self.init.push_url(self.url, tgz=True, extract_name='atx-agent')
 
-    def test_provisioned_binary_is_pushed(self):
-        with tempfile.NamedTemporaryFile() as binary:
-            with patch.dict(os.environ, {'AZURPILOT_ATX_AGENT': binary.name}):
-                result = self.init.push_url('https://example.invalid/agent', tgz=True, extract_name='atx-agent')
-            self.assertEqual(result, '/data/local/tmp/atx-agent')
-            self.init._device.sync.push.assert_called_once_with(binary.name, result, mode=0o755)
+    def assert_agent_pushed(self):
+        content, dest, mode, path = self.pushed[0]
+        self.assertEqual(content, self.payload)
+        self.assertEqual(dest, '/data/local/tmp/atx-agent')
+        self.assertEqual(mode, 0o755)
+        self.assertFalse(Path(path).exists())
 
-    def test_other_helpers_cannot_be_downloaded(self):
-        with self.assertRaisesRegex(RuntimeError, 'remote downloads are disabled'):
-            self.init.push_url('https://example.invalid/minitouch')
-        self.init._device.sync.push.assert_not_called()
+    def test_mirror_download_omits_cross_origin_header_and_has_timeout(self):
+        def download(url, **kwargs):
+            headers = {key.lower(): value for key, value in kwargs.get('headers', {}).items()}
+            # 复现 CNB 对下载器旧请求头的拒绝。
+            return response(self.content, status=403 if 'origin' in headers else 200)
 
-    def test_missing_apks_fail_before_agent_setup(self):
+        with patch('module.device.method.utils.http.get', side_effect=download) as get:
+            self.install_agent()
+
+        get.assert_called_once()
+        self.assertEqual(get.call_args.args[0], self.url)
+        self.assertEqual(get.call_args.kwargs['timeout'], (5, 30))
+        self.assertTrue(get.call_args.kwargs['stream'])
+        self.assertEqual(self.cache.read_bytes(), self.content)
+        self.assert_agent_pushed()
+
+    def test_mirror_failure_falls_back_to_matching_official_release(self):
+        with patch('module.device.method.utils.http.get', side_effect=[response(b'Forbidden', 403), response(self.content)]) as get:
+            self.install_agent()
+
+        self.assertEqual([item.args[0] for item in get.call_args_list], [
+            self.url,
+            f'https://github.com/openatx/atx-agent/releases/download/{u2.version.__atx_agent_version__}/'
+            f'atx-agent_{u2.version.__atx_agent_version__}_linux_386.tar.gz',
+        ])
+        self.assert_agent_pushed()
+
+    def test_read_timeout_also_uses_official_fallback(self):
+        with patch('module.device.method.utils.http.get', side_effect=[requests.ReadTimeout('下载超时'), response(self.content)]) as get:
+            self.install_agent()
+
+        self.assertEqual(get.call_count, 2)
+        self.assert_agent_pushed()
+
+    def test_valid_cache_is_reused_without_network(self):
+        self.cache.parent.mkdir(parents=True)
+        self.cache.write_bytes(self.content)
+        with patch('module.device.method.utils.http.get', side_effect=AssertionError('不应访问网络')) as get:
+            self.install_agent()
+
+        get.assert_not_called()
+        self.assert_agent_pushed()
+
+    def test_official_cache_is_reused_without_network(self):
+        official = (f'https://github.com/openatx/atx-agent/releases/download/'
+                    f'{u2.version.__atx_agent_version__}/{self.url.rsplit("/", 1)[-1]}')
+        cache = Path(u2.init.gen_cachepath(official))
+        cache.parent.mkdir(parents=True)
+        cache.write_bytes(self.content)
+        with patch('module.device.method.utils.http.get', side_effect=AssertionError('unexpected network')) as get:
+            self.install_agent()
+        get.assert_not_called()
+        self.assert_agent_pushed()
+
+    def test_local_override_is_pushed(self):
+        binary = self.directory / 'agent'
+        binary.write_bytes(self.payload)
+        with patch.dict(os.environ, {'AZURPILOT_ATX_AGENT': str(binary)}), \
+                patch('module.device.method.utils.http.get') as get:
+            self.install_agent()
+        get.assert_not_called()
+        self.init._device.sync.push.assert_called_once_with(str(binary), '/data/local/tmp/atx-agent', mode=0o755)
+
+    def test_install_runs_upstream_helper_repair_and_agent_setup(self):
+        self.init.abi = 'x86'
+        minitouch_url = self.init.minitouch_url
+        self.init.push_url = Mock()
         self.init.is_apk_outdated = Mock(return_value=True)
-        self.init.setup_atx_agent = Mock()
-        with self.assertRaisesRegex(RuntimeError, 'helper APKs'):
-            self.init.install()
-        self.init.setup_atx_agent.assert_not_called()
-
-    def test_existing_apks_allow_agent_setup(self):
-        self.init.is_apk_outdated = Mock(return_value=False)
+        self.init._install_uiautomator_apks = Mock()
         self.init.setup_atx_agent = Mock()
         self.init.install()
+        self.init.push_url.assert_called_once_with(minitouch_url)
+        self.init._install_uiautomator_apks.assert_called_once_with()
         self.init.setup_atx_agent.assert_called_once_with()
 
+    def test_agent_setup_starts_with_requested_address_and_checks_version(self):
+        self.init.set_atx_agent_addr('127.0.0.1:7912')
+        self.init.shell = Mock()
+        self.init.is_atx_agent_outdated = Mock(return_value=True)
+        self.init.push_url = Mock()
+        self.init.check_atx_agent_version = Mock()
+        self.init.setup_atx_agent()
+        self.init.push_url.assert_called_once_with(self.url, tgz=True, extract_name='atx-agent')
+        self.init.shell.assert_any_call('/data/local/tmp/atx-agent', 'server', '--nouia', '-d',
+                                        '--addr', '127.0.0.1:7912')
+        self.init.check_atx_agent_version.assert_called_once_with()
 
-class TestAdbProvisioning(unittest.TestCase):
-    def test_missing_adb_fails_without_network_or_installation(self):
-        from module.device.connection_attr import ConnectionAttr
-        from module.runtime.setting import State
+    def test_invalid_cache_is_replaced_only_after_valid_download(self):
+        self.cache.parent.mkdir(parents=True)
+        self.cache.write_bytes(b'Forbidden')
+        with patch('module.device.method.utils.http.get', return_value=response(self.content)) as get:
+            self.install_agent()
 
-        instance = ConnectionAttr.__new__(ConnectionAttr)
-        deploy = SimpleNamespace(AdbExecutable='missing-adb', root_filepath='/nonexistent')
-        with patch.object(State, 'deploy_config', deploy), \
-             patch('module.device.connection_attr.os.path.exists', return_value=False), \
-             patch('module.device.connection_attr.shutil.which', return_value=None):
-            with self.assertRaisesRegex(FileNotFoundError, 'Install Android platform-tools'):
-                _ = instance.adb_binary
+        get.assert_called_once()
+        self.assertEqual(self.cache.read_bytes(), self.content)
+        self.assert_agent_pushed()
+
+    def test_html_response_is_rejected_before_fallback_and_push(self):
+        with patch('module.device.method.utils.http.get', side_effect=[response(b'<html>error</html>'), response(self.content)]):
+            self.install_agent()
+
+        self.assertEqual(self.cache.read_bytes(), self.content)
+        self.assert_agent_pushed()
+
+    def test_truncated_response_is_not_cached_or_pushed(self):
+        with patch('module.device.method.utils.http.get', side_effect=[response(self.content[:20]), response(b'Forbidden', 403)]) as get:
+            with self.assertRaises(requests.HTTPError):
+                self.install_agent()
+
+        self.assertEqual(get.call_count, 2)
+        self.assertFalse(self.cache.exists())
+        self.assertFalse(list(self.directory.rglob('*.part')))
+        self.init._device.sync.push.assert_not_called()
+
+    def test_stream_failure_closes_response_and_cleans_partial_file(self):
+        failed = response(self.content)
+        failed.iter_content.side_effect = requests.ConnectionError('传输中断')
+        with patch('module.device.method.utils.http.get', side_effect=[failed, response(b'Forbidden', 403)]):
+            with self.assertRaises(requests.HTTPError):
+                self.install_agent()
+
+        failed.__exit__.assert_called_once()
+        self.assertFalse(list(self.directory.rglob('*.part')))
+        self.init._device.sync.push.assert_not_called()
+
+    def test_download_without_content_length_is_supported(self):
+        with patch('module.device.method.utils.http.get', return_value=response(self.content, content_length=False)):
+            self.install_agent()
+
+        self.assert_agent_pushed()
+
+    def test_other_resources_keep_upstream_push_implementation(self):
+        original = utils.PatchedIniter.__mro__[1]
+        with patch.object(original, 'push_url', return_value='pushed') as push:
+            self.assertEqual(self.init.push_url('https://example.test/minitouch', mode=0o644), 'pushed')
+
+        push.assert_called_once_with(
+            'https://example.test/minitouch', dest=None, mode=0o644, tgz=False, extract_name=None,
+        )
+
+    def test_cold_helper_download_is_serialized_between_processes(self):
+        script = r'''
+import os, sys, time
+from pathlib import Path
+from module.device.method import utils
+import uiautomator2 as u2
+u2.init.appdir = sys.argv[1]
+url = 'https://github.com/openatx/stf-binaries/raw/0.3.0/minitouch'
+def download(url, filename, logger):
+    path = Path(u2.init.gen_cachepath(url))
+    if path.is_file() and path.stat().st_size:
+        return str(path)
+    with open(Path(sys.argv[1]) / 'downloads', 'a') as f:
+        f.write('download\n')
+    time.sleep(0.3)
+    part = Path(str(path) + '.part')
+    part.write_bytes(b'helper')
+    os.replace(part, path)
+    return str(path)
+utils._u2_mirror_download = download
+print('ready', file=sys.stderr, flush=True)
+sys.stdin.read(1)
+assert Path(utils.mirror_download(url)).read_bytes() == b'helper'
+'''
+        processes = [subprocess.Popen(
+            [sys.executable, '-c', script, str(self.directory)],
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True) for _ in range(2)]
+        try:
+            for process in processes:
+                self.assertEqual(process.stderr.readline().strip(), 'ready')
+            for process in processes:
+                process.stdin.write('x')
+                process.stdin.flush()
+            for process in processes:
+                stdout, stderr = process.communicate(timeout=15)
+                self.assertEqual(process.returncode, 0, stdout + stderr)
+            self.assertEqual((self.directory / 'downloads').read_text().splitlines(), ['download'])
+        finally:
+            for process in processes:
+                if process.poll() is None:
+                    process.kill()
+                    process.communicate()
+
+    def test_hot_helper_cache_does_not_call_downloader(self):
+        url = 'https://github.com/openatx/stf-binaries/raw/0.3.0/minitouch'
+        path = Path(u2.init.gen_cachepath(url))
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b'helper')
+        with patch.object(utils, '_u2_mirror_download') as download:
+            self.assertEqual(utils.mirror_download(url), str(path))
+        download.assert_not_called()
+
+    def test_existing_abi_selection_and_minicap_patch_are_preserved(self):
+        self.assertIsInstance(self.init, utils.PatchedIniter)
+        self.init.abis = ['arm64-v8a', 'armeabi-v7a']
+        self.assertTrue(self.init.atx_agent_url.endswith('_linux_arm64.tar.gz'))
+        self.assertEqual(self.init.minicap_urls, [])
 
 
 if __name__ == '__main__':

@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import sys
+import zipfile
 
 import adbutils
 import uiautomator2 as u2
@@ -23,6 +24,19 @@ from module.config.deep import deep_iter
 from module.device.method.utils import get_serial_pair
 from module.exception import RequestHumanTakeover
 from module.logger import logger
+
+
+def platform_tools_url():
+    """Return Google's platform-tools archive for the current operating system."""
+    if sys.platform == 'win32':
+        platform = 'windows'
+    elif sys.platform == 'darwin':
+        platform = 'darwin'
+    elif sys.platform.startswith('linux'):
+        platform = 'linux'
+    else:
+        return None
+    return f'https://dl.google.com/android/repository/platform-tools-latest-{platform}.zip'
 
 
 class ConnectionAttr:
@@ -39,6 +53,10 @@ class ConnectionAttr:
         './bin/adb/adb.exe',
         '/usr/bin/adb'
     ]
+
+    def download_adb_binary(self, target):
+        from deploy.adb_provision import download_adb_binary
+        return download_adb_binary(target)
 
     def __init__(self, config):
         """初始化设备连接属性。
@@ -322,6 +340,7 @@ class ConnectionAttr:
         2. 预定义的候选路径列表
         3. Python 环境中的 adb
         4. 系统 PATH 中的 adb
+        5. 下载官方 Android platform-tools
 
         Returns:
             str: ADB 可执行文件的绝对路径。
@@ -331,14 +350,16 @@ class ConnectionAttr:
         # 统一使用绝对路径检查，避免相对路径导致的 CWD 问题
         # deploy.yaml 中的路径是相对于项目根目录的
         deploy_adb = State.deploy_config.AdbExecutable
+        if not deploy_adb or not deploy_adb.strip():
+            deploy_adb = './.venv/Scripts/adb.exe' if sys.platform == 'win32' else './.venv/bin/adb'
         root = State.deploy_config.root_filepath
         deploy_adb_file = os.path.abspath(os.path.join(root, deploy_adb)).replace('\\', '/')
-        if os.path.exists(deploy_adb_file):
+        if os.path.isfile(deploy_adb_file):
             return deploy_adb_file
 
         # Try existing adb.exe in predefined list
         for candidate in self.adb_binary_list:
-            if os.path.exists(candidate):
+            if os.path.isfile(candidate):
                 return os.path.abspath(candidate).replace('\\', '/')
 
         # Try adb in python environment
@@ -347,7 +368,7 @@ class ConnectionAttr:
         else:
             file = os.path.join(sys.executable, '../adb')
         file = os.path.abspath(file).replace('\\', '/')
-        if os.path.exists(file):
+        if os.path.isfile(file):
             return file
 
         # Use adb in system PATH
@@ -355,9 +376,13 @@ class ConnectionAttr:
         if path_adb:
             return os.path.abspath(path_adb).replace('\\', '/')
 
-        raise FileNotFoundError(
-            'ADB was not found. Install Android platform-tools locally or configure AdbExecutable in deploy.yaml.'
-        )
+        try:
+            return self.download_adb_binary(deploy_adb_file)
+        except (OSError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
+            raise FileNotFoundError(
+                'ADB was not found and automatic installation failed. '
+                'Install Android platform-tools locally or configure AdbExecutable in deploy.yaml.'
+            ) from exc
 
     @cached_property
     def adb_client(self) -> AdbClient:

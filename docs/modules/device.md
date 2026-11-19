@@ -162,7 +162,7 @@ Input(Uiautomator2)
 `control_interval()` 仅在当前调用范围内为输入增加随机间隔，默认不启用，正常返回或异常退出均恢复原值。
 智能换船的 `preflight_rotation()` 使用0.1–0.3秒间隔，通过 `Device.handle_control_check()` 覆盖点击、滑动和拖动，保留既有卡死及连点检测；普通任务不增加等待。该节流只控制输入节奏，界面就绪仍由截图状态循环确认。
 
-`PatchedIniter.push_url()` 为 atx-agent 预填 uiautomator2 的原有缓存，再沿用上游解包和 ADB 推送。
+`PatchedIniter.push_url()` 优先复用镜像或官方发布包的 ATX 缓存。推送前将归档内的 Agent 解包到独立临时目录。
 下载时不发送固定的 GitHub `Origin`，避免 `atx.azurpilot.com` 重定向到 CNB 后被拒绝；连接/读取
 超时分别为 5/30 秒，镜像失败时回退到相同版本和架构的 OpenATX 官方 GitHub Release。
 已有缓存和新下载都检查归档内的完整 `atx-agent` 文件；下载先写临时文件，检查后原子替换缓存，

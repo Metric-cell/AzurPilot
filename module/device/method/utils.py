@@ -4,15 +4,23 @@ UI 层级解析（HierarchyButton）和 Shell 命令辅助函数。"""
 import os
 import random
 import re
+import shutil
 import socket
+import tarfile
+import tempfile
 import time
 import typing as t
+import zlib
 
+import portalocker
+import requests
 import uiautomator2 as u2
 import uiautomator2cache
 from adbutils import AdbTimeout
 from lxml import etree
+from urllib3.exceptions import HTTPError as Urllib3HTTPError
 
+from module.base import http
 from module.device.method.remove_warning import remove_shell_warning
 
 try:
@@ -53,7 +61,7 @@ except ImportError:
     adbutils._device.BaseDevice.shell = shell
 
 from module.base.decorator import cached_property
-from module.base.runtime_params import RETRY_DELAY, RETRY_TRIES, IMAGE_TRUNCATED_THRESHOLD
+from module.base.runtime_params import RETRY_DELAY, IMAGE_TRUNCATED_THRESHOLD
 from module.exception import EmulatorNotRunningError, RequestHumanTakeover
 from module.logger import logger
 
@@ -133,29 +141,140 @@ u2.setup_logger = setup_logger
 u2.init.setup_logger = setup_logger
 
 
+_u2_mirror_download = u2.init.mirror_download
+
+
+def mirror_download(url, filename=None, logger=u2_logger):
+    """优先下载 ATX 镜像，失败时使用同版本、同架构的 GitHub 发布包。"""
+    if not url.startswith('https://atx.azurpilot.com/'):
+        # Upstream uses one fixed .part file per cache entry. Serialize cold
+        # downloads across processes, while keeping bundled cache reads fast.
+        path = u2.init.gen_cachepath(url)
+        if os.path.isfile(path) and os.path.getsize(path) > 0:
+            return path
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with portalocker.Lock(path + '.lock', flags=portalocker.LOCK_EX):
+            return _u2_mirror_download(url, filename, logger=logger)
+
+    storepath = u2.init.gen_cachepath(url)
+    try:
+        return http.download_file(url, storepath)
+    except (http.RequestException, requests.RequestException, Urllib3HTTPError,
+            FileNotFoundError, AssertionError, TypeError, ValueError) as exc:
+        logger.warning('ATX Agent 镜像下载失败，回退 GitHub：%s', exc)
+
+    github_url = u2.init.GITHUB_BASEURL + '/atx-agent/releases/download/%s/%s' % (
+        u2.version.__atx_agent_version__, os.path.basename(url))
+    return u2.init.cache_download(github_url, filename, storepath=storepath, logger=logger)
+
+
+u2.init.mirror_download = mirror_download
+
+
+# Patch Initer
 class PatchedIniter(u2.init.Initer):
-    """Use only a locally provisioned agent; never fetch executable code."""
+    @property
+    def atx_agent_url(self):
+        files = {
+            'armeabi-v7a': 'atx-agent_{v}_linux_armv7.tar.gz',
+            # 'arm64-v8a': 'atx-agent_{v}_linux_armv7.tar.gz',
+            'arm64-v8a': 'atx-agent_{v}_linux_arm64.tar.gz',
+            'armeabi': 'atx-agent_{v}_linux_armv6.tar.gz',
+            'x86': 'atx-agent_{v}_linux_386.tar.gz',
+            'x86_64': 'atx-agent_{v}_linux_386.tar.gz',
+        }
+        name = None
+        for abi in self.abis:
+            name = files.get(abi)
+            if name:
+                break
+        if not name:
+            raise Exception(
+                "arch(%s) need to be supported yet, please report an issue in github"
+                % self.abis)
+        return 'https://atx.azurpilot.com/%s' % (
+            name.format(v=u2.version.__atx_agent_version__))
+
+    @staticmethod
+    def _atx_archive_valid(path):
+        """确认缓存是包含完整 agent 文件的 gzip 归档，排除错误页和下载残片。"""
+        try:
+            with tarfile.open(path, 'r:gz') as archive:
+                member = archive.getmember('atx-agent')
+                if not member.isfile() or member.size <= 0:
+                    return False
+                with archive.extractfile(member) as binary:
+                    while binary.read(64 * 1024):
+                        pass
+            return True
+        except (OSError, EOFError, tarfile.TarError, KeyError, zlib.error):
+            return False
+
+    def _cache_atx_agent(self, url):
+        """预填上游缓存，避免下载器的固定 Origin 触发 CNB 跨域拒绝。"""
+        version = u2.version.__atx_agent_version__
+        official = f'https://github.com/openatx/atx-agent/releases/download/{version}/{os.path.basename(url)}'
+        path = u2.init.gen_cachepath(url)
+        for cached in (path, u2.init.gen_cachepath(official)):
+            if self._atx_archive_valid(cached):
+                return cached
+
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        last_error = None
+        for source in (url, official):
+            partial = None
+            try:
+                self.logger.info(f'[设备-ATX] 下载 {source}')
+                # 上游固定发送 Origin: https://github.com，重定向到 CNB 后会得到 403。
+                with http.get(source, download=True, stream=True, headers={'Accept-Encoding': 'identity'},
+                              timeout=(5, 30)) as response:
+                    response.raise_for_status()
+                    with tempfile.NamedTemporaryFile(dir=os.path.dirname(path), suffix='.part',
+                                                     delete=False) as output:
+                        partial = output.name
+                        for chunk in response.iter_content(64 * 1024):
+                            output.write(chunk)
+                    expected = response.headers.get('Content-Length')
+                    if expected is not None and os.path.getsize(partial) != int(expected):
+                        raise ValueError('atx-agent 下载长度不完整')
+                if not self._atx_archive_valid(partial):
+                    raise ValueError('atx-agent 下载内容不是有效的 agent 归档')
+                os.replace(partial, path)
+                return path
+            except (http.RequestException, ValueError) as error:
+                self.logger.warning(f'[设备-ATX] 下载失败 {source}: {error}')
+                last_error = error
+            finally:
+                if partial is not None and os.path.exists(partial):
+                    os.unlink(partial)
+        raise last_error
+
+    def push_url(self, url, dest=None, mode=0o755, tgz=False, extract_name=None):
+        """Privately extract the agent; other helpers use the upstream installer."""
+        if tgz and extract_name == 'atx-agent' and url == self.atx_agent_url:
+            override = os.environ.get('AZURPILOT_ATX_AGENT')
+            dest = dest or '/data/local/tmp/atx-agent'
+            if override:
+                if not os.path.isfile(override):
+                    raise RuntimeError('AZURPILOT_ATX_AGENT must point to a local agent binary')
+                self._device.sync.push(override, dest, mode=mode)
+                return dest
+            path = self._cache_atx_agent(url)
+            with tempfile.TemporaryDirectory() as directory:
+                binary_path = os.path.join(directory, 'atx-agent')
+                with tarfile.open(path, 'r:gz') as archive:
+                    member = archive.getmember('atx-agent')
+                    if not member.isfile() or member.size <= 0:
+                        raise ValueError('atx-agent archive does not contain a regular agent file')
+                    with archive.extractfile(member) as source, open(binary_path, 'wb') as output:
+                        shutil.copyfileobj(source, output)
+                self._device.sync.push(binary_path, dest, mode=mode)
+            return dest
+        return super().push_url(url, dest=dest, mode=mode, tgz=tgz, extract_name=extract_name)
 
     @property
     def minicap_urls(self):
         return []
-
-    def push_url(self, url, dest=None, mode=0o755, tgz=False, extract_name=None):
-        if not (tgz and extract_name == 'atx-agent'):
-            raise RuntimeError('Device helpers must be installed by the administrator; remote downloads are disabled')
-        path = os.environ.get('AZURPILOT_ATX_AGENT', '')
-        if not path or not os.path.isfile(path):
-            raise RuntimeError('Install atx-agent on the device or set AZURPILOT_ATX_AGENT to a locally provisioned binary for the device architecture')
-        dest = dest or '/data/local/tmp/atx-agent'
-        self._device.sync.push(path, dest, mode=mode)
-        return dest
-
-    def install(self):
-        # The upstream initializer downloads minitouch and uninstalls/reinstalls APKs.
-        # Require those packages to be provisioned instead of fetching code at runtime.
-        if self.is_apk_outdated():
-            raise RuntimeError('Install the uiautomator helper APKs on the device before initialization')
-        self.setup_atx_agent()
 
 
 u2.init.Initer = PatchedIniter
