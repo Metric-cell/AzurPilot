@@ -82,7 +82,14 @@
     "EmulatorInfo": {
       "Emulator": "auto",
       "name": null,
-      "path": null
+      "path": null,
+      "EnableRemoteSSH": false,
+      "RemoteSSHHost": "",
+      "RemoteSSHPort": 22,
+      "RemoteSSHUser": "",
+      "RemoteSSHPublicKey": "",
+      "RemoteStartCommand": "",
+      "RemoteStopCommand": ""
     },
     "Error": {
       "HandleError": true,
@@ -4051,6 +4058,20 @@
   "GameManager": {
     "GameManager": {
       "AutoRestart": true
+    },
+    "Storage": {
+      "Storage": {}
+    }
+  },
+  "EmulatorManager": {
+    "EmulatorManager": {
+      "EnableRemoteSSH": false,
+      "RemoteSSHHost": "",
+      "RemoteSSHPort": 22,
+      "RemoteSSHUser": "",
+      "RemoteSSHPublicKey": "",
+      "RemoteStartCommand": "",
+      "RemoteStopCommand": ""
     },
     "Storage": {
       "Storage": {}

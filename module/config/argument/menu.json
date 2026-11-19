@@ -161,6 +161,7 @@
       "OcrBenchmark",
       "AzurLaneUncensored",
       "GameManager",
+      "EmulatorManager",
       "MeowfficerScore",
       "IslandProductionPlanner"
     ]

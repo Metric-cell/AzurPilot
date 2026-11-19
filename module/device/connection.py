@@ -141,6 +141,13 @@ class Connection(ConnectionAttr):
             config (AzurLaneConfig, str): ./config 目录下的用户配置名称。
         """
         super().__init__(config)
+        # Record the configured serial before auto-detection can replace it.
+        configured_serial = self.config.Emulator_Serial
+        self._ssh_explicit_tcp_serial = (
+            configured_serial if isinstance(configured_serial, str)
+            and re.fullmatch(r'[^\s:]+:\d{1,5}|\[[0-9a-fA-F:.]+\]:\d{1,5}', configured_serial)
+            and 1 <= int(configured_serial.rsplit(':', 1)[1]) <= 65535 else None
+        )
         if self.serial == 'azurpilot_android':
             self.package = self.config.Emulator_PackageName
             if self.package == 'auto':
@@ -874,6 +881,14 @@ class Connection(ConnectionAttr):
                 logger.warning('[设备-连接] 该模拟器 Serial 不存在，请重启模拟器或设置正确的 Serial。')
                 logger.warning('[设备-连接] ADB 无法连接至该模拟器，或是模拟器未启动。')
                 raise EmulatorNotRunningError
+
+        # A stopped SSH-managed emulator can refuse TCP on Unix without the
+        # Windows 10061 marker. Surface that failure so startup can launch it.
+        configured_serial = getattr(self, '_ssh_explicit_tcp_serial', None)
+        if configured_serial and self.serial == configured_serial:
+            from module.device.platform.ssh import ssh_enabled
+            if ssh_enabled(self.config):
+                raise EmulatorNotRunningError('ADB 无法连接至 SSH 管理的模拟器')
 
         # 连接失败
         logger.warning(f'[设备-连接] 尝试3次后仍无法连接 {self.serial}，假设已连接')

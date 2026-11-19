@@ -3,6 +3,8 @@
 
 import os
 import sys
+import re
+import time
 import typing as t
 
 from pydantic import BaseModel
@@ -10,6 +12,7 @@ from pydantic import BaseModel
 from module.base.decorator import cached_property, del_cached_property
 from module.device.connection import Connection
 from module.device.method.utils import get_serial_pair
+from module.device.platform.ssh import run_emulator_ssh, ssh_enabled
 from module.device.platform.emulator_base import EmulatorInstanceBase, EmulatorManagerBase, remove_duplicated_path
 from module.logger import logger
 from module.map.map_grids import SelectedGrids
@@ -74,6 +77,44 @@ class PlatformBase(Connection, EmulatorManagerBase):
             from module.device.connection_attr import ConnectionAttr
             ConnectionAttr.__init__(self, config)
 
+    @property
+    def emulator_available(self):
+        if getattr(self.config, 'EmulatorInfo_Emulator', '') == 'SSH':
+            return ssh_enabled(self.config)
+        return self.emulator_instance is not None
+
+    def _ssh_start_watch(self, timeout=60):
+        """Wait for an explicitly configured network ADB device after SSH start."""
+        serial = getattr(self.config, 'Emulator_Serial', '')
+        if not isinstance(serial, str):
+            return True
+        serial = self.revise_serial(serial)
+        match = re.fullmatch(r'(?:[A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\]):([0-9]{1,5})', serial)
+        if not match or not 1 <= int(match.group(1)) <= 65535:
+            logger.info('[设备-SSH] 未指定网络 ADB 序列号，跳过启动监视')
+            return True
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            try:
+                self.adb_client.connect(serial, timeout=min(3, remaining))
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                output = self.adb_client.device(serial=serial).shell(
+                    ['echo', 'azurpilot-ready'], timeout=min(3, remaining))
+                if output.strip() == 'azurpilot-ready':
+                    return True
+            except Exception:
+                pass
+            remaining = deadline - time.monotonic()
+            if remaining > 0:
+                time.sleep(min(1, remaining))
+        logger.warning('[设备-SSH] 等待远程模拟器 ADB 就绪超时')
+        return False
+
     def emulator_start(self, deep=False, failures=0):
         """
         启动模拟器，直到启动完成。
@@ -88,11 +129,17 @@ class PlatformBase(Connection, EmulatorManagerBase):
                 其它平台忽略。
         """
         emulator = getattr(self.config, 'EmulatorInfo_Emulator', '')
+        if emulator == 'SSH':
+            if not run_emulator_ssh(self.config, getattr(self.config, 'EmulatorInfo_RemoteStartCommand', '')):
+                return False
+            return self._ssh_start_watch()
         logger.info(f'[设备-平台] 当前平台 {sys.platform} 不支持启动模拟器 ({emulator})，跳过')
 
     def emulator_stop(self):
         """停止模拟器。"""
         emulator = getattr(self.config, 'EmulatorInfo_Emulator', '')
+        if emulator == 'SSH':
+            return run_emulator_ssh(self.config, getattr(self.config, 'EmulatorInfo_RemoteStopCommand', ''))
         logger.info(f'[设备-平台] 当前平台 {sys.platform} 不支持停止模拟器 ({emulator})，跳过')
 
     @cached_property

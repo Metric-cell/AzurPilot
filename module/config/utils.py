@@ -128,9 +128,19 @@ def write_file(file, data):
         file (str): 文件路径。
         data (dict, list): 要写入的数据。
     """
+    # Legacy instance configs may contain inline SSH private keys.
+    def contains_ssh_key(value):
+        if isinstance(value, dict):
+            return any((key == 'RemoteSSHPublicKey' and isinstance(item, str) and bool(item))
+                       or contains_ssh_key(item) for key, item in value.items())
+        if isinstance(value, list):
+            return any(contains_ssh_key(item) for item in value)
+        return False
+
+    private = contains_ssh_key(data)
     if file.endswith('.json'):
         content = json.dumps(data, indent=2, ensure_ascii=False, sort_keys=False, default=str)
-        atomic_write(file, content)
+        atomic_write(file, content, private=private)
     elif file.endswith('.yaml'):
         if isinstance(data, list):
             content = yaml.safe_dump_all(
@@ -138,7 +148,7 @@ def write_file(file, data):
         else:
             content = yaml.safe_dump(
                 data, default_flow_style=False, encoding='utf-8', allow_unicode=True, sort_keys=False)
-        atomic_write(file, content)
+        atomic_write(file, content, private=private)
     else:
         logger.warning(f'不支持的配置文件扩展名: {file}')
 
@@ -337,6 +347,9 @@ def parse_value(value, data):
         except ValueError:
             pass
 
+        return value
+
+    if data.get('preserve_string') and isinstance(value, str):
         return value
 
     if data.get('type') == 'checkbox' and isinstance(value, list):

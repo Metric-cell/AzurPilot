@@ -157,6 +157,7 @@ EmulatorInfo:
         MEmuPlayer,
         BlueStacksAir,
         MuMuPro,
+        SSH,
       ]
   name:
     value: null
@@ -164,6 +165,30 @@ EmulatorInfo:
   path:
     value: null
     type: textarea
+  EnableRemoteSSH:
+    type: checkbox
+    value: false
+    option: [true, false]
+  RemoteSSHHost:
+    value: ""
+    preserve_string: true
+  RemoteSSHPort:
+    value: 22
+  RemoteSSHUser:
+    value: ""
+    preserve_string: true
+  RemoteSSHPublicKey:
+    type: textarea
+    value: ""
+    preserve_string: true
+  RemoteStartCommand:
+    type: textarea
+    value: ""
+    preserve_string: true
+  RemoteStopCommand:
+    type: textarea
+    value: ""
+    preserve_string: true
 Error:
   HandleError: true
   SaveError: true
@@ -2751,6 +2776,31 @@ EmulatorManagement:
   DeepRestartAfterFailures:
     value: 0
     validate: [0, 10]
+EmulatorManager:
+  EnableRemoteSSH:
+    type: checkbox
+    value: false
+    option: [true, false]
+  RemoteSSHHost:
+    value: ""
+    preserve_string: true
+  RemoteSSHPort:
+    value: 22
+  RemoteSSHUser:
+    value: ""
+    preserve_string: true
+  RemoteSSHPublicKey:
+    type: textarea
+    value: ""
+    preserve_string: true
+  RemoteStartCommand:
+    type: textarea
+    value: ""
+    preserve_string: true
+  RemoteStopCommand:
+    type: textarea
+    value: ""
+    preserve_string: true
 MeowfficerScore:
   Source:
     value: screenshot

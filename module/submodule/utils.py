@@ -38,6 +38,7 @@ def get_available_func():
         'FleetScan',
         'DockScan',
         'GameManager',
+        'EmulatorManager',
     )
 
 def get_available_mod():

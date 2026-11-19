@@ -34,7 +34,7 @@ class DockService:
             data, _ = self.configs.read(instance)
             fields = data.setdefault('DockScan', {}).setdefault('Dock', {})
             fields.update(MinLevel=min_level, MaxLevel=max_level)
-            atomic_write(str(self.configs.path(instance)), json.dumps(data, ensure_ascii=False, indent=2))
+            atomic_write(str(self.configs.path(instance)), json.dumps(data, ensure_ascii=False, indent=2), private=True)
             return self.report(instance)
 
     @contextmanager

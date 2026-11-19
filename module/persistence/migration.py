@@ -654,7 +654,7 @@ def migrate(database):
                     _log_progress('等待旧数据库写锁：%s', path)
                     locks.enter_context(freeze_database(path))
             phase('备份旧普通存储与安全恢复材料：%s', backup)
-            backup.mkdir(parents=True)
+            backup.mkdir(mode=0o700, parents=True)
             copies, manifest = backup_sources(database, sources, backup)
             digest = hashlib.sha256(json.dumps(manifest, sort_keys=True).encode()).hexdigest()
             phase('创建临时总库及 v%s 表结构', VERSION)

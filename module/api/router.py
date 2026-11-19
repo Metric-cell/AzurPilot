@@ -1,4 +1,5 @@
 """显式方法注册表；所有阻塞业务操作在工作线程执行。"""
+import copy
 import os
 import secrets
 import threading
@@ -17,6 +18,26 @@ LOCAL_FILE_SETTINGS = frozenset({
     'MeowfficerScore.MeowfficerScore.Folder',
     'MeowfficerScore.MeowfficerScore.ReportPath',
 })
+
+SSH_FIELDS = frozenset({
+    'EnableRemoteSSH', 'RemoteSSHHost', 'RemoteSSHPort', 'RemoteSSHUser',
+    'RemoteSSHPublicKey', 'RemoteStartCommand', 'RemoteStopCommand', 'RemoteCommand',
+})
+SSH_GROUPS = (('Alas', 'EmulatorInfo'), ('EmulatorManager', 'EmulatorManager'))
+CONFIG_RESPONSES = frozenset({'instances.create', 'config.get', 'config.export',
+                              'config.patch', 'fleetTraining.reset'})
+
+
+def project_lan_config(method, result):
+    """Omit SSH connection details and commands from nonlocal responses."""
+    result = copy.deepcopy(result)
+    values = result if method == 'config.export' else result.get('values', {})
+    for task, group in SSH_GROUPS:
+        fields = values.get(task, {}).get(group, {})
+        if isinstance(fields, dict):
+            for field in SSH_FIELDS:
+                fields.pop(field, None)
+    return result
 
 
 @dataclass(frozen=True)
@@ -265,12 +286,20 @@ class Router:
         if not local and method == 'instances.create' and validated.import_file:
             raise p.ApiError('LOCAL_ONLY', '导入配置只允许本机直连')
         if not local and method == 'config.patch' and any(
-                change.path.startswith('Alas.EmulatorInfo.') or change.path in LOCAL_FILE_SETTINGS
+                change.path.startswith('Alas.EmulatorInfo.')
+                or (change.path.startswith('EmulatorManager.EmulatorManager.')
+                    and change.path.rsplit('.', 1)[-1] in SSH_FIELDS)
+                or change.path in LOCAL_FILE_SETTINGS
                 for change in validated.changes):
             raise p.ApiError('LOCAL_ONLY', '主机程序和文件路径设置只允许本机直连')
+        if not local and method == 'tasks.run' and validated.task == 'EmulatorManager':
+            raise p.ApiError('LOCAL_ONLY', '模拟器管理器只允许本机直连')
         if entry.mutates and os.environ.get('DEMO') == '1':
             raise p.ApiError('READ_ONLY', '演示模式下禁止修改配置或运行任务')
-        return entry.handler(validated)
+        result = entry.handler(validated)
+        if not local and method in CONFIG_RESPONSES:
+            result = project_lan_config(method, result)
+        return result
 
     def reset_fleet_training(self, params: p.RevisionParams):
         """停止状态下清空智能换船记录；与启动共用生命周期锁，避免清空后被旧进程回写。"""

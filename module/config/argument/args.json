@@ -409,7 +409,8 @@
           "MuMuPlayer12",
           "MEmuPlayer",
           "BlueStacksAir",
-          "MuMuPro"
+          "MuMuPro",
+          "SSH"
         ]
       },
       "name": {
@@ -419,6 +420,43 @@
       "path": {
         "type": "textarea",
         "value": null
+      },
+      "EnableRemoteSSH": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "RemoteSSHHost": {
+        "type": "input",
+        "value": "",
+        "preserve_string": true
+      },
+      "RemoteSSHPort": {
+        "type": "input",
+        "value": 22
+      },
+      "RemoteSSHUser": {
+        "type": "input",
+        "value": "",
+        "preserve_string": true
+      },
+      "RemoteSSHPublicKey": {
+        "type": "textarea",
+        "value": "",
+        "preserve_string": true
+      },
+      "RemoteStartCommand": {
+        "type": "textarea",
+        "value": "",
+        "preserve_string": true
+      },
+      "RemoteStopCommand": {
+        "type": "textarea",
+        "value": "",
+        "preserve_string": true
       }
     },
     "Error": {
@@ -21601,6 +21639,55 @@
       "AutoRestart": {
         "type": "checkbox",
         "value": true
+      }
+    },
+    "Storage": {
+      "Storage": {
+        "type": "storage",
+        "value": {},
+        "valuetype": "ignore",
+        "display": "disabled"
+      }
+    }
+  },
+  "EmulatorManager": {
+    "EmulatorManager": {
+      "EnableRemoteSSH": {
+        "type": "checkbox",
+        "value": false,
+        "option": [
+          true,
+          false
+        ]
+      },
+      "RemoteSSHHost": {
+        "type": "input",
+        "value": "",
+        "preserve_string": true
+      },
+      "RemoteSSHPort": {
+        "type": "input",
+        "value": 22
+      },
+      "RemoteSSHUser": {
+        "type": "input",
+        "value": "",
+        "preserve_string": true
+      },
+      "RemoteSSHPublicKey": {
+        "type": "textarea",
+        "value": "",
+        "preserve_string": true
+      },
+      "RemoteStartCommand": {
+        "type": "textarea",
+        "value": "",
+        "preserve_string": true
+      },
+      "RemoteStopCommand": {
+        "type": "textarea",
+        "value": "",
+        "preserve_string": true
       }
     },
     "Storage": {

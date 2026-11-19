@@ -438,6 +438,10 @@
       "name": "遊戲管理器(未完成)",
       "help": ""
     },
+    "EmulatorManager": {
+      "name": "模擬器管理器",
+      "help": "提供手動重啟模擬器的入口"
+    },
     "MeowfficerScore": {
       "name": "指揮喵評分",
       "help": "識別指揮喵天賦，依公開攻略口徑評分"
@@ -705,7 +709,8 @@
       "MuMuPlayer12": "MuMu模擬器12",
       "MEmuPlayer": "逍遙模擬器",
       "BlueStacksAir": "BlueStacksAir",
-      "MuMuPro": "MuMuPro"
+      "MuMuPro": "MuMuPro",
+      "SSH": "SSH"
     },
     "name": {
       "name": "模擬器實例名稱",
@@ -714,6 +719,36 @@
     "path": {
       "name": "模擬器安裝路徑",
       "help": ""
+    },
+    "EnableRemoteSSH": {
+      "name": "啟用遠端 SSH 管理",
+      "help": "在重啟模擬器之前，透過 SSH 在遠端伺服器上執行特定指令（如重啟 Docker 容器）。",
+      "True": "開啟",
+      "False": "關閉"
+    },
+    "RemoteSSHHost": {
+      "name": "遠端伺服器地址",
+      "help": "遠端伺服器的 IP 地址或域名，例如: 192.168.1.100"
+    },
+    "RemoteSSHPort": {
+      "name": "埠號",
+      "help": "SSH 服務埠，預設 22"
+    },
+    "RemoteSSHUser": {
+      "name": "SSH 用戶名",
+      "help": "登入 SSH 的用戶名，例如: root"
+    },
+    "RemoteSSHPublicKey": {
+      "name": "SSH 私鑰",
+      "help": "SSH 登入所需的私鑰內容（如果需要）"
+    },
+    "RemoteStartCommand": {
+      "name": "遠端啟動指令",
+      "help": "在重啟模擬器時執行的啟動 SSH 指令（如啟動 Docker 容器）"
+    },
+    "RemoteStopCommand": {
+      "name": "遠端停止指令",
+      "help": "在重啟模擬器時執行的停止 SSH 指令（如停止 Docker 容器）"
     }
   },
   "Error": {
@@ -7435,6 +7470,42 @@
     "DeepRestartAfterFailures": {
       "name": "深度重啟：連續失敗幾次後執行",
       "help": "模擬器連不上、連續重啟失敗達到這個次數後，改成「深度重啟」：結束 MuMu 的全部處理程序（含背景服務與虛擬機）再重新啟動。\n用在裝置較差、反覆重啟都起不來的機器上，是最後的保底手段。\n注意：深度重啟會連帶結束該 MuMu 的所有實例，多開時其他實例會被中斷。\n0 表示停用（只重啟實例，不結束處理程序）。預設 0。"
+    }
+  },
+  "EmulatorManager": {
+    "_info": {
+      "name": "模擬器管理器",
+      "help": "提供手動重啟模擬器的入口"
+    },
+    "EnableRemoteSSH": {
+      "name": "啟用遠端 SSH 管理",
+      "help": "在重啟模擬器之前，透過 SSH 在遠端伺服器上執行特定指令（如重啟 Docker 容器）。",
+      "True": "開啟",
+      "False": "關閉"
+    },
+    "RemoteSSHHost": {
+      "name": "遠端伺服器地址",
+      "help": "遠端伺服器的 IP 地址或域名，例如: 192.168.1.100"
+    },
+    "RemoteSSHPort": {
+      "name": "埠號",
+      "help": "SSH 服務埠，預設 22"
+    },
+    "RemoteSSHUser": {
+      "name": "SSH 用戶名",
+      "help": "登入 SSH 的用戶名，例如: root"
+    },
+    "RemoteSSHPublicKey": {
+      "name": "SSH 私鑰",
+      "help": "SSH 登入所需的私鑰內容（如果需要）"
+    },
+    "RemoteStartCommand": {
+      "name": "遠端啟動指令",
+      "help": "在重啟模擬器時執行的啟動 SSH 指令（如啟動 Docker 容器）"
+    },
+    "RemoteStopCommand": {
+      "name": "遠端停止指令",
+      "help": "在重啟模擬器時執行的停止 SSH 指令（如停止 Docker 容器）"
     }
   },
   "MeowfficerScore": {

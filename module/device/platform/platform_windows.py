@@ -946,6 +946,9 @@ class PlatformWindows(PlatformBase, EmulatorManager):
         Returns:
             bool: True 表示模拟器已上线。
         """
+        if getattr(self.config, 'EmulatorInfo_Emulator', '') == 'SSH':
+            return super().emulator_start()
+
         logger.hr('模拟器启动', level=1)
 
         watch_timeout = EMULATOR_START_WATCH_TIMEOUTS[
@@ -998,6 +1001,9 @@ class PlatformWindows(PlatformBase, EmulatorManager):
 
         同样持有模拟器启停锁：不做"别人正在启动、我顺手关掉"的事。
         """
+        if getattr(self.config, 'EmulatorInfo_Emulator', '') == 'SSH':
+            return super().emulator_stop()
+
         logger.hr('模拟器停止', level=1)
         for _ in range(3):
             # 停止

@@ -438,6 +438,10 @@
       "name": "ゲームマネージャー (未完成)",
       "help": ""
     },
+    "EmulatorManager": {
+      "name": "エミュレータマネージャー",
+      "help": "エミュレータを手動で再起動するためのエントリポイントを提供します。"
+    },
     "MeowfficerScore": {
       "name": "オフニャスコア",
       "help": "オフニャの天賦を読み取り、公開攻略の基準で採点します"
@@ -705,7 +709,8 @@
       "MuMuPlayer12": "MuMuエミュレータ12",
       "MEmuPlayer": "MEmuエミュレータ",
       "BlueStacksAir": "BlueStacks Air",
-      "MuMuPro": "MuMu Pro"
+      "MuMuPro": "MuMu Pro",
+      "SSH": "SSH"
     },
     "name": {
       "name": "エミュレータインスタンス名",
@@ -714,6 +719,36 @@
     "path": {
       "name": "エミュレータインストールパス",
       "help": ""
+    },
+    "EnableRemoteSSH": {
+      "name": "リモートSSH管理を有効にする",
+      "help": "エミュレータを再起動する前に、SSH経由でリモートサーバー上で特定のコマンド（Dockerコンテナの再起動など）を実行します。",
+      "True": "有効",
+      "False": "無効"
+    },
+    "RemoteSSHHost": {
+      "name": "リモートサーバーアドレス",
+      "help": "リモートサーバーのIPアドレスまたはドメイン名。例: 192.168.1.100"
+    },
+    "RemoteSSHPort": {
+      "name": "ポート番号",
+      "help": "SSHサービスのポート。デフォルトは22です。"
+    },
+    "RemoteSSHUser": {
+      "name": "SSHユーザー名",
+      "help": "SSHログイン用のユーザー名。例: root"
+    },
+    "RemoteSSHPublicKey": {
+      "name": "SSH秘密鍵",
+      "help": "SSHログインに必要な秘密鍵の内容（必要な場合）。"
+    },
+    "RemoteStartCommand": {
+      "name": "リモート起動コマンド",
+      "help": "エミュレータ再起動時に実行されるSSH起動コマンド（Dockerコンテナの起動など）。"
+    },
+    "RemoteStopCommand": {
+      "name": "リモート停止コマンド",
+      "help": "エミュレータ再起動時に実行されるSSH停止コマンド（Dockerコンテナの停止など）。"
     }
   },
   "Error": {
@@ -7435,6 +7470,42 @@
     "DeepRestartAfterFailures": {
       "name": "連続失敗後にディープ再起動",
       "help": "エミュレーターの再起動がこの回数連続で失敗したら「ディープ再起動」に切り替えます：MuMu のすべてのプロセス（バックグラウンドサービスと仮想マシンを含む）を終了してから起動し直します。\n非力な PC で通常の再起動では復帰しないときの最後の手段です。\n注意：多重起動している他のインスタンスも終了します。\n0 で無効（インスタンスの再起動のみ）。既定値は 0。"
+    }
+  },
+  "EmulatorManager": {
+    "_info": {
+      "name": "エミュレータマネージャー",
+      "help": "エミュレータを手動で再起動するためのエントリポイントを提供します。"
+    },
+    "EnableRemoteSSH": {
+      "name": "リモートSSH管理を有効にする",
+      "help": "エミュレータを再起動する前に、SSH経由でリモートサーバー上で特定のコマンドを実行します。",
+      "True": "有効",
+      "False": "無効"
+    },
+    "RemoteSSHHost": {
+      "name": "リモートサーバーアドレス",
+      "help": "リモートサーバーのIPアドレスまたはドメイン名。例：192.168.1.100"
+    },
+    "RemoteSSHPort": {
+      "name": "ポート番号",
+      "help": "SSHサービスのポート。デフォルトは22です。"
+    },
+    "RemoteSSHUser": {
+      "name": "SSHユーザー名",
+      "help": "SSHログイン用のユーザー名。例：root"
+    },
+    "RemoteSSHPublicKey": {
+      "name": "SSH秘密鍵",
+      "help": "SSHログインに必要な秘密鍵の内容（必要な場合）。"
+    },
+    "RemoteStartCommand": {
+      "name": "リモート起動コマンド",
+      "help": "エミュレータ再起動時に実行されるSSH起動コマンド（Dockerコンテナの起動など）。"
+    },
+    "RemoteStopCommand": {
+      "name": "リモート停止コマンド",
+      "help": "エミュレータ再起動時に実行されるSSH停止コマンド（Dockerコンテナの停止など）。"
     }
   },
   "MeowfficerScore": {

@@ -336,6 +336,9 @@ class PlatformMac(PlatformBase, EmulatorManagerMac):
         Returns:
             bool: 启动成功返回 True，失败返回 False。
         """
+        if getattr(self.config, 'EmulatorInfo_Emulator', '') == 'SSH':
+            return super().emulator_start()
+
         logger.hr('[设备-模拟器Mac] 模拟器启动', level=1)
         for _ in range(3):
             # 先停止
@@ -369,6 +372,9 @@ class PlatformMac(PlatformBase, EmulatorManagerMac):
         Returns:
             bool: 停止成功返回 True，失败返回 False。
         """
+        if getattr(self.config, 'EmulatorInfo_Emulator', '') == 'SSH':
+            return super().emulator_stop()
+
         logger.hr('[设备-模拟器Mac] 模拟器停止', level=1)
         for _ in range(3):
             # 停止

@@ -167,12 +167,15 @@ class AzurLaneAutoScript:
 
         logger.hr('[AzurPilot] 正在重启模拟器', level=1)
         try:
-            # 优先使用已缓存的设备对象
+            # 使用同一份配置完成本轮远程停止和启动，避免重载后连接旧主机。
+            operation_config = self.config
             device = self.__dict__.get('device', None)
-            if device is None:
-                # connect=False 避免在模拟器离线时先建立 ADB 连接。
+            if device is not None:
+                device.config = operation_config
+            if device is None or getattr(operation_config, 'EmulatorInfo_Emulator', '') == 'SSH':
+                # SSH 使用独立平台对象，避免其他设备调用在两次操作之间改写其配置。
                 from module.device.platform import Platform
-                device = Platform(self.config, connect=False)
+                device = Platform(operation_config, connect=False)
 
             # 连续失败够多次就改用深度重启（结束 MuMu 全部进程）
             deep = self._deep_restart_enabled()
@@ -183,14 +186,14 @@ class AzurLaneAutoScript:
                 )
 
             logger.info('[AzurPilot] 正在停止模拟器...')
-            self._emulator_op_with_timeout(
+            stopped = self._emulator_op_with_timeout(
                 device.emulator_stop,
                 timeout=RESTART_EMULATOR_OP_TIMEOUT,
                 operation_name='模拟器停止',
             )
             time.sleep(5)
             logger.info('[AzurPilot] 正在启动模拟器...')
-            self._emulator_op_with_timeout(
+            started = self._emulator_op_with_timeout(
                 # consecutive_adb_offline 在函数开头已 +1，减 1 得到"本次之前
                 # 已经连续失败过几次"；平台据此选取启动监视的等待时长，
                 # 连续失败越多等得越久（60 → 90 → 120 → 180 → 300 秒），
@@ -203,6 +206,11 @@ class AzurLaneAutoScript:
                 timeout=RESTART_EMULATOR_OP_TIMEOUT,
                 operation_name='模拟器启动',
             )
+            if getattr(operation_config, 'EmulatorInfo_Emulator', '') == 'SSH':
+                stop_required = bool(getattr(operation_config, 'EmulatorInfo_RemoteStopCommand', ''))
+                if not started or (stop_required and not stopped):
+                    logger.warning('[AzurPilot] 远程模拟器重启失败')
+                    return False
             logger.info('[AzurPilot] 模拟器重启完成')
 
             # 清除 device 缓存，下次访问时重新建立连接
@@ -510,7 +518,7 @@ class AzurLaneAutoScript:
             from module.device.platform import Platform
 
             platform = Platform(self.config, connect=False)
-            if platform.emulator_instance is None:
+            if not platform.emulator_available:
                 logger.warning('[AzurPilot] 未找到模拟器实例，无法在长时间等待后启动模拟器')
                 return False
 
@@ -863,6 +871,9 @@ class AzurLaneAutoScript:
         """
         from module.runtime.preview import set_task
         command = inflection.underscore(command)
+        if command == 'emulator_manager':
+            set_task('EmulatorManager')
+            return self.emulator_manager()
         self._storage_statistics_failed = False
         self._os_zone_locked_failed = False
         set_task(inflection.camelize(command))
@@ -1823,6 +1834,29 @@ class AzurLaneAutoScript:
         from module.retire.dock_scan import DockScan
         DockScan(config=self.config, device=self.device, task="DockScan").run()
 
+    def emulator_manager(self):
+        """Run the configured remote startup command without opening a device."""
+        from module.device.platform.ssh import run_ssh_command
+
+        config = self.config
+        if getattr(config, 'EmulatorInfo_EnableRemoteSSH', False) is True:
+            return run_ssh_command(
+                enabled=True,
+                host=getattr(config, 'EmulatorInfo_RemoteSSHHost', ''),
+                port=getattr(config, 'EmulatorInfo_RemoteSSHPort', 22),
+                user=getattr(config, 'EmulatorInfo_RemoteSSHUser', ''),
+                key=getattr(config, 'EmulatorInfo_RemoteSSHPublicKey', ''),
+                command=getattr(config, 'EmulatorInfo_RemoteStartCommand', ''),
+            )
+        prefix = 'EmulatorManager.EmulatorManager.'
+        get = lambda name, default='': deep_get(config.data, prefix + name, default)
+        return run_ssh_command(
+            enabled=get('EnableRemoteSSH', False), host=get('RemoteSSHHost'),
+            port=get('RemoteSSHPort', 22), user=get('RemoteSSHUser'),
+            key=get('RemoteSSHPublicKey'),
+            command=get('RemoteStartCommand') or get('RemoteCommand'),
+        )
+
     def game_manager(self):
         from module.daemon.game_manager import GameManager
         GameManager(config=self.config, device=self.device, task="GameManager").run()
@@ -2012,10 +2046,13 @@ class AzurLaneAutoScript:
                     lead = self._warmup_lead_seconds(cold)
                     return task.next_run - current_time() > timedelta(seconds=lead)
 
+                cached_device = self.__dict__.get('device')
+                if cached_device is not None:
+                    cached_device.config = self.config
                 if (
                     self.config.Optimization_CloseEmulatorDuringLongWait
                     and wait_duration > timedelta(hours=3)
-                    and 'device' in self.__dict__ and self.device.emulator_instance is not None  # 远程设备（无线 ADB / SSH）没有本地模拟器实例可管理，跳过关闭流程，走常规等待逻辑
+                    and 'device' in self.__dict__ and self.device.platform.emulator_available
                 ):
                     logger.info(
                         f'下一个任务 `{task.command}` 将在 {wait_duration} 后运行，'
@@ -2267,8 +2304,9 @@ class AzurLaneAutoScript:
                         continue
                     self.task_restart_delays.pop(task, None)
                 # 初始化设备并更改服务器
-                _ = self.device
-                self.device.config = self.config
+                if task != 'EmulatorManager':
+                    _ = self.device
+                    self.device.config = self.config
                 # 跳过第一次重启
                 runtime = self.__dict__.get('_program_runtime')
                 if self.is_first_task and task == 'Restart' and (runtime is None or runtime.mode == 'native'):
@@ -2279,8 +2317,9 @@ class AzurLaneAutoScript:
 
                 # 运行
                 logger.info(f'[AzurPilot] 调度器: 开始任务 `{task}`')
-                self.device.stuck_record_clear()
-                self.device.click_record_clear()
+                if task != 'EmulatorManager':
+                    self.device.stuck_record_clear()
+                    self.device.click_record_clear()
                 logger.hr(task, level=0)
                 # 激活运行监护：任务执行期间监测日志心跳和运行时间
                 # 防止主线程卡死在 I/O 调用中或陷入逻辑死循环

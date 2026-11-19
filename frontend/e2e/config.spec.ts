@@ -273,3 +273,11 @@ test('清空文本字段回落到参数默认值，便于后续修改', async ({
   await page.reload()
   await expect(serial).toHaveValue('auto')
 })
+
+test('模拟器管理器恢复旧配置入口且默认关闭 SSH', async ({page}) => {
+  await page.goto('/#/i/testpilot/task/EmulatorManager')
+  const enabled = page.locator('[id="EmulatorManager.EmulatorManager.EnableRemoteSSH"]')
+  await expect(enabled).toHaveAttribute('aria-checked', 'false')
+  await expect(page.locator('[id="EmulatorManager.EmulatorManager.RemoteSSHHost"]')).toHaveValue('')
+  await expect(page.locator('[id="EmulatorManager.EmulatorManager.RemoteStartCommand"]')).toHaveValue('')
+})

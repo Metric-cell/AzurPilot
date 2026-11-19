@@ -438,6 +438,10 @@
       "name": "Game Manager (Incomplete)",
       "help": ""
     },
+    "EmulatorManager": {
+      "name": "Emulator Manager",
+      "help": "Provides an entry point for manually restarting the emulator."
+    },
     "MeowfficerScore": {
       "name": "Meowfficer Score",
       "help": "Read meowfficer talents and score them with public guide rules"
@@ -705,7 +709,8 @@
       "MuMuPlayer12": "MuMu Player 12",
       "MEmuPlayer": "MEmu Player",
       "BlueStacksAir": "BlueStacks Air",
-      "MuMuPro": "MuMu Pro"
+      "MuMuPro": "MuMu Pro",
+      "SSH": "SSH"
     },
     "name": {
       "name": "Emulator instance name",
@@ -714,6 +719,36 @@
     "path": {
       "name": "Emulator installation path",
       "help": ""
+    },
+    "EnableRemoteSSH": {
+      "name": "Enable remote SSH management",
+      "help": "Execute specific commands (e.g., restart Docker containers) on a remote server via SSH before restarting the emulator.",
+      "True": "Enabled",
+      "False": "Disabled"
+    },
+    "RemoteSSHHost": {
+      "name": "Remote server address",
+      "help": "IP address or domain of the remote server, e.g., 192.168.1.100"
+    },
+    "RemoteSSHPort": {
+      "name": "Port number",
+      "help": "SSH service port, default 22"
+    },
+    "RemoteSSHUser": {
+      "name": "SSH username",
+      "help": "Username to login via SSH, e.g., root"
+    },
+    "RemoteSSHPublicKey": {
+      "name": "SSH private key",
+      "help": "The private key content for SSH authentication (if needed)"
+    },
+    "RemoteStartCommand": {
+      "name": "Remote start command",
+      "help": "SSH command to start the emulator/service (e.g., docker start)"
+    },
+    "RemoteStopCommand": {
+      "name": "Remote stop command",
+      "help": "SSH command to stop the emulator/service (e.g., docker stop)"
     }
   },
   "Error": {
@@ -7435,6 +7470,42 @@
     "DeepRestartAfterFailures": {
       "name": "Deep restart after N failures",
       "help": "Once the emulator has failed to restart this many times in a row, switch to a deep restart: kill every MuMu process (including background services and the VM) and start over.\nA last-resort escape hatch for weak machines where normal restarts never come up.\nNote: a deep restart also kills any other MuMu instances you are running.\n0 disables it (restart the instance only). Default 0."
+    }
+  },
+  "EmulatorManager": {
+    "_info": {
+      "name": "Emulator Manager",
+      "help": "Provides manual emulator restart entry"
+    },
+    "EnableRemoteSSH": {
+      "name": "Enable remote SSH management",
+      "help": "Execute specific commands (e.g., restart Docker containers) on a remote server via SSH before restarting the emulator.",
+      "True": "Enabled",
+      "False": "Disabled"
+    },
+    "RemoteSSHHost": {
+      "name": "Remote server address",
+      "help": "IP address or domain of remote server, e.g.: 192.168.1.100"
+    },
+    "RemoteSSHPort": {
+      "name": "Port number",
+      "help": "SSH service port, default 22"
+    },
+    "RemoteSSHUser": {
+      "name": "SSH username",
+      "help": "Username for SSH login, e.g.: root"
+    },
+    "RemoteSSHPublicKey": {
+      "name": "SSH private key",
+      "help": "Private key content for SSH login (if needed)"
+    },
+    "RemoteStartCommand": {
+      "name": "Remote start command",
+      "help": "SSH command to start the emulator/service (e.g., docker start)."
+    },
+    "RemoteStopCommand": {
+      "name": "Remote stop command",
+      "help": "SSH command to stop the emulator/service (e.g., docker stop)."
     }
   },
   "MeowfficerScore": {

@@ -102,9 +102,16 @@ class GeneratedConfig:
     Emulator_AdbRestart = False
 
     # 配置组 `EmulatorInfo`
-    EmulatorInfo_Emulator = 'auto'  # auto, NoxPlayer, NoxPlayer64, BlueStacks4, BlueStacks5, BlueStacks4HyperV, BlueStacks5HyperV, LDPlayer3, LDPlayer4, LDPlayer9, LDPlayer14, MuMuPlayer, MuMuPlayerX, MuMuPlayer12, MEmuPlayer, BlueStacksAir, MuMuPro
+    EmulatorInfo_Emulator = 'auto'  # auto, NoxPlayer, NoxPlayer64, BlueStacks4, BlueStacks5, BlueStacks4HyperV, BlueStacks5HyperV, LDPlayer3, LDPlayer4, LDPlayer9, LDPlayer14, MuMuPlayer, MuMuPlayerX, MuMuPlayer12, MEmuPlayer, BlueStacksAir, MuMuPro, SSH
     EmulatorInfo_name = None
     EmulatorInfo_path = None
+    EmulatorInfo_EnableRemoteSSH = False  # True, False
+    EmulatorInfo_RemoteSSHHost = ''
+    EmulatorInfo_RemoteSSHPort = 22
+    EmulatorInfo_RemoteSSHUser = ''
+    EmulatorInfo_RemoteSSHPublicKey = ''
+    EmulatorInfo_RemoteStartCommand = ''
+    EmulatorInfo_RemoteStopCommand = ''
 
     # 配置组 `Error`
     Error_HandleError = True
@@ -1299,6 +1306,15 @@ class GeneratedConfig:
     EmulatorManagement_ForceScheduledRestart = False
     EmulatorManagement_RestartIntervalHours = 4
     EmulatorManagement_DeepRestartAfterFailures = 0
+
+    # 配置组 `EmulatorManager`
+    EmulatorManager_EnableRemoteSSH = False  # True, False
+    EmulatorManager_RemoteSSHHost = ''
+    EmulatorManager_RemoteSSHPort = 22
+    EmulatorManager_RemoteSSHUser = ''
+    EmulatorManager_RemoteSSHPublicKey = ''
+    EmulatorManager_RemoteStartCommand = ''
+    EmulatorManager_RemoteStopCommand = ''
 
     # 配置组 `MeowfficerScore`
     MeowfficerScore_Source = 'screenshot'  # screenshot, device, scan
