@@ -17,6 +17,7 @@ from module.base.runtime_params import (
     EMULATOR_RESTART_INTERVAL_HOURS_DEFAULT,
     RESTART_EMULATOR_OP_TIMEOUT,
 )
+from module.base.ssh import clear_ssh_host_key
 from module.config.config import AzurLaneConfig, TaskEnd
 from module.config.deep import deep_get, deep_set
 from module.config.time_source import now as current_time
@@ -167,15 +168,12 @@ class AzurLaneAutoScript:
 
         logger.hr('[AzurPilot] 正在重启模拟器', level=1)
         try:
-            # 使用同一份配置完成本轮远程停止和启动，避免重载后连接旧主机。
-            operation_config = self.config
+            # 优先使用已缓存的设备对象
             device = self.__dict__.get('device', None)
-            if device is not None:
-                device.config = operation_config
-            if device is None or getattr(operation_config, 'EmulatorInfo_Emulator', '') == 'SSH':
-                # SSH 使用独立平台对象，避免其他设备调用在两次操作之间改写其配置。
+            if device is None:
+                # connect=False 避免在模拟器离线时先建立 ADB 连接。
                 from module.device.platform import Platform
-                device = Platform(operation_config, connect=False)
+                device = Platform(self.config, connect=False)
 
             # 连续失败够多次就改用深度重启（结束 MuMu 全部进程）
             deep = self._deep_restart_enabled()
@@ -186,14 +184,14 @@ class AzurLaneAutoScript:
                 )
 
             logger.info('[AzurPilot] 正在停止模拟器...')
-            stopped = self._emulator_op_with_timeout(
+            self._emulator_op_with_timeout(
                 device.emulator_stop,
                 timeout=RESTART_EMULATOR_OP_TIMEOUT,
                 operation_name='模拟器停止',
             )
             time.sleep(5)
             logger.info('[AzurPilot] 正在启动模拟器...')
-            started = self._emulator_op_with_timeout(
+            self._emulator_op_with_timeout(
                 # consecutive_adb_offline 在函数开头已 +1，减 1 得到"本次之前
                 # 已经连续失败过几次"；平台据此选取启动监视的等待时长，
                 # 连续失败越多等得越久（60 → 90 → 120 → 180 → 300 秒），
@@ -206,11 +204,6 @@ class AzurLaneAutoScript:
                 timeout=RESTART_EMULATOR_OP_TIMEOUT,
                 operation_name='模拟器启动',
             )
-            if getattr(operation_config, 'EmulatorInfo_Emulator', '') == 'SSH':
-                stop_required = bool(getattr(operation_config, 'EmulatorInfo_RemoteStopCommand', ''))
-                if not started or (stop_required and not stopped):
-                    logger.warning('[AzurPilot] 远程模拟器重启失败')
-                    return False
             logger.info('[AzurPilot] 模拟器重启完成')
 
             # 清除 device 缓存，下次访问时重新建立连接
@@ -518,7 +511,7 @@ class AzurLaneAutoScript:
             from module.device.platform import Platform
 
             platform = Platform(self.config, connect=False)
-            if not platform.emulator_available:
+            if platform.emulator_instance is None:
                 logger.warning('[AzurPilot] 未找到模拟器实例，无法在长时间等待后启动模拟器')
                 return False
 
@@ -871,9 +864,6 @@ class AzurLaneAutoScript:
         """
         from module.runtime.preview import set_task
         command = inflection.underscore(command)
-        if command == 'emulator_manager':
-            set_task('EmulatorManager')
-            return self.emulator_manager()
         self._storage_statistics_failed = False
         self._os_zone_locked_failed = False
         set_task(inflection.camelize(command))
@@ -1834,32 +1824,130 @@ class AzurLaneAutoScript:
         from module.retire.dock_scan import DockScan
         DockScan(config=self.config, device=self.device, task="DockScan").run()
 
-    def emulator_manager(self):
-        """Run the configured remote startup command without opening a device."""
-        from module.device.platform.ssh import run_ssh_command
-
-        config = self.config
-        if getattr(config, 'EmulatorInfo_EnableRemoteSSH', False) is True:
-            return run_ssh_command(
-                enabled=True,
-                host=getattr(config, 'EmulatorInfo_RemoteSSHHost', ''),
-                port=getattr(config, 'EmulatorInfo_RemoteSSHPort', 22),
-                user=getattr(config, 'EmulatorInfo_RemoteSSHUser', ''),
-                key=getattr(config, 'EmulatorInfo_RemoteSSHPublicKey', ''),
-                command=getattr(config, 'EmulatorInfo_RemoteStartCommand', ''),
-            )
-        prefix = 'EmulatorManager.EmulatorManager.'
-        get = lambda name, default='': deep_get(config.data, prefix + name, default)
-        return run_ssh_command(
-            enabled=get('EnableRemoteSSH', False), host=get('RemoteSSHHost'),
-            port=get('RemoteSSHPort', 22), user=get('RemoteSSHUser'),
-            key=get('RemoteSSHPublicKey'),
-            command=get('RemoteStartCommand') or get('RemoteCommand'),
-        )
-
     def game_manager(self):
         from module.daemon.game_manager import GameManager
         GameManager(config=self.config, device=self.device, task="GameManager").run()
+
+    def emulator_manager(self):
+        """执行模拟器管理器任务（支持通过 SSH 执行远程启动/关闭命令）。"""
+        import subprocess
+        # 优先使用 EmulatorInfo 中的 SSH 配置
+        if getattr(self.config, 'EmulatorInfo_EnableRemoteSSH', False):
+            host = getattr(self.config, 'EmulatorInfo_RemoteSSHHost', '')
+            port = getattr(self.config, 'EmulatorInfo_RemoteSSHPort', 22)
+            user = getattr(self.config, 'EmulatorInfo_RemoteSSHUser', '')
+            command = getattr(self.config, 'EmulatorInfo_RemoteStartCommand', '')
+            key = getattr(self.config, 'EmulatorInfo_RemoteSSHPublicKey', '')
+        else:
+            # 回退到 EmulatorManager 配置
+            enable = deep_get(self.config.data, 'EmulatorManager.EmulatorManager.EnableRemoteSSH', False)
+            if not enable:
+                logger.warning('[AzurPilot-SSH] 模拟器管理器设置中未启用远程SSH')
+                return
+
+            host = deep_get(self.config.data, 'EmulatorManager.EmulatorManager.RemoteSSHHost', '')
+            port = deep_get(self.config.data, 'EmulatorManager.EmulatorManager.RemoteSSHPort', 22)
+            user = deep_get(self.config.data, 'EmulatorManager.EmulatorManager.RemoteSSHUser', '')
+            command = deep_get(self.config.data, 'EmulatorManager.EmulatorManager.RemoteStartCommand', '')
+            if not command:
+                command = deep_get(self.config.data, 'EmulatorManager.EmulatorManager.RemoteCommand', '')
+            key = deep_get(self.config.data, 'EmulatorManager.EmulatorManager.RemoteSSHPublicKey', '')
+
+        if not host or not command:
+            logger.warning(f'[AzurPilot-SSH] 远程SSH主机 ({host}) 或远程启动命令 ({command}) 为空，跳过远程SSH命令')
+            return
+
+        logger.hr('远程SSH命令', level=1)
+        target = f'{user}@{host}' if user else host
+        clear_ssh_host_key(host, port)
+        # -n: 禁用标准输入  -T: 禁用伪终端分配  BatchMode: 避免密码提示导致挂起
+        cmd = [
+            'ssh', '-n', '-T', '-p', str(port),
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', f'UserKnownHostsFile={os.devnull}',
+            '-o', f'GlobalKnownHostsFile={os.devnull}',
+            '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
+        ]
+        
+        key_file = None
+        if key and len(key) > 50:
+            import tempfile
+            try:
+                fd, key_file = tempfile.mkstemp()
+                with os.fdopen(fd, 'w') as f:
+                    f.write(key.strip() + '\n')
+                
+                if os.name == 'nt':
+                    import subprocess
+                    user_env = os.environ.get('USERNAME')
+                    subprocess.run(['icacls', key_file, '/reset'], capture_output=True)
+                    subprocess.run(['icacls', key_file, '/inheritance:r'], capture_output=True)
+                    subprocess.run(['icacls', key_file, '/grant:r', f'{user_env}:F'], capture_output=True)
+                else:
+                    os.chmod(key_file, 0o600)
+
+                cmd += ['-i', key_file]
+                logger.info(f'[AzurPilot-SSH] 使用提供的私钥进行认证')
+            except Exception as e:
+                logger.error(f'[AzurPilot-SSH] 创建或保护临时密钥文件失败: {e}')
+
+        cmd += [target, command]
+        logger.info(f'[AzurPilot-SSH] 执行远程命令: {" ".join(cmd)}')
+
+        try:
+            process = subprocess.Popen(
+                cmd, 
+                stdout=subprocess.PIPE, 
+                stderr=subprocess.PIPE, 
+                text=True, 
+                bufsize=1,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+
+            # 缓存 stderr 输出，仅在失败时打印
+            stderr_content = []
+            import threading
+            
+            def collect_stderr():
+                """收集子进程的标准错误输出。"""
+                for line in process.stderr:
+                    stderr_content.append(line.strip())
+            
+            def collect_stdout():
+                """收集并输出子进程的标准输出。"""
+                for line in process.stdout:
+                    logger.info(f'[AzurPilot-SSH] 远程输出: {line.strip()}')
+
+            stderr_thread = threading.Thread(target=collect_stderr)
+            stdout_thread = threading.Thread(target=collect_stdout)
+            stderr_thread.start()
+            stdout_thread.start()
+
+            try:
+                # 主线程等待进程退出
+                process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                logger.error('[AzurPilot-SSH] 远程SSH命令超时（30秒）')
+                return
+            finally:
+                stderr_thread.join(timeout=5)
+                stdout_thread.join(timeout=5)
+
+            if process.returncode == 0:
+                logger.info('[AzurPilot-SSH] 远程命令执行成功')
+            else:
+                logger.error(f'[AzurPilot-SSH] 远程命令失败，返回码 {process.returncode}')
+                for line in stderr_content:
+                    logger.error(f'[AzurPilot-SSH] 远程错误: {line}')
+        except Exception as e:
+            logger.error(f'[AzurPilot-SSH] 执行远程SSH命令失败: {e}')
+        finally:
+            if key_file and os.path.exists(key_file):
+                try:
+                    os.remove(key_file)
+                except:
+                    pass
 
     def wait_until(self, future):
         """
@@ -2046,13 +2134,10 @@ class AzurLaneAutoScript:
                     lead = self._warmup_lead_seconds(cold)
                     return task.next_run - current_time() > timedelta(seconds=lead)
 
-                cached_device = self.__dict__.get('device')
-                if cached_device is not None:
-                    cached_device.config = self.config
                 if (
                     self.config.Optimization_CloseEmulatorDuringLongWait
                     and wait_duration > timedelta(hours=3)
-                    and 'device' in self.__dict__ and self.device.platform.emulator_available
+                    and 'device' in self.__dict__ and self.device.emulator_instance is not None  # 远程设备（无线 ADB / SSH）没有本地模拟器实例可管理，跳过关闭流程，走常规等待逻辑
                 ):
                     logger.info(
                         f'下一个任务 `{task.command}` 将在 {wait_duration} 后运行，'
@@ -2304,9 +2389,8 @@ class AzurLaneAutoScript:
                         continue
                     self.task_restart_delays.pop(task, None)
                 # 初始化设备并更改服务器
-                if task != 'EmulatorManager':
-                    _ = self.device
-                    self.device.config = self.config
+                _ = self.device
+                self.device.config = self.config
                 # 跳过第一次重启
                 runtime = self.__dict__.get('_program_runtime')
                 if self.is_first_task and task == 'Restart' and (runtime is None or runtime.mode == 'native'):
@@ -2317,9 +2401,8 @@ class AzurLaneAutoScript:
 
                 # 运行
                 logger.info(f'[AzurPilot] 调度器: 开始任务 `{task}`')
-                if task != 'EmulatorManager':
-                    self.device.stuck_record_clear()
-                    self.device.click_record_clear()
+                self.device.stuck_record_clear()
+                self.device.click_record_clear()
                 logger.hr(task, level=0)
                 # 激活运行监护：任务执行期间监测日志心跳和运行时间
                 # 防止主线程卡死在 I/O 调用中或陷入逻辑死循环

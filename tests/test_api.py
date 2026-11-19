@@ -41,42 +41,6 @@ class ConfigApiTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.configs = ConfigService(fixture(self.temp.name))
 
-    def test_ssh_legacy_command_migration_and_string_values(self):
-        from module.config.config_updater import ConfigUpdater
-
-        path = self.configs.path('testpilot')
-        data = self.configs.read_json(path)
-        fields = data['EmulatorManager']['EmulatorManager']
-        fields.update(RemoteCommand='true', RemoteStartCommand='', RemoteSSHUser='123')
-        path.write_text(json.dumps(data), encoding='utf-8')
-        for values in (self.configs.get('testpilot')['values'], ConfigUpdater().config_update(data)):
-            manager = values['EmulatorManager']['EmulatorManager']
-            self.assertEqual('true', manager['RemoteStartCommand'])
-            self.assertEqual('123', manager['RemoteSSHUser'])
-            self.assertNotIn('RemoteCommand', manager)
-        fields['RemoteStartCommand'] = 'true'
-        data['Alas']['EmulatorInfo']['RemoteStartCommand'] = '2026-01-01'
-        path.write_text(json.dumps(data), encoding='utf-8')
-        for values in (self.configs.get('testpilot')['values'], ConfigUpdater().config_update(data)):
-            self.assertEqual('true', values['EmulatorManager']['EmulatorManager']['RemoteStartCommand'])
-            self.assertEqual('2026-01-01', values['Alas']['EmulatorInfo']['RemoteStartCommand'])
-
-    def test_ssh_defaults_are_disabled_and_fields_editable(self):
-        for task, group in (('Alas', 'EmulatorInfo'), ('EmulatorManager', 'EmulatorManager')):
-            fields = self.configs.get('testpilot')['values'][task][group]
-            self.assertFalse(fields['EnableRemoteSSH'])
-            self.assertEqual(22, fields['RemoteSSHPort'])
-            for key in ('RemoteSSHHost', 'RemoteSSHUser', 'RemoteSSHPublicKey',
-                        'RemoteStartCommand', 'RemoteStopCommand'):
-                self.assertEqual('', fields[key])
-            updates = {'EnableRemoteSSH': True, 'RemoteSSHHost': 'host.example', 'RemoteSSHPort': 2222,
-                       'RemoteSSHUser': 'user', 'RemoteSSHPublicKey': 'test-key',
-                       'RemoteStartCommand': 'true', 'RemoteStopCommand': 'false'}
-            result = self.configs.patch('testpilot', None, [ConfigChange(path=f'{task}.{group}.{key}', value=value)
-                                                            for key, value in updates.items()])
-            for key, value in updates.items():
-                self.assertEqual(value, result['values'][task][group][key])
-
     def test_reserved_state_files_cannot_be_used_as_instances(self):
         for name in ('startup_memory', 'WEBUI_PREFS', 'webui-workers'):
             with self.subTest(name=name):
@@ -647,7 +611,7 @@ class SocketApiTests(unittest.TestCase):
             ):
                 with self.subTest(method=method):
                     self.assertEqual('LOCAL_ONLY', self.call(ws, method, params)['error']['code'])
-            for field in ('Emulator', 'name', 'path'):
+            for field in ('name', 'path', 'UnrecognizedField'):
                 with self.subTest(field=field):
                     result = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
                         {'path': f'Alas.EmulatorInfo.{field}', 'value': 'auto'},
@@ -667,63 +631,6 @@ class SocketApiTests(unittest.TestCase):
             result = self.call(ws, 'instances.create', {'name': 'newpilot'})
             self.assertTrue(result['ok'], result)
 
-    def test_ssh_configuration_is_local_only_across_config_responses(self):
-        from module.api.router import SSH_FIELDS, SSH_GROUPS
-        from module.runtime.process_manager import ProcessManager
-
-        path = Path(self.temp.name) / 'config/testpilot.json'
-        data = json.loads(path.read_text(encoding='utf-8'))
-        for task, group in SSH_GROUPS:
-            data[task][group].update(EnableRemoteSSH=True, RemoteSSHHost='test-host',
-                                     RemoteSSHUser='test-user', RemoteStartCommand='test-command')
-        data['EmulatorManager']['EmulatorManager']['RemoteCommand'] = 'legacy-command'
-        path.write_text(json.dumps(data), encoding='utf-8')
-
-        client = TestClient(self.app, client=('192.168.1.20', 55555))
-        with client.websocket_connect('/api/v1/ws', headers={'host': '192.168.1.10:22267'}) as ws:
-            self.login(ws)
-
-            def assert_projected(values):
-                for task, group in SSH_GROUPS:
-                    self.assertFalse(SSH_FIELDS.intersection(values[task][group]))
-
-            result = self.call(ws, 'config.get', {'instance': 'testpilot'})['result']
-            assert_projected(result['values'])
-            assert_projected(self.call(ws, 'config.export', {'instance': 'testpilot'})['result'])
-            for task, group in SSH_GROUPS:
-                for field in SSH_FIELDS:
-                    response = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
-                        {'path': f'{task}.{group}.{field}', 'value': 'denied'},
-                    ]})
-                    self.assertEqual('LOCAL_ONLY', response['error']['code'])
-            response = self.call(ws, 'tasks.run', {'instance': 'testpilot', 'task': 'EmulatorManager'})
-            self.assertEqual('LOCAL_ONLY', response['error']['code'])
-            patched = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
-                {'path': 'Main.Scheduler.Enable', 'value': True},
-            ]})
-            self.assertTrue(patched['ok'], patched)
-            assert_projected(patched['result']['values'])
-            clone = self.call(ws, 'instances.create', {'name': 'copy', 'source': 'testpilot'})
-            self.assertTrue(clone['ok'], clone)
-            assert_projected(clone['result']['values'])
-            with patch.object(ProcessManager, 'get_manager', return_value=SimpleNamespace(alive=False)):
-                reset = self.call(ws, 'fleetTraining.reset', {'instance': 'testpilot',
-                                                               'revision': patched['result']['revision']})
-            self.assertTrue(reset['ok'], reset)
-            assert_projected(reset['result']['values'])
-        saved = json.loads(path.read_text(encoding='utf-8'))
-        self.assertEqual('test-command', saved['Alas']['EmulatorInfo']['RemoteStartCommand'])
-        local = TestClient(self.app, client=('127.0.0.1', 55555))
-        with local.websocket_connect('/api/v1/ws', headers={'host': 'localhost:22267'}) as ws:
-            ws.receive_json()
-            export = self.call(ws, 'config.export', {'instance': 'copy'})['result']
-            self.assertEqual('test-command', export['Alas']['EmulatorInfo']['RemoteStartCommand'])
-            response = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
-                {'path': 'EmulatorManager.EmulatorManager.RemoteStartCommand', 'value': 'true'},
-            ]})
-            self.assertTrue(response['ok'], response)
-            self.assertEqual('true', response['result']['values']['EmulatorManager']['EmulatorManager']['RemoteStartCommand'])
-
     def test_local_program_settings_and_import_remain_available(self):
         client = TestClient(self.app, client=('127.0.0.1', 55555))
         with client.websocket_connect('/api/v1/ws', headers={'host': '127.0.0.1:22267'}) as ws:
@@ -736,6 +643,7 @@ class SocketApiTests(unittest.TestCase):
                 {'path': 'Alas.EmulatorInfo.path', 'value': '/local/emulator'},
             ]})
             self.assertTrue(result['ok'], result)
+
             for path in ('MeowfficerScore.MeowfficerScore.ReportPath',
                          'MeowfficerScore.MeowfficerScore.Folder', 'Alas.DropRecord.SaveFolder'):
                 with self.subTest(path=path):
@@ -749,6 +657,69 @@ class SocketApiTests(unittest.TestCase):
             result = self.call(ws, 'instances.create', {'name': 'imported', 'import_file': 'incoming'})
             self.assertTrue(result['ok'], result)
 
+    def test_authenticated_lan_can_manage_ssh_settings_and_run_manager(self):
+        methods = self.app.state.gateway.router.methods
+        patch_handler = Mock(return_value={'values': {'Alas': {'EmulatorInfo': {
+            'RemoteSSHHost': 'example.invalid',
+        }}}})
+        run_handler = Mock(return_value={'status': 'started'})
+        get_handler = Mock(return_value={'values': {'Alas': {'EmulatorInfo': {
+            'RemoteSSHHost': 'example.invalid',
+        }}}})
+        replacements = {
+            'config.patch': replace(methods['config.patch'], handler=patch_handler),
+            'config.get': replace(methods['config.get'], handler=get_handler),
+            'tasks.run': replace(methods['tasks.run'], handler=run_handler),
+        }
+        client = TestClient(self.app, client=('192.168.1.20', 55555))
+        with patch.dict(methods, replacements), client.websocket_connect(
+                '/api/v1/ws', headers={'host': '192.168.1.10:22267'}) as ws:
+            self.assertTrue(ws.receive_json()['data']['authRequired'])
+            self.assertEqual('UNAUTHORIZED', self.call(ws, 'tasks.run', {
+                'instance': 'testpilot', 'task': 'EmulatorManager',
+            })['error']['code'])
+            self.assertTrue(self.call(ws, 'auth.login', {'password': 'test-secret'})['ok'])
+            fields = {
+                'Emulator': 'SSH', 'EnableRemoteSSH': True, 'RemoteSSHHost': 'example.invalid',
+                'RemoteSSHPort': 22, 'RemoteSSHUser': 'user', 'RemoteSSHPublicKey': 'synthetic',
+                'RemoteStartCommand': 'start', 'RemoteStopCommand': 'stop',
+            }
+            for field, value in fields.items():
+                result = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
+                    {'path': f'Alas.EmulatorInfo.{field}', 'value': value},
+                ]})
+                self.assertTrue(result['ok'], result)
+                self.assertEqual('example.invalid', result['result']['values']['Alas']['EmulatorInfo']['RemoteSSHHost'])
+            for path, value in [('Alas.EmulatorInfo.Emulator', 'auto'),
+                                ('Alas.EmulatorInfo.EnableRemoteSSH', False),
+                                ('EmulatorManager.EmulatorManager.RemoteSSHHost', 'example.invalid')]:
+                self.assertTrue(self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
+                    {'path': path, 'value': value},
+                ]})['ok'])
+            result = self.call(ws, 'config.get', {'instance': 'testpilot'})
+            self.assertEqual('example.invalid', result['result']['values']['Alas']['EmulatorInfo']['RemoteSSHHost'])
+            self.assertTrue(self.call(ws, 'tasks.run', {
+                'instance': 'testpilot', 'task': 'EmulatorManager',
+            })['ok'])
+        run_handler.assert_called_once()
+
+    def test_lan_ssh_selector_and_settings_are_saved(self):
+        client = TestClient(self.app, client=('192.168.1.20', 55555))
+        with client.websocket_connect('/api/v1/ws', headers={'host': '192.168.1.10:22267'}) as ws:
+            self.login(ws)
+            for emulator, enabled in [('SSH', True), ('auto', False)]:
+                changes = [
+                    {'path': 'Alas.EmulatorInfo.Emulator', 'value': emulator},
+                    {'path': 'Alas.EmulatorInfo.EnableRemoteSSH', 'value': enabled},
+                    {'path': 'Alas.EmulatorInfo.RemoteSSHHost', 'value': 'example.invalid'},
+                    {'path': 'EmulatorManager.EmulatorManager.RemoteSSHHost', 'value': 'example.invalid'},
+                ]
+                result = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': changes})
+                self.assertTrue(result['ok'], result)
+                info = result['result']['values']['Alas']['EmulatorInfo']
+                self.assertEqual((emulator, enabled), (info['Emulator'], info['EnableRemoteSSH']))
+                self.assertEqual('example.invalid', info['RemoteSSHHost'])
+                self.assertEqual('example.invalid', result['result']['values']['EmulatorManager']['EmulatorManager']['RemoteSSHHost'])
     def test_forwarded_loopback_cannot_change_host_program_settings(self):
         client = TestClient(self.app, client=('127.0.0.1', 55555))
         with client.websocket_connect('/api/v1/ws', headers={'host': '127.0.0.1:22267',
@@ -758,12 +729,6 @@ class SocketApiTests(unittest.TestCase):
             self.assertTrue(self.call(ws, 'auth.login', {'password': 'test-secret'})['ok'])
             result = self.call(ws, 'settings.patch', {'values': {'AdbExecutable': '/local/adb'}})
             self.assertEqual('LOCAL_ONLY', result['error']['code'])
-            result = self.call(ws, 'config.patch', {'instance': 'testpilot', 'changes': [
-                {'path': 'EmulatorManager.EmulatorManager.RemoteStartCommand', 'value': 'test-command'},
-            ]})
-            self.assertEqual('LOCAL_ONLY', result['error']['code'])
-            values = self.call(ws, 'config.get', {'instance': 'testpilot'})['result']['values']
-            self.assertNotIn('RemoteStartCommand', values['EmulatorManager']['EmulatorManager'])
 
     def test_tunnel_forwarded_request_keeps_password(self):
         """远程访问隧道同样来自回环地址，靠标记头避免被当成免密的本机直连。"""

@@ -7,7 +7,6 @@ import copy
 import hashlib
 import json
 import math
-import os
 import re
 import threading
 from datetime import datetime
@@ -209,7 +208,8 @@ class ConfigService:
         path = self.import_directory / f'{name}.json'
         if path.is_symlink() or path.resolve().parent != self.import_directory.resolve():
             raise ApiError('INVALID_PARAMS', '导入路径无效')
-        atomic_write(str(path), json.dumps(data, ensure_ascii=False, indent=2), private=True)
+        with path.open('w', encoding='utf-8') as file:
+            json.dump(data, file, ensure_ascii=False, indent=2)
         return {'name': name}
 
     def is_instance(self, path):
@@ -287,11 +287,6 @@ class ConfigService:
                 for group, fields in groups.items():
                     if isinstance(fields, dict):
                         merged.setdefault(task, {}).setdefault(group, {}).update(fields)
-                        if task == group == 'EmulatorManager':
-                            legacy = fields.get('RemoteCommand')
-                            if not fields.get('RemoteStartCommand') and isinstance(legacy, str) and legacy:
-                                merged[task][group]['RemoteStartCommand'] = legacy
-                            merged[task][group].pop('RemoteCommand', None)
                         # 新名称出现前，WebUI 也要显示旧航母开关的实际值。
                         if task == 'General' and group == 'Enhance':
                             legacy = fields.get('SkipSingleCommonCV')
@@ -422,8 +417,7 @@ class ConfigService:
             path = self.path(name, exists=False)
             # 排他创建避免不同会话覆盖已有配置。
             try:
-                with open(path, 'x', encoding='utf-8',
-                          opener=lambda file, flags: os.open(file, flags, 0o600)) as file:
+                with path.open('x', encoding='utf-8') as file:
                     json.dump(data, file, ensure_ascii=False, indent=2)
             except FileExistsError as exc:
                 raise ApiError('ALREADY_EXISTS', '同名实例已存在') from exc
@@ -621,7 +615,7 @@ class ConfigService:
                 return {'instance': name, 'revision': current, 'values': data,
                         'options': {f'{task}.Campaign.Event': candidates
                                     for task, candidates in campaign_event_options(data, self.args).items()}}
-            atomic_write(str(self.path(name)), json.dumps(data, ensure_ascii=False, indent=2), private=True)
+            atomic_write(str(self.path(name)), json.dumps(data, ensure_ascii=False, indent=2))
             return self.get(name)
 
     def reset_fleet_training(self, name, revision):
@@ -636,7 +630,7 @@ class ConfigService:
             fleet.setdefault('FleetEquipment', {})['State'] = {}
             fleet.setdefault('FleetInfo', {}).update(Result={}, Record='2020-01-01 00:00:00')
             fleet['FleetTraining']['FullScanRecord'] = '2020-01-01 00:00:00'
-            atomic_write(str(self.path(name)), json.dumps(data, ensure_ascii=False, indent=2), private=True)
+            atomic_write(str(self.path(name)), json.dumps(data, ensure_ascii=False, indent=2))
             return self.get(name)
 
     @staticmethod
@@ -690,7 +684,8 @@ class ConfigService:
             backup = self.directory / 'backup'
             backup.mkdir(exist_ok=True)
             target = backup / f'{name}-{datetime.now():%Y%m%d-%H%M%S-%f}.json'
-            atomic_write(str(target), self.path(name).read_bytes(), private=True)
+            import shutil
+            shutil.copy2(self.path(name), target)
             from module.runtime.fleet_database import FleetDatabase
             path = self.path(name)
             database = FleetDatabase(path)

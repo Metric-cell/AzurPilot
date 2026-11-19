@@ -278,8 +278,6 @@ def file_write_stream(file: str, data_generator):
 def atomic_write(
         file: str,
         data: Union[str, bytes],
-        *,
-        private: bool = False,
 ):
     """原子写入文件，先写临时文件再替换。
 
@@ -289,31 +287,9 @@ def atomic_write(
     Args:
         file: 目标文件路径。
         data: 要写入的数据（str 或 bytes）。
-        private: 创建仅限当前用户访问的文件（Windows 由目录 ACL 控制）。
     """
     temp = to_tmp_file(file)
-    if private:
-        # Create with restricted permissions before writing any bytes. O_EXCL also
-        # prevents an existing temporary file or symlink from being reused.
-        directory = os.path.dirname(file)
-        if directory:
-            os.makedirs(directory, exist_ok=True)
-        fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-        try:
-            mode = 'w' if isinstance(data, str) else 'wb'
-            with os.fdopen(fd, mode, encoding='utf-8' if mode == 'w' else None,
-                           newline='' if mode == 'w' else None) as f:
-                f.write(data)
-                f.flush()
-                os.fsync(f.fileno())
-        except BaseException:
-            try:
-                os.unlink(temp)
-            except FileNotFoundError:
-                pass
-            raise
-    else:
-        file_write(temp, data)
+    file_write(temp, data)
     replace_tmp(temp, file)
 
 

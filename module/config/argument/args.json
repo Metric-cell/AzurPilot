@@ -431,8 +431,7 @@
       },
       "RemoteSSHHost": {
         "type": "input",
-        "value": "",
-        "preserve_string": true
+        "value": null
       },
       "RemoteSSHPort": {
         "type": "input",
@@ -440,23 +439,19 @@
       },
       "RemoteSSHUser": {
         "type": "input",
-        "value": "",
-        "preserve_string": true
+        "value": "root"
       },
       "RemoteSSHPublicKey": {
         "type": "textarea",
-        "value": "",
-        "preserve_string": true
+        "value": null
       },
       "RemoteStartCommand": {
         "type": "textarea",
-        "value": "",
-        "preserve_string": true
+        "value": ""
       },
       "RemoteStopCommand": {
         "type": "textarea",
-        "value": "",
-        "preserve_string": true
+        "value": ""
       }
     },
     "Error": {
@@ -21662,8 +21657,7 @@
       },
       "RemoteSSHHost": {
         "type": "input",
-        "value": "",
-        "preserve_string": true
+        "value": ""
       },
       "RemoteSSHPort": {
         "type": "input",
@@ -21671,23 +21665,19 @@
       },
       "RemoteSSHUser": {
         "type": "input",
-        "value": "",
-        "preserve_string": true
+        "value": ""
       },
       "RemoteSSHPublicKey": {
         "type": "textarea",
-        "value": "",
-        "preserve_string": true
+        "value": ""
       },
       "RemoteStartCommand": {
-        "type": "textarea",
-        "value": "",
-        "preserve_string": true
+        "type": "input",
+        "value": ""
       },
       "RemoteStopCommand": {
-        "type": "textarea",
-        "value": "",
-        "preserve_string": true
+        "type": "input",
+        "value": ""
       }
     },
     "Storage": {

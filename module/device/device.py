@@ -97,7 +97,7 @@ class Device(Screenshot, Control, AppControl, Input):
                     # 有限启动尝试耗尽不代表配置错误，保留离线异常供上层决定。
                     raise
                 # 尝试启动模拟器
-                if self.platform.emulator_available:
+                if self.emulator_instance is not None:
                     try:
                         # 传 trial 让等待时间随重试次数逐级放宽（60 → 90 → …），
                         # 与调度器侧的 _try_restart_emulator 同一套阶梯
@@ -188,8 +188,6 @@ class Device(Screenshot, Control, AppControl, Input):
             # 调用 emulator_start()；真正的 ADB 连接在 Device 初始化完成后
             # 由 Connection 完成。
             self._platform = Platform(self.config, connect=False)
-        else:
-            self._platform.config = self.config
         return self._platform
 
     @property

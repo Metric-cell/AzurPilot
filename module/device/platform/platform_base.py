@@ -3,16 +3,15 @@
 
 import os
 import sys
-import re
-import time
 import typing as t
+import subprocess
 
 from pydantic import BaseModel
 
 from module.base.decorator import cached_property, del_cached_property
+from module.base.ssh import clear_ssh_host_key
 from module.device.connection import Connection
 from module.device.method.utils import get_serial_pair
-from module.device.platform.ssh import run_emulator_ssh, ssh_enabled
 from module.device.platform.emulator_base import EmulatorInstanceBase, EmulatorManagerBase, remove_duplicated_path
 from module.logger import logger
 from module.map.map_grids import SelectedGrids
@@ -77,44 +76,6 @@ class PlatformBase(Connection, EmulatorManagerBase):
             from module.device.connection_attr import ConnectionAttr
             ConnectionAttr.__init__(self, config)
 
-    @property
-    def emulator_available(self):
-        if getattr(self.config, 'EmulatorInfo_Emulator', '') == 'SSH':
-            return ssh_enabled(self.config)
-        return self.emulator_instance is not None
-
-    def _ssh_start_watch(self, timeout=60):
-        """Wait for an explicitly configured network ADB device after SSH start."""
-        serial = getattr(self.config, 'Emulator_Serial', '')
-        if not isinstance(serial, str):
-            return True
-        serial = self.revise_serial(serial)
-        match = re.fullmatch(r'(?:[A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\]):([0-9]{1,5})', serial)
-        if not match or not 1 <= int(match.group(1)) <= 65535:
-            logger.info('[设备-SSH] 未指定网络 ADB 序列号，跳过启动监视')
-            return True
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                break
-            try:
-                self.adb_client.connect(serial, timeout=min(3, remaining))
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    break
-                output = self.adb_client.device(serial=serial).shell(
-                    ['echo', 'azurpilot-ready'], timeout=min(3, remaining))
-                if output.strip() == 'azurpilot-ready':
-                    return True
-            except Exception:
-                pass
-            remaining = deadline - time.monotonic()
-            if remaining > 0:
-                time.sleep(min(1, remaining))
-        logger.warning('[设备-SSH] 等待远程模拟器 ADB 就绪超时')
-        return False
-
     def emulator_start(self, deep=False, failures=0):
         """
         启动模拟器，直到启动完成。
@@ -130,17 +91,138 @@ class PlatformBase(Connection, EmulatorManagerBase):
         """
         emulator = getattr(self.config, 'EmulatorInfo_Emulator', '')
         if emulator == 'SSH':
-            if not run_emulator_ssh(self.config, getattr(self.config, 'EmulatorInfo_RemoteStartCommand', '')):
-                return False
-            return self._ssh_start_watch()
-        logger.info(f'[设备-平台] 当前平台 {sys.platform} 不支持启动模拟器 ({emulator})，跳过')
+            self.run_remote_ssh_command(
+                getattr(self.config, 'EmulatorInfo_RemoteStartCommand', '')
+            )
+        else:
+            logger.info(f'[设备-平台] 当前平台 {sys.platform} 不支持启动模拟器 ({emulator})，跳过')
 
     def emulator_stop(self):
-        """停止模拟器。"""
+        """
+        停止模拟器。
+        """
         emulator = getattr(self.config, 'EmulatorInfo_Emulator', '')
         if emulator == 'SSH':
-            return run_emulator_ssh(self.config, getattr(self.config, 'EmulatorInfo_RemoteStopCommand', ''))
-        logger.info(f'[设备-平台] 当前平台 {sys.platform} 不支持停止模拟器 ({emulator})，跳过')
+            self.run_remote_ssh_command(
+                getattr(self.config, 'EmulatorInfo_RemoteStopCommand', '')
+            )
+        else:
+            logger.info(f'[设备-平台] 当前平台 {sys.platform} 不支持停止模拟器 ({emulator})，跳过')
+
+    def run_remote_ssh_command(self, command=None):
+        """
+        通过远程 SSH 执行命令。
+
+        Args:
+            command: 要执行的远程命令
+        """
+        if not getattr(self.config, 'EmulatorInfo_EnableRemoteSSH', False):
+            logger.info('[设备-SSH] 远程SSH未启用 (EnableRemoteSSH=False)，跳过')
+            return
+
+        host = self.config.EmulatorInfo_RemoteSSHHost
+        port = self.config.EmulatorInfo_RemoteSSHPort
+        user = self.config.EmulatorInfo_RemoteSSHUser
+        key = getattr(self.config, 'EmulatorInfo_RemoteSSHPublicKey', '')
+
+        if not command:
+            logger.warning('[设备-SSH] 未提供SSH命令，跳过')
+            return
+
+        if not host:
+            logger.warning(f'[设备-SSH] RemoteSSHHost为空，跳过远程SSH命令: {command}')
+            return
+
+        logger.hr('远程SSH命令', level=1)
+        target = f'{user}@{host}' if user else host
+        clear_ssh_host_key(host, port)
+        # -n: 将 stdin 重定向到 /dev/null
+        # -T: 禁用伪终端分配
+        # BatchMode: 避免在密码提示时挂起
+        cmd = [
+            'ssh', '-n', '-T', '-p', str(port),
+            '-o', 'StrictHostKeyChecking=no',
+            '-o', f'UserKnownHostsFile={os.devnull}',
+            '-o', f'GlobalKnownHostsFile={os.devnull}',
+            '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=10',
+        ]
+
+        key_file = None
+        if key and len(key) > 50:
+            import tempfile
+            try:
+                fd, key_file = tempfile.mkstemp()
+                with os.fdopen(fd, 'w') as f:
+                    f.write(key.strip() + '\n')
+
+                if os.name == 'nt':
+                    user_env = os.environ.get('USERNAME')
+                    subprocess.run(['icacls', key_file, '/reset'], capture_output=True)
+                    subprocess.run(['icacls', key_file, '/inheritance:r'], capture_output=True)
+                    subprocess.run(['icacls', key_file, '/grant:r', f'{user_env}:F'], capture_output=True)
+                else:
+                    os.chmod(key_file, 0o600)
+
+                cmd += ['-i', key_file]
+                logger.info(f'[设备-SSH] 使用提供的私钥进行认证')
+            except Exception as e:
+                logger.error(f'[设备-SSH] 创建或保护临时密钥文件失败: {e}')
+
+        cmd += [target, command]
+        logger.info(f'[设备-SSH] 执行远程命令: {" ".join(cmd)}')
+
+        try:
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
+
+            # 缓存 stderr 输出，仅在失败时显示
+            stderr_content = []
+
+            import threading
+
+            def collect_stderr():
+                for line in process.stderr:
+                    stderr_content.append(line.strip())
+
+            def collect_stdout():
+                for line in process.stdout:
+                    logger.info(f'[设备-SSH] 远程输出: {line.strip()}')
+
+            stderr_thread = threading.Thread(target=collect_stderr)
+            stdout_thread = threading.Thread(target=collect_stdout)
+            stderr_thread.start()
+            stdout_thread.start()
+
+            try:
+                # 主线程等待进程退出
+                process.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                logger.error('[设备-SSH] 远程SSH命令30秒超时')
+            finally:
+                stderr_thread.join(timeout=5)
+                stdout_thread.join(timeout=5)
+
+            if process.returncode == 0:
+                logger.info('[设备-SSH] 远程命令执行成功')
+            else:
+                logger.error(f'[设备-SSH] 远程命令失败，返回码 {process.returncode}')
+                for line in stderr_content:
+                    logger.error(f'[设备-SSH] 远程错误: {line}')
+        except Exception as e:
+            logger.error(f'[设备-SSH] 执行远程SSH命令失败: {e}')
+        finally:
+            if key_file and os.path.exists(key_file):
+                try:
+                    os.remove(key_file)
+                except Exception as e:
+                    logger.error(f'[设备-SSH] 移除临时密钥文件失败: {e}')
 
     @cached_property
     def emulator_info(self) -> EmulatorInfo:
@@ -235,6 +317,18 @@ class PlatformBase(Connection, EmulatorManagerBase):
             EmulatorInstanceBase: 模拟器实例，未找到则返回 None
         """
         logger.hr('查找模拟器实例', level=2)
+        if emulator == 'SSH':
+            instance = EmulatorInstanceBase(
+                serial=serial,
+                name=name or '',
+                path=path or '',
+            )
+            # 为 SSH 实例临时修改 type 属性
+            instance.__dict__['type'] = 'SSH'
+            logger.hr('模拟器实例', level=2)
+            logger.info(f'[设备-平台] 找到模拟器实例 (SSH): {instance}')
+            return instance
+
         instances = SelectedGrids(self.all_emulator_instances)
         for instance in instances:
             logger.info(instance)

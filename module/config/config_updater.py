@@ -813,13 +813,6 @@ class ConfigUpdater:
             value = parse_value(value, data=data)
             deep_set(new, keys=keys, value=value)
 
-        # Older EmulatorManager configurations used RemoteCommand for startup.
-        if not is_template:
-            command = deep_get(old, 'EmulatorManager.EmulatorManager.RemoteStartCommand')
-            legacy = deep_get(old, 'EmulatorManager.EmulatorManager.RemoteCommand')
-            if not command and isinstance(legacy, str) and legacy:
-                deep_set(new, 'EmulatorManager.EmulatorManager.RemoteStartCommand', legacy)
-
         # 更新到最新活动
         refresh_campaign_events(new, self.args, is_template=is_template)
 

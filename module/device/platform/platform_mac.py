@@ -24,7 +24,7 @@ class PlatformMac(PlatformBase, EmulatorManagerMac):
     """macOS 平台模拟器生命周期与控制管理器。
 
     继承 PlatformBase 和 EmulatorManagerMac，提供 macOS 平台上
-    BlueStacks Air 和 MuMu Pro的启动、停止、优先级提升与健康监视。
+    BlueStacks Air、MuMu Pro 及 SSH 远程模拟器的启动、停止、优先级提升与健康监视。
     """
 
     @classmethod
@@ -188,6 +188,8 @@ class PlatformMac(PlatformBase, EmulatorManagerMac):
             else:
                 raise Exception('MuMu Pro app not found')
 
+        elif instance.type == 'SSH':
+            self.run_remote_ssh_command(getattr(self.config, 'EmulatorInfo_RemoteStartCommand', ''))
 
         else:
             # 通用回退: 尝试通过路径打开
@@ -225,6 +227,8 @@ class PlatformMac(PlatformBase, EmulatorManagerMac):
             # 仅终止特定的 MuMu 模拟器进程（如果仍在运行）
             # 实例名称可用于定位特定实例的进程
 
+        elif instance.type == 'SSH':
+            self.run_remote_ssh_command(getattr(self.config, 'EmulatorInfo_RemoteStopCommand', ''))
 
         else:
             # 通用回退: 按实例名称终止进程
@@ -336,9 +340,6 @@ class PlatformMac(PlatformBase, EmulatorManagerMac):
         Returns:
             bool: 启动成功返回 True，失败返回 False。
         """
-        if getattr(self.config, 'EmulatorInfo_Emulator', '') == 'SSH':
-            return super().emulator_start()
-
         logger.hr('[设备-模拟器Mac] 模拟器启动', level=1)
         for _ in range(3):
             # 先停止
@@ -372,9 +373,6 @@ class PlatformMac(PlatformBase, EmulatorManagerMac):
         Returns:
             bool: 停止成功返回 True，失败返回 False。
         """
-        if getattr(self.config, 'EmulatorInfo_Emulator', '') == 'SSH':
-            return super().emulator_stop()
-
         logger.hr('[设备-模拟器Mac] 模拟器停止', level=1)
         for _ in range(3):
             # 停止

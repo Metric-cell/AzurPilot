@@ -84,12 +84,12 @@
       "name": null,
       "path": null,
       "EnableRemoteSSH": false,
-      "RemoteSSHHost": "",
+      "RemoteSSHHost": null,
       "RemoteSSHPort": 22,
-      "RemoteSSHUser": "",
-      "RemoteSSHPublicKey": "",
-      "RemoteStartCommand": "",
-      "RemoteStopCommand": ""
+      "RemoteSSHUser": "root",
+      "RemoteSSHPublicKey": null,
+      "RemoteStartCommand": null,
+      "RemoteStopCommand": null
     },
     "Error": {
       "HandleError": true,
@@ -4066,12 +4066,12 @@
   "EmulatorManager": {
     "EmulatorManager": {
       "EnableRemoteSSH": false,
-      "RemoteSSHHost": "",
+      "RemoteSSHHost": null,
       "RemoteSSHPort": 22,
-      "RemoteSSHUser": "",
-      "RemoteSSHPublicKey": "",
-      "RemoteStartCommand": "",
-      "RemoteStopCommand": ""
+      "RemoteSSHUser": null,
+      "RemoteSSHPublicKey": null,
+      "RemoteStartCommand": null,
+      "RemoteStopCommand": null
     },
     "Storage": {
       "Storage": {}

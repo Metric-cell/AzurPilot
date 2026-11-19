@@ -170,25 +170,20 @@ EmulatorInfo:
     value: false
     option: [true, false]
   RemoteSSHHost:
-    value: ""
-    preserve_string: true
+    value: 
   RemoteSSHPort:
     value: 22
   RemoteSSHUser:
-    value: ""
-    preserve_string: true
+    value: root
   RemoteSSHPublicKey:
     type: textarea
-    value: ""
-    preserve_string: true
+    value: null
   RemoteStartCommand:
     type: textarea
     value: ""
-    preserve_string: true
   RemoteStopCommand:
     type: textarea
     value: ""
-    preserve_string: true
 Error:
   HandleError: true
   SaveError: true
@@ -2783,24 +2778,17 @@ EmulatorManager:
     option: [true, false]
   RemoteSSHHost:
     value: ""
-    preserve_string: true
   RemoteSSHPort:
     value: 22
   RemoteSSHUser:
     value: ""
-    preserve_string: true
   RemoteSSHPublicKey:
     type: textarea
     value: ""
-    preserve_string: true
   RemoteStartCommand:
-    type: textarea
     value: ""
-    preserve_string: true
   RemoteStopCommand:
-    type: textarea
     value: ""
-    preserve_string: true
 MeowfficerScore:
   Source:
     value: screenshot

@@ -54,7 +54,7 @@ def _close_emulator(config) -> bool:
     from module.device.platform import Platform
 
     platform = Platform(config, connect=False)
-    if not platform.emulator_available:
+    if platform.emulator_instance is None:
         logger.warning("[WebUI-停止收尾] 未找到可管理的模拟器实例，跳过关闭模拟器")
         return False
 

@@ -357,7 +357,7 @@ class GameDataProtector:
                                                'predecessor': predecessors[-1] if predecessors else None,
                                                'baseline': baseline, 'legacyStatsName': instance if baseline else None}
                 content[INSTANCE_FIELD] = identity
-                atomic_write(str(path), json.dumps(content, ensure_ascii=False, indent=2), private=True)
+                atomic_write(str(path), json.dumps(content, ensure_ascii=False, indent=2))
                 return identity
 
     def retire(self, instance):

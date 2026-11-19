@@ -106,12 +106,12 @@ class GeneratedConfig:
     EmulatorInfo_name = None
     EmulatorInfo_path = None
     EmulatorInfo_EnableRemoteSSH = False  # True, False
-    EmulatorInfo_RemoteSSHHost = ''
+    EmulatorInfo_RemoteSSHHost = None
     EmulatorInfo_RemoteSSHPort = 22
-    EmulatorInfo_RemoteSSHUser = ''
-    EmulatorInfo_RemoteSSHPublicKey = ''
-    EmulatorInfo_RemoteStartCommand = ''
-    EmulatorInfo_RemoteStopCommand = ''
+    EmulatorInfo_RemoteSSHUser = 'root'
+    EmulatorInfo_RemoteSSHPublicKey = None
+    EmulatorInfo_RemoteStartCommand = None
+    EmulatorInfo_RemoteStopCommand = None
 
     # 配置组 `Error`
     Error_HandleError = True
@@ -1309,12 +1309,12 @@ class GeneratedConfig:
 
     # 配置组 `EmulatorManager`
     EmulatorManager_EnableRemoteSSH = False  # True, False
-    EmulatorManager_RemoteSSHHost = ''
+    EmulatorManager_RemoteSSHHost = None
     EmulatorManager_RemoteSSHPort = 22
-    EmulatorManager_RemoteSSHUser = ''
-    EmulatorManager_RemoteSSHPublicKey = ''
-    EmulatorManager_RemoteStartCommand = ''
-    EmulatorManager_RemoteStopCommand = ''
+    EmulatorManager_RemoteSSHUser = None
+    EmulatorManager_RemoteSSHPublicKey = None
+    EmulatorManager_RemoteStartCommand = None
+    EmulatorManager_RemoteStopCommand = None
 
     # 配置组 `MeowfficerScore`
     MeowfficerScore_Source = 'screenshot'  # screenshot, device, scan

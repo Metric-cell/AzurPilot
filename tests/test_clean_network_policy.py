@@ -32,7 +32,6 @@ REMOVED_NETWORK_MODULES = (
     "module/runtime/update_network.py",
     "module/api/plugin_service.py",
     "module/api/plugin_manifest.py",
-    "module/base/ssh.py",
     "module/ocr/rpc.py",
     "frontend/plugin-sdk",
     "frontend/src/plugins",

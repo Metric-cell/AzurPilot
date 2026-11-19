@@ -87,7 +87,7 @@ class TestDeviceInitializationRecovery(unittest.TestCase):
         offline = EmulatorNotRunningError('设备仍离线')
         with (
             patch('module.device.connection.Connection.__init__', side_effect=offline) as connect,
-            patch.object(Device, 'platform', new_callable=PropertyMock, return_value=Mock(emulator_available=True)),
+            patch.object(Device, 'emulator_instance', new_callable=PropertyMock, return_value=Mock()),
             patch.object(Device, 'emulator_start') as start,
         ):
             with self.assertRaises(EmulatorNotRunningError) as caught:
@@ -115,7 +115,7 @@ class TestDeviceInitializationRecovery(unittest.TestCase):
     def test_missing_managed_instance_still_requests_takeover_for_auto_start(self):
         with (
             patch('module.device.connection.Connection.__init__', side_effect=EmulatorNotRunningError),
-            patch.object(Device, 'platform', new_callable=PropertyMock, return_value=Mock(emulator_available=False)),
+            patch.object(Device, 'emulator_instance', new_callable=PropertyMock, return_value=None),
             patch.object(Device, 'emulator_start') as start,
         ):
             with self.assertRaises(RequestHumanTakeover):

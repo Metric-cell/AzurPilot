@@ -84,7 +84,6 @@ class TestSchedulerStopAction(unittest.TestCase):
         config = Mock()
         platform = Mock()
         platform.emulator_instance = None
-        platform.emulator_available = False
 
         with patch('module.device.platform.Platform', return_value=platform):
             self.assertFalse(execute_stop_action(config, 'close_emulator'))
@@ -95,7 +94,6 @@ class TestSchedulerStopAction(unittest.TestCase):
         config = Mock()
         platform = Mock()
         platform.emulator_instance = Mock()
-        platform.emulator_available = True
         platform.emulator_stop.return_value = True
 
         with patch('module.device.platform.Platform', return_value=platform) as cls:

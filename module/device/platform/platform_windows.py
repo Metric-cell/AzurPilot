@@ -414,6 +414,9 @@ class PlatformWindows(PlatformBase, EmulatorManager):
         elif instance == Emulator.MEmuPlayer:
             # MEmu.exe MEmu_0
             self.execute(f'"{exe}" {instance.name}')
+        elif instance.type == 'SSH':
+            logger.info('[设备-Windows] 通过远程命令启动SSH模拟器')
+            self.run_remote_ssh_command(getattr(self.config, 'EmulatorInfo_RemoteStartCommand', ''))
         else:
             raise EmulatorUnknown(f'Cannot start an unknown emulator instance: {instance}')
 
@@ -485,6 +488,9 @@ class PlatformWindows(PlatformBase, EmulatorManager):
         elif instance == Emulator.MEmuPlayer:
             # F:\Program Files\Microvirt\MEmu\memuc.exe stop -n MEmu_0
             self.execute(f'"{Emulator.single_to_console(exe)}" stop -n {instance.name}')
+        elif instance.type == 'SSH':
+            logger.info('[设备-Windows] 通过远程命令停止SSH模拟器')
+            self.run_remote_ssh_command(getattr(self.config, 'EmulatorInfo_RemoteStopCommand', ''))
         else:
             raise EmulatorUnknown(f'Cannot stop an unknown emulator instance: {instance}')
 
@@ -946,9 +952,6 @@ class PlatformWindows(PlatformBase, EmulatorManager):
         Returns:
             bool: True 表示模拟器已上线。
         """
-        if getattr(self.config, 'EmulatorInfo_Emulator', '') == 'SSH':
-            return super().emulator_start()
-
         logger.hr('模拟器启动', level=1)
 
         watch_timeout = EMULATOR_START_WATCH_TIMEOUTS[
@@ -1001,9 +1004,6 @@ class PlatformWindows(PlatformBase, EmulatorManager):
 
         同样持有模拟器启停锁：不做"别人正在启动、我顺手关掉"的事。
         """
-        if getattr(self.config, 'EmulatorInfo_Emulator', '') == 'SSH':
-            return super().emulator_stop()
-
         logger.hr('模拟器停止', level=1)
         for _ in range(3):
             # 停止
